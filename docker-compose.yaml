@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  # 1. The Database
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: wos
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    networks:
+      - wos-net
+
+  # 2. Redis Cache
+  redis:
+    image: redis:alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - wos-net
+
+  # 3. Go Backend
+  backend:
+    build: .
+    container_name: backend
+    depends_on:
+      - mysql
+      - redis
+    ports:
+      - "8080:8080"
+    environment:
+      Database__Host: "mysql:3306"
+      Database__Password: "rootpassword"
+      Redis__Host: "redis:6379"
+    networks:
+      - wos-net
+
+  # 4. React Frontend
+  frontend:
+    build: ./dashboard
+    container_name: frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+    networks:
+      - wos-net
+
+volumes:
+  mysql_data:
+
+networks:
+  wos-net:
+    driver: bridge
