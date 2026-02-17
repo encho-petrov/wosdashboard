@@ -121,6 +121,18 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int) 
 
 			c.JSON(200, profile)
 		})
+
+		playerGroup.GET("/dashboard", func(c *gin.Context) {
+			fidStr := c.GetString("username")
+			fid, _ := strconv.ParseInt(fidStr, 10, 64)
+
+			data, err := store.GetPlayerDashboardData(fid)
+			if err != nil {
+				c.JSON(500, gin.H{"error": "Failed to load dashboard"})
+				return
+			}
+			c.JSON(200, data)
+		})
 	}
 
 	authorized := r.Group("/api/moderator")
@@ -340,6 +352,82 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int) 
 				return
 			}
 			c.JSON(200, gin.H{"message": "Troops deployed successfully"})
+		})
+
+		authorized.POST("/war-room/lock", func(c *gin.Context) {
+			var input struct {
+				AllianceID int  `json:"allianceId"`
+				IsLocked   bool `json:"isLocked"`
+			}
+			if err := c.ShouldBindJSON(&input); err != nil {
+				c.JSON(400, gin.H{"error": err.Error()})
+				return
+			}
+			err := store.ToggleAllianceLock(input.AllianceID, input.IsLocked)
+			if err != nil {
+				c.JSON(500, gin.H{"error": "Failed to toggle lock"})
+				return
+			}
+			c.JSON(200, gin.H{"message": "Lock updated"})
+		})
+
+		authorized.POST("/war-room/reset", func(c *gin.Context) {
+			// Extra Security: Check if user is Admin
+			if c.GetString("role") != "admin" {
+				c.JSON(403, gin.H{"error": "Only Admins can reset the event"})
+				return
+			}
+
+			if err := store.ResetEvent(); err != nil {
+				c.JSON(500, gin.H{"error": "Reset failed"})
+				return
+			}
+			c.JSON(200, gin.H{"message": "Event reset! All troops returned to reserve."})
+		})
+
+		authorized.GET("/squads/:allianceId", func(c *gin.Context) {
+			aid, _ := strconv.Atoi(c.Param("allianceId"))
+			squads, err := store.GetSquads(aid)
+			if err != nil {
+				c.JSON(500, gin.H{"error": "Failed to load squads"})
+				return
+			}
+			c.JSON(200, squads)
+		})
+
+		authorized.POST("/squads/promote", func(c *gin.Context) {
+			var input struct {
+				FID        int64 `json:"fid"`
+				AllianceID int   `json:"allianceId"`
+			}
+			if err := c.ShouldBindJSON(&input); err != nil {
+				return
+			}
+			store.PromoteCaptain(input.FID, input.AllianceID)
+			c.JSON(200, gin.H{"message": "Squad created"})
+		})
+
+		authorized.POST("/squads/demote", func(c *gin.Context) {
+			var input struct {
+				TeamID int `json:"teamId"`
+			}
+			if err := c.ShouldBindJSON(&input); err != nil {
+				return
+			}
+			store.DemoteCaptain(input.TeamID)
+			c.JSON(200, gin.H{"message": "Squad disbanded"})
+		})
+
+		authorized.POST("/squads/assign", func(c *gin.Context) {
+			var input struct {
+				FID    int64 `json:"fid"`
+				TeamID *int  `json:"teamId"` // Null = Unassign
+			}
+			if err := c.ShouldBindJSON(&input); err != nil {
+				return
+			}
+			store.AssignToSquad(input.FID, input.TeamID)
+			c.JSON(200, gin.H{"message": "Player moved"})
 		})
 
 		authorized.GET("/players", func(c *gin.Context) {

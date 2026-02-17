@@ -5,17 +5,15 @@ import 'react-toastify/dist/ReactToastify.css';
 
 // Pages
 import Login from './pages/Login';
-import Dashboard from './pages/Dashboard'; // Staff Dashboard
-import PlayerDashboard from './pages/PlayerDashboard'; // NEW Player Dashboard
+import Dashboard from './pages/Dashboard';
+import PlayerDashboard from './pages/PlayerDashboard';
 import Users from './pages/Users';
 import Roster from './pages/Roster';
 import WarRoom from './pages/WarRoom';
+import Squads from './pages/Squads'; // Ensure this is imported!
 
-// Smart Home Component
 const Home = () => {
   const { user } = useAuth();
-  
-  // Decide which dashboard to show
   if (user?.role === 'player') {
     return <PlayerDashboard />;
   }
@@ -26,54 +24,58 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
   if (loading) return null;
   if (!user) return <Navigate to="/login" />;
-  
-  // Optional: Add role check if needed
+
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/" />; // Redirect to their home
+    return <Navigate to="/" />;
   }
-  
   return children;
 };
 
 function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <Routes>
-          <Route path="/war-room" element={<ProtectedRoute><WarRoom /></ProtectedRoute>} />
-		<Route 
-		  path="/roster" 
-		  element={
-		    <ProtectedRoute>
-		      <Roster />
-		    </ProtectedRoute>
-		  } 
-		/>
-          <Route path="/login" element={<Login />} />
-          
-          {/* Root Path - Redirects based on role */}
-          <Route 
-            path="/" 
-            element={
+      <BrowserRouter>
+        <AuthProvider>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+
+            <Route path="/" element={
               <ProtectedRoute>
                 <Home />
               </ProtectedRoute>
-            } 
-          />
+            } />
 
-          {/* Admin Only Route */}
-          <Route 
-            path="/users" 
-            element={
+            {/* Roster Route */}
+            <Route path="/roster" element={
+              <ProtectedRoute>
+                <Roster />
+              </ProtectedRoute>
+            } />
+
+            {/* War Room Route */}
+            <Route path="/war-room" element={
+              <ProtectedRoute>
+                <WarRoom />
+              </ProtectedRoute>
+            } />
+
+            {/* Squads Route */}
+            <Route path="/squads" element={
+              <ProtectedRoute>
+                <Squads />
+              </ProtectedRoute>
+            } />
+
+            {/* Users Route (Admin Only) */}
+            <Route path="/users" element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <Users />
               </ProtectedRoute>
-            } 
-          />
-        </Routes>
-        <ToastContainer position="top-right" theme="dark" />
-      </AuthProvider>
-    </BrowserRouter>
+            } />
+
+          </Routes>
+          <ToastContainer position="top-right" theme="dark" />
+        </AuthProvider>
+      </BrowserRouter>
   );
 }
 

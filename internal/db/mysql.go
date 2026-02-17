@@ -103,6 +103,9 @@ type PlayerRow struct {
 	StoveImg           string  `db:"stove_lv_content" json:"stoveImg"`
 	BattleAvailability *string `db:"battle_availability" json:"battleAvailability"`
 	TundraAvailability *string `db:"tundra_availability" json:"tundraAvailability"`
+
+	FightingAllianceID   *int    `db:"fighting_alliance_id" json:"fightingAllianceId"`
+	FightingAllianceName *string `db:"fighting_alliance_name" json:"fightingAllianceName"`
 }
 
 type AllianceOption struct {
@@ -121,6 +124,20 @@ type WarStats struct {
 	Name        string `db:"name" json:"name"`
 	MemberCount int    `db:"member_count" json:"memberCount"`
 	TotalPower  int64  `db:"total_power" json:"totalPower"`
+	IsLocked    bool   `db:"is_locked" json:"isLocked"`
+}
+
+type Squad struct {
+	ID          int    `db:"id" json:"id"`
+	Name        string `db:"name" json:"name"`
+	CaptainFID  int64  `db:"captain_fid" json:"captainFid"`
+	MemberCount int    `db:"member_count" json:"memberCount"`
+	TotalPower  int64  `db:"total_power" json:"totalPower"`
+}
+
+type DashboardData struct {
+	Player    PlayerRow   `json:"player"`
+	Teammates []PlayerRow `json:"teammates"`
 }
 
 type Store struct {
@@ -347,16 +364,29 @@ func (s *Store) GetPlayerProfile(fid int64) (*PlayerProfile, error) {
 func (s *Store) GetPlayers(allianceFilter *int) ([]PlayerRow, error) {
 	query := `
 		SELECT 
-			p.player_id, p.nickname, p.avatar_image, p.stove_lv, p.tundra_power, p.troop_type,
-			p.alliance_id, a.name AS alliance_name,
-			p.team_id, t.name AS team_name,
-			p.stove_lv_content,
+            p.player_id, 
+            COALESCE(p.nickname, 'Unknown') AS nickname, 
+            COALESCE(p.avatar_image, '') AS avatar_image, 
+            p.stove_lv, 
+            p.stove_lv_content,
+            p.tundra_power, 
+            COALESCE(p.troop_type, 'None') AS troop_type,
             COALESCE(p.battle_availability, 'Unavailable') AS battle_availability,
-            COALESCE(p.tundra_availability, 'Unavailable') AS tundra_availability
-		FROM players p
-		LEFT JOIN alliances a ON p.alliance_id = a.id
-		LEFT JOIN teams t ON p.team_id = t.id
-	`
+            COALESCE(p.tundra_availability, 'Unavailable') AS tundra_availability,
+            
+            p.alliance_id, 
+            ga.name AS alliance_name,
+            
+            p.fighting_alliance_id,
+            fa.name AS fighting_alliance_name,
+            
+            p.team_id, 
+            t.name AS team_name
+        FROM players p
+        LEFT JOIN alliances ga ON p.alliance_id = ga.id
+        LEFT JOIN alliances fa ON p.fighting_alliance_id = fa.id
+        LEFT JOIN teams t ON p.team_id = t.id
+    `
 
 	var args []interface{}
 
@@ -425,16 +455,143 @@ func (s *Store) BulkAssignFightingAlliance(playerIDs []int64, allianceID *int) e
 
 func (s *Store) GetWarStats() ([]WarStats, error) {
 	query := `
-		SELECT 
-			a.id, a.name, 
-			COUNT(p.player_id) as member_count,
-			COALESCE(SUM(p.tundra_power), 0) as total_power
-		FROM alliances a
-		LEFT JOIN players p ON a.id = p.fighting_alliance_id
-		WHERE a.type = 'Fighting'
-		GROUP BY a.id, a.name
-	`
+        SELECT 
+            a.id, 
+            a.name, 
+            a.is_locked,  -- <--- CRITICAL FIX
+            COUNT(p.player_id) as member_count,
+            COALESCE(SUM(p.tundra_power), 0) as total_power
+        FROM alliances a
+        LEFT JOIN players p ON a.id = p.fighting_alliance_id
+        WHERE a.type = 'Fighting'
+        GROUP BY a.id, a.name, a.is_locked
+    `
 	var stats []WarStats
 	err := s.db.Select(&stats, query)
 	return stats, err
+}
+
+func (s *Store) ToggleAllianceLock(allianceID int, isLocked bool) error {
+	_, err := s.db.Exec("UPDATE alliances SET is_locked = ? WHERE id = ?", isLocked, allianceID)
+	return err
+}
+
+func (s *Store) ResetEvent() error {
+	// 1. Unlock all alliances
+	_, err := s.db.Exec("UPDATE alliances SET is_locked = FALSE")
+	if err != nil {
+		return err
+	}
+
+	// 2. Remove players from Fighting Alliances and Teams
+	// Note: We keep General Alliance (alliance_id) intact!
+	_, err = s.db.Exec("UPDATE players SET fighting_alliance_id = NULL, team_id = NULL")
+	if err != nil {
+		return err
+	}
+
+	// 3. Disband all War Teams
+	// Assuming you identify War Teams by having a fighting_alliance_id (see Part 2)
+	_, err = s.db.Exec("DELETE FROM teams WHERE fighting_alliance_id IS NOT NULL")
+
+	return err
+}
+
+func (s *Store) PromoteCaptain(fid int64, fightingAllianceID int) error {
+	// 1. Get Nickname
+	var nickname string
+	if err := s.db.Get(&nickname, "SELECT nickname FROM players WHERE player_id = ?", fid); err != nil {
+		return err
+	}
+
+	// 2. Create Team
+	res, err := s.db.Exec("INSERT INTO teams (name, captain_fid, fighting_alliance_id) VALUES (?, ?, ?)",
+		nickname+"'s Squad", fid, fightingAllianceID)
+	if err != nil {
+		return err
+	}
+
+	// 3. Auto-assign captain to the team
+	teamID, _ := res.LastInsertId()
+	_, err = s.db.Exec("UPDATE players SET team_id = ? WHERE player_id = ?", teamID, fid)
+	return err
+}
+
+func (s *Store) DemoteCaptain(teamID int) error {
+	// 1. Unassign all players
+	_, err := s.db.Exec("UPDATE players SET team_id = NULL WHERE team_id = ?", teamID)
+	if err != nil {
+		return err
+	}
+
+	// 2. Delete Team
+	_, err = s.db.Exec("DELETE FROM teams WHERE id = ?", teamID)
+	return err
+}
+
+func (s *Store) GetSquads(fightingAllianceID int) ([]Squad, error) {
+	query := `
+        SELECT t.id, t.name, t.captain_fid, 
+               COUNT(p.player_id) as member_count,
+               COALESCE(SUM(p.tundra_power), 0) as total_power
+        FROM teams t
+        LEFT JOIN players p ON t.id = p.team_id
+        WHERE t.fighting_alliance_id = ?
+        GROUP BY t.id, t.name, t.captain_fid
+    `
+	var squads []Squad
+	err := s.db.Select(&squads, query, fightingAllianceID)
+	return squads, err
+}
+
+func (s *Store) AssignToSquad(fid int64, teamID *int) error {
+	_, err := s.db.Exec("UPDATE players SET team_id = ? WHERE player_id = ?", teamID, fid)
+	return err
+}
+
+func (s *Store) GetPlayerDashboardData(fid int64) (*DashboardData, error) {
+	// A. Get Player Details + Alliances + Team Name
+	query := `
+        SELECT 
+            p.player_id, 
+            COALESCE(p.nickname, 'Unknown') AS nickname, 
+            COALESCE(p.avatar_image, '') AS avatar_image, 
+            p.stove_lv, 
+            p.stove_lv_content, -- The Furnace Icon URL
+            p.tundra_power, 
+            COALESCE(p.troop_type, 'None') AS troop_type,
+            
+            p.alliance_id, 
+            ga.name AS alliance_name, -- General Alliance
+            
+            p.fighting_alliance_id,
+            fa.name AS fighting_alliance_name, -- Fighting Alliance (391/UAO)
+            
+            p.team_id, 
+            t.name AS team_name -- Squad Name
+        FROM players p
+        LEFT JOIN alliances ga ON p.alliance_id = ga.id
+        LEFT JOIN alliances fa ON p.fighting_alliance_id = fa.id
+        LEFT JOIN teams t ON p.team_id = t.id
+        WHERE p.player_id = ?
+    `
+	var player PlayerRow
+	if err := s.db.Get(&player, query, fid); err != nil {
+		return nil, err
+	}
+
+	// B. Get Teammates (if assigned)
+	var teammates []PlayerRow
+	if player.TeamID != nil {
+		// Fetch other players in the same team
+		tQuery := `
+            SELECT player_id, nickname, avatar_image, tundra_power, stove_lv_content
+            FROM players 
+            WHERE team_id = ? AND player_id != ?
+            ORDER BY tundra_power DESC
+        `
+		_ = s.db.Select(&teammates, tQuery, player.TeamID, fid)
+	}
+
+	return &DashboardData{Player: player, Teammates: teammates}, nil
 }

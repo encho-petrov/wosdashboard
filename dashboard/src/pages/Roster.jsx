@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
 import {
   Users, Edit2, Search, Save, X, RefreshCw, ArrowLeft,
-  CheckCircle, AlertCircle, HelpCircle, Swords, Snowflake
+  Swords, Snowflake
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -34,7 +34,7 @@ export default function Roster() {
   useEffect(() => {
     let result = players;
 
-    // 1. Tab Filter (Only filter by General Alliance ID)
+    // 1. Tab Filter
     if (activeTab !== 'all') {
       result = result.filter(p => p.allianceId === activeTab);
     }
@@ -102,13 +102,11 @@ export default function Roster() {
 
   const handleSave = async () => {
     try {
-      // CRITICAL FIX: Convert strings to Integers or Null
       const payload = {
         power: parseInt(editForm.power),
         troopType: editForm.troopType,
         battleAvailability: editForm.battleAvailability,
         tundraAvailability: editForm.tundraAvailability,
-        // Helper function to handle empty strings as null
         allianceId: editForm.allianceId ? parseInt(editForm.allianceId) : null,
         fightingAllianceId: editForm.fightingAllianceId ? parseInt(editForm.fightingAllianceId) : null,
         teamId: editForm.teamId ? parseInt(editForm.teamId) : null,
@@ -117,14 +115,14 @@ export default function Roster() {
       await client.put(`/moderator/players/${editingId}`, payload);
       toast.success("Player updated");
       setEditingId(null);
-      fetchData();
+      await fetchData();
     } catch (err) {
       console.error(err);
       toast.error("Update failed");
     }
   };
 
-  // Helper: Get Tabs (Admins see all, Mods see theirs)
+  // Helper: Get Tabs
   const getTabs = () => {
     if (user?.role === 'admin') {
       return [
@@ -209,12 +207,12 @@ export default function Roster() {
                   <th className="p-4 font-semibold w-16">Img</th>
                   <th className="p-4 font-semibold">Player</th>
                   <th className="p-4 font-semibold text-center">Furnace</th>
-                  <th className="p-4 font-semibold">Power (M)</th>
+                  <th className="p-4 font-semibold">Power</th> {/* CHANGED: Removed (M) */}
                   <th className="p-4 font-semibold">Troops</th>
                   <th className="p-4 font-semibold w-32"><div className="flex items-center gap-1"><Swords className="w-3 h-3"/> Battle</div></th>
                   <th className="p-4 font-semibold w-28"><div className="flex items-center gap-1"><Snowflake className="w-3 h-3"/> Tundra</div></th>
-                  <th className="p-4 font-semibold">General All.</th>
-                  <th className="p-4 font-semibold text-red-300">Fighting All.</th>
+                  <th className="p-4 font-semibold">Alliance</th> {/* CHANGED: Was General All. */}
+                  <th className="p-4 font-semibold text-red-300">Fighting Alliance</th> {/* CHANGED: Was Fighting All. */}
                   <th className="p-4 font-semibold">Team</th>
                   <th className="p-4 font-semibold text-right">Actions</th>
                 </tr>
@@ -231,6 +229,7 @@ export default function Roster() {
                           {/* 1. Avatar */}
                           <td className="p-4">
                             <img
+                                alt={"avatar"}
                                 src={p.avatar || 'https://via.placeholder.com/40?text=?'}
                                 className="w-10 h-10 rounded-full border border-gray-600 bg-gray-900 object-cover"
                             />
@@ -246,7 +245,7 @@ export default function Roster() {
                           <td className="p-4 text-center">
                             {p.stoveImg ? (
                                 <div className="flex justify-center" title={`Level ${p.stoveLv}`}>
-                                  <img src={p.stoveImg} className="w-8 h-8 object-contain filter drop-shadow" />
+                                  <img alt="furnace level" src={p.stoveImg} className="w-8 h-8 object-contain filter drop-shadow" />
                                 </div>
                             ) : <span className="text-gray-700">-</span>}
                           </td>
@@ -256,13 +255,14 @@ export default function Roster() {
                             {editingId === p.fid ? (
                                 <input
                                     type="number"
-                                    className="bg-gray-900 border border-gray-600 rounded px-2 py-1 w-20 text-white"
+                                    className="bg-gray-900 border border-gray-600 rounded px-2 py-1 w-24 text-white"
                                     value={editForm.power}
                                     onChange={e => setEditForm({...editForm, power: e.target.value})}
                                 />
                             ) : (
                                 <span className="font-mono text-yellow-500 font-medium">
-                            {p.power ? (p.power / 1000000).toFixed(1) : '-'}
+                            {/* CHANGED: Removed /1000000 division and M suffix. Added comma formatting. */}
+                                  {p.power ? p.power.toLocaleString() : '-'}
                           </span>
                             )}
                           </td>
@@ -330,7 +330,7 @@ export default function Roster() {
                             )}
                           </td>
 
-                          {/* 8. General Alliance */}
+                          {/* 8. Alliance (General) */}
                           <td className="p-4">
                             {editingId === p.fid ? (
                                 <select
@@ -378,7 +378,7 @@ export default function Roster() {
                                 >
                                   <option value="">No Team</option>
                                   {(options.teams || [])
-                                      .filter(t => !editForm.allianceId || t.allianceId == editForm.allianceId)
+                                      .filter(t => !editForm.allianceId || t.allianceId === editForm.allianceId)
                                       .map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                                 </select>
                             ) : (

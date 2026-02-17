@@ -1,116 +1,162 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import client from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, Shield, Users, Trophy, Flame } from 'lucide-react';
+import { LogOut, Shield, Users, Sword } from 'lucide-react';
 
 export default function PlayerDashboard() {
   const { logout } = useAuth();
-  const [profile, setProfile] = useState(null);
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const res = await client.get('/player/me');
-        setProfile(res.data);
-      } catch (err) {
-        console.error("Failed to load profile", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchProfile();
+    fetchDashboard();
   }, []);
 
-  if (loading) return <div className="min-h-screen bg-gray-900 flex items-center justify-center text-white">Loading Portal...</div>;
+  const fetchDashboard = async () => {
+    try {
+      const res = await client.get('/player/dashboard'); // Use the NEW endpoint
+      setData(res.data);
+    } catch (err) {
+      console.error("Dashboard error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  if (!profile) return <div className="min-h-screen bg-gray-900 text-white p-10">Error loading profile.</div>;
+  if (loading) return <div className="min-h-screen bg-gray-900 flex items-center justify-center text-white">Loading Command Center...</div>;
+  if (!data) return <div className="min-h-screen bg-gray-900 flex items-center justify-center text-white">Profile not found.</div>;
+
+  const { player, teammates } = data;
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100 font-sans">
-      {/* Top Bar */}
-      <nav className="bg-gray-800 border-b border-gray-700 px-6 py-4 flex justify-between items-center">
-        <div className="flex items-center space-x-2">
-           <Shield className="text-blue-500 w-6 h-6" />
-           <span className="font-bold text-lg tracking-wide">Alliance Portal</span>
-        </div>
-        <button onClick={logout} className="text-sm text-gray-400 hover:text-white flex items-center gap-2 transition-colors">
-          <LogOut className="w-4 h-4" /> Sign Out
-        </button>
-      </nav>
+      <div className="min-h-screen bg-gray-900 text-gray-100 font-sans pb-10">
 
-      <main className="container mx-auto px-4 py-8 max-w-4xl">
-        
-        {/* Profile Header Card */}
-        <div className="bg-gray-800 rounded-2xl p-8 mb-8 flex flex-col md:flex-row items-center md:items-start gap-8 border border-gray-700 shadow-xl">
-          
-          {/* Avatar Section */}
-          <div className="relative">
-            <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-gray-700 shadow-lg bg-gray-900">
-               <img src={profile.avatar} alt="Avatar" className="w-full h-full object-cover" />
+        {/* NAVBAR */}
+        <nav className="bg-gray-800 border-b border-gray-700 px-6 py-4 flex justify-between items-center shadow-md">
+          <div className="flex items-center gap-3">
+            <Shield className="text-red-500 w-6 h-6" />
+            <h1 className="text-xl font-bold tracking-wide">War Command</h1>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="text-right hidden md:block">
+              <div className="text-sm font-bold text-white">{player.nickname}</div>
+              <div className="text-xs text-gray-500 font-mono">FID: {player.fid}</div>
             </div>
-            {/* Furnace Level Badge */}
-            <div className="absolute -bottom-2 -right-2 bg-gray-900 rounded-full p-1 border border-gray-700 flex items-center justify-center w-10 h-10" title={`Furnace Level ${profile.stoveLv}`}>
-               <span className="text-xs font-bold text-orange-400 flex items-center">
-                 <Flame className="w-3 h-3 mr-0.5" />{profile.stoveLv}
+            <button onClick={logout} className="p-2 hover:bg-gray-700 rounded-full text-gray-400 hover:text-red-400">
+              <LogOut className="w-5 h-5" />
+            </button>
+          </div>
+        </nav>
+
+        <main className="container mx-auto px-4 py-8 max-w-5xl space-y-6">
+
+          {/* TOP CARD: PLAYER IDENTITY */}
+          <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700 shadow-xl flex flex-col md:flex-row items-center gap-6">
+
+            {/* Avatar + Furnace Icon */}
+            <div className="relative">
+              <img
+                  src={player.avatar || "https://via.placeholder.com/100"}
+                  className="w-24 h-24 rounded-full border-4 border-gray-700 bg-black object-cover"
+              />
+              {player.stoveImg && (
+                  <div className="absolute -bottom-2 -right-2 bg-gray-800 rounded-full p-1.5 border border-gray-600 shadow-lg">
+                    {/* Replaces the text "80" with the image */}
+                    <img src={player.stoveImg} className="w-10 h-10 object-contain" alt="Furnace" />
+                  </div>
+              )}
+            </div>
+
+            {/* Details */}
+            <div className="flex-1 text-center md:text-left space-y-2">
+              <h2 className="text-3xl font-bold text-white">{player.nickname}</h2>
+
+              <div className="flex flex-wrap justify-center md:justify-start gap-3">
+                {/* General Alliance Badge */}
+                {player.allianceName ? (
+                    <span className="px-3 py-1 rounded bg-blue-900/40 text-blue-300 border border-blue-500/30 text-sm font-bold flex items-center gap-2">
+                    <Shield className="w-3 h-3" /> {player.allianceName}
+                 </span>
+                ) : (
+                    <span className="px-3 py-1 rounded bg-gray-700 text-gray-400 border border-gray-600 text-sm">No Alliance</span>
+                )}
+
+                {/* Power Badge */}
+                <span className="px-3 py-1 rounded bg-yellow-900/20 text-yellow-500 border border-yellow-500/20 text-sm font-mono font-bold">
+                 ⚡ {player.tundraPower ? player.tundraPower.toLocaleString() : "0"}
                </span>
+
+                {/* Troop Badge */}
+                <span className="px-3 py-1 rounded bg-gray-700/50 text-gray-300 border border-gray-600 text-sm">
+                 {player.troopType || 'Unknown Troops'}
+               </span>
+              </div>
             </div>
           </div>
 
-          {/* Info Section */}
-          <div className="flex-1 text-center md:text-left space-y-2">
-            <h1 className="text-3xl font-bold text-white">{profile.nickname}</h1>
-            <p className="text-gray-400 font-mono text-sm">FID: {profile.fid}</p>
-            
-            <div className="flex flex-wrap gap-3 justify-center md:justify-start mt-4">
-              <span className="px-3 py-1 bg-gray-700 rounded-full text-xs font-medium text-gray-300 border border-gray-600">
-                Power: {profile.tundraPower ? profile.tundraPower.toLocaleString() : 'Not Set'}
-              </span>
-              <span className="px-3 py-1 bg-gray-700 rounded-full text-xs font-medium text-gray-300 border border-gray-600">
-                Troops: {profile.troopType || 'None'}
-              </span>
+          {/* BOTTOM SECTION: ASSIGNMENTS */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+            {/* 1. FIGHTING ALLIANCE CARD */}
+            <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl p-6 border border-gray-700 shadow-lg relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                <Sword className="w-32 h-32" />
+              </div>
+
+              <h3 className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-4">Assigned Alliance</h3>
+
+              {player.fightingAllianceName ? (
+                  <div className="text-center py-8">
+                    <Shield className="w-16 h-16 text-red-500 mx-auto mb-4" />
+                    <div className="text-4xl font-black text-white tracking-tight uppercase">{player.fightingAllianceName}</div>
+                    <div className="mt-2 text-green-400 text-sm font-bold flex items-center justify-center gap-2">
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div> Active Assignment
+                    </div>
+                  </div>
+              ) : (
+                  <div className="text-center py-10 text-gray-500">
+                    <Shield className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                    <p>Awaiting Orders...</p>
+                  </div>
+              )}
             </div>
-          </div>
-        </div>
 
-        {/* Assignment Status */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          
-          {/* Alliance Card */}
-          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-              <Shield className="w-24 h-24 text-blue-500" />
+            {/* 2. SQUAD CARD */}
+            <div className="bg-gray-800 rounded-2xl p-6 border border-gray-700 shadow-lg flex flex-col">
+              <h3 className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-4">Your Squad</h3>
+
+              {player.teamName ? (
+                  <div className="flex-1 flex flex-col">
+                    <div className="mb-4 pb-4 border-b border-gray-700 flex justify-between items-center">
+                      <span className="text-xl font-bold text-white">{player.teamName}</span>
+                      <Users className="text-purple-500 w-5 h-5" />
+                    </div>
+
+                    <div className="space-y-3 flex-1 overflow-y-auto max-h-[200px] pr-2 scrollbar-thin scrollbar-thumb-gray-600">
+                      {teammates && teammates.length > 0 ? teammates.map(tm => (
+                          <div key={tm.fid} className="flex items-center gap-3 bg-gray-700/30 p-2 rounded hover:bg-gray-700/50 transition-colors">
+                            <img src={tm.avatar} className="w-8 h-8 rounded-full bg-black" />
+                            <div className="flex-1">
+                              <div className="text-sm font-bold text-gray-200">{tm.nickname}</div>
+                              <div className="text-xs text-yellow-500 font-mono">{tm.tundraPower ? tm.tundraPower.toLocaleString() : 0}</div>
+                            </div>
+                            {tm.stoveImg && <img src={tm.stoveImg} className="w-5 h-5 object-contain" />}
+                          </div>
+                      )) : (
+                          <div className="text-gray-500 text-sm italic text-center py-4">No other members yet</div>
+                      )}
+                    </div>
+                  </div>
+              ) : (
+                  <div className="flex-1 flex flex-col items-center justify-center text-gray-500 min-h-[150px]">
+                    <Users className="w-12 h-12 mb-3 opacity-20" />
+                    <p>No Squad Assigned</p>
+                  </div>
+              )}
             </div>
-            <h3 className="text-gray-400 text-sm font-medium uppercase tracking-wider mb-1">Assigned Alliance</h3>
-            <p className="text-2xl font-bold text-white">
-              {profile.allianceName || <span className="text-gray-600 italic">Unassigned</span>}
-            </p>
+
           </div>
-
-          {/* Team Card */}
-          <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-              <Users className="w-24 h-24 text-green-500" />
-            </div>
-            <h3 className="text-gray-400 text-sm font-medium uppercase tracking-wider mb-1">Your Team</h3>
-            <p className="text-2xl font-bold text-white">
-              {profile.teamName || <span className="text-gray-600 italic">No Team Yet</span>}
-            </p>
-            {profile.captainName && (
-               <div className="mt-4 flex items-center text-sm text-green-400">
-                  <Trophy className="w-4 h-4 mr-1.5" /> Captain: {profile.captainName}
-               </div>
-            )}
-          </div>
-
-        </div>
-
-        {/* Footer Note */}
-        <div className="mt-12 text-center text-gray-500 text-sm">
-           <p>Data is synced from State #391. Contact a moderator if your assignment is incorrect.</p>
-        </div>
-
-      </main>
-    </div>
+        </main>
+      </div>
   );
 }
