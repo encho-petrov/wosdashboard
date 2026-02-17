@@ -9,6 +9,7 @@ import Dashboard from './pages/Dashboard'; // Staff Dashboard
 import PlayerDashboard from './pages/PlayerDashboard'; // NEW Player Dashboard
 import Users from './pages/Users';
 import Roster from './pages/Roster';
+import WarRoom from './pages/WarRoom';
 
 // Smart Home Component
 const Home = () => {
@@ -39,6 +40,7 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
+          <Route path="/war-room" element={<ProtectedRoute><WarRoom /></ProtectedRoute>} />
 		<Route 
 		  path="/roster" 
 		  element={

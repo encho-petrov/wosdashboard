@@ -315,6 +315,33 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int) 
 			c.File(targetPath)
 		})
 
+		authorized.GET("/war-room/stats", func(c *gin.Context) {
+			stats, err := store.GetWarStats()
+			if err != nil {
+				c.JSON(500, gin.H{"error": "Failed to load stats"})
+				return
+			}
+			c.JSON(200, stats)
+		})
+
+		authorized.POST("/war-room/deploy", func(c *gin.Context) {
+			var input struct {
+				PlayerIDs  []int64 `json:"playerIds" binding:"required"`
+				AllianceID *int    `json:"allianceId"` // Null = Return to Reserve
+			}
+			if err := c.ShouldBindJSON(&input); err != nil {
+				c.JSON(400, gin.H{"error": err.Error()})
+				return
+			}
+
+			err := store.BulkAssignFightingAlliance(input.PlayerIDs, input.AllianceID)
+			if err != nil {
+				c.JSON(500, gin.H{"error": "Deployment failed"})
+				return
+			}
+			c.JSON(200, gin.H{"message": "Troops deployed successfully"})
+		})
+
 		authorized.GET("/players", func(c *gin.Context) {
 			username := c.GetString("username")
 			user, _ := store.GetUserByUsername(username)
@@ -344,18 +371,35 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int) 
 
 		authorized.PUT("/players/:fid", func(c *gin.Context) {
 			fid, _ := strconv.ParseInt(c.Param("fid"), 10, 64)
+
+			// Define the struct exactly as the Frontend sends it
 			var input struct {
-				Power      int64  `json:"power"`
-				TroopType  string `json:"troopType"`
-				AllianceID *int   `json:"allianceId"`
-				TeamID     *int   `json:"teamId"`
+				Power              int64  `json:"power"`
+				TroopType          string `json:"troopType"`
+				BattleAvailability string `json:"battleAvailability"`
+				TundraAvailability string `json:"tundraAvailability"`
+				AllianceID         *int   `json:"allianceId"`         // Pointer allows nulls
+				FightingAllianceID *int   `json:"fightingAllianceId"` // Pointer allows nulls
+				TeamID             *int   `json:"teamId"`             // Pointer allows nulls
 			}
+
 			if err := c.ShouldBindJSON(&input); err != nil {
-				c.JSON(400, gin.H{"error": err.Error()})
+				c.JSON(400, gin.H{"error": "Invalid input: " + err.Error()})
 				return
 			}
 
-			err := store.UpdatePlayerDetails(fid, input.Power, input.TroopType, input.AllianceID, input.TeamID)
+			// Call the DB function with arguments in the correct order (matching mysql.go)
+			err := store.UpdatePlayerDetails(
+				fid,
+				input.Power,
+				input.TroopType,
+				input.BattleAvailability,
+				input.TundraAvailability,
+				input.AllianceID,
+				input.FightingAllianceID,
+				input.TeamID,
+			)
+
 			if err != nil {
 				c.JSON(500, gin.H{"error": "Update failed"})
 				return

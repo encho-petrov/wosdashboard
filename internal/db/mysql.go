@@ -99,6 +99,10 @@ type PlayerRow struct {
 	AllianceName *string `db:"alliance_name" json:"allianceName"`
 	TeamID       *int    `db:"team_id" json:"teamId"`
 	TeamName     *string `db:"team_name" json:"teamName"`
+
+	StoveImg           string  `db:"stove_lv_content" json:"stoveImg"`
+	BattleAvailability *string `db:"battle_availability" json:"battleAvailability"`
+	TundraAvailability *string `db:"tundra_availability" json:"tundraAvailability"`
 }
 
 type AllianceOption struct {
@@ -110,6 +114,13 @@ type TeamOption struct {
 	ID         int    `db:"id" json:"id"`
 	Name       string `db:"name" json:"name"`
 	AllianceID int    `db:"alliance_id" json:"allianceId"`
+}
+
+type WarStats struct {
+	ID          int    `db:"id" json:"id"`
+	Name        string `db:"name" json:"name"`
+	MemberCount int    `db:"member_count" json:"memberCount"`
+	TotalPower  int64  `db:"total_power" json:"totalPower"`
 }
 
 type Store struct {
@@ -338,7 +349,10 @@ func (s *Store) GetPlayers(allianceFilter *int) ([]PlayerRow, error) {
 		SELECT 
 			p.player_id, p.nickname, p.avatar_image, p.stove_lv, p.tundra_power, p.troop_type,
 			p.alliance_id, a.name AS alliance_name,
-			p.team_id, t.name AS team_name
+			p.team_id, t.name AS team_name,
+			p.stove_lv_content,
+            COALESCE(p.battle_availability, 'Unavailable') AS battle_availability,
+            COALESCE(p.tundra_availability, 'Unavailable') AS tundra_availability
 		FROM players p
 		LEFT JOIN alliances a ON p.alliance_id = a.id
 		LEFT JOIN teams t ON p.team_id = t.id
@@ -358,13 +372,15 @@ func (s *Store) GetPlayers(allianceFilter *int) ([]PlayerRow, error) {
 	return players, err
 }
 
-func (s *Store) UpdatePlayerDetails(fid int64, power int64, troopType string, allianceID *int, teamID *int) error {
+func (s *Store) UpdatePlayerDetails(fid int64, power int64, troopType string, battleAvail string, tundraAvail string, allianceID *int, fightingAllianceID *int, teamID *int) error {
 	query := `
-		UPDATE players 
-		SET tundra_power = ?, troop_type = ?, alliance_id = ?, team_id = ? 
-		WHERE player_id = ?
-	`
-	_, err := s.db.Exec(query, power, troopType, allianceID, teamID, fid)
+        UPDATE players 
+        SET tundra_power = ?, troop_type = ?, 
+            battle_availability = ?, tundra_availability = ?, 
+            alliance_id = ?, fighting_alliance_id = ?, team_id = ? 
+        WHERE player_id = ?
+    `
+	_, err := s.db.Exec(query, power, troopType, battleAvail, tundraAvail, allianceID, fightingAllianceID, teamID, fid)
 	return err
 }
 
@@ -394,4 +410,31 @@ func (s *Store) GetIncompletePlayers() ([]int64, error) {
 	var ids []int64
 	err := s.db.Select(&ids, query)
 	return ids, err
+}
+
+func (s *Store) BulkAssignFightingAlliance(playerIDs []int64, allianceID *int) error {
+	// If allianceID is nil, it sets them to NULL (Unassigned)
+	query, args, err := sqlx.In("UPDATE players SET fighting_alliance_id = ? WHERE player_id IN (?)", allianceID, playerIDs)
+	if err != nil {
+		return err
+	}
+	query = s.db.Rebind(query)
+	_, err = s.db.Exec(query, args...)
+	return err
+}
+
+func (s *Store) GetWarStats() ([]WarStats, error) {
+	query := `
+		SELECT 
+			a.id, a.name, 
+			COUNT(p.player_id) as member_count,
+			COALESCE(SUM(p.tundra_power), 0) as total_power
+		FROM alliances a
+		LEFT JOIN players p ON a.id = p.fighting_alliance_id
+		WHERE a.type = 'Fighting'
+		GROUP BY a.id, a.name
+	`
+	var stats []WarStats
+	err := s.db.Select(&stats, query)
+	return stats, err
 }

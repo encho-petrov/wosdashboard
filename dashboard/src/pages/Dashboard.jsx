@@ -5,7 +5,7 @@ import { toast } from 'react-toastify';
 import { Link } from 'react-router-dom';
 import { 
   LogOut, Play, Download, Activity, FileText, 
-  CheckCircle, Users as UsersIcon, List, Shield 
+  CheckCircle, Users as UsersIcon, List, Shield, Swords
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -117,7 +117,15 @@ export default function Dashboard() {
 
         {/* Right: Actions & User */}
         <div className="flex items-center space-x-4">
-          
+
+          <Link
+              to="/war-room"
+              className="flex items-center space-x-2 px-4 py-2 bg-red-900/20 text-red-400 hover:bg-red-900/30 rounded-lg transition-colors text-sm font-medium border border-red-500/30"
+          >
+            <Swords className="w-4 h-4" />
+            <span>War Room</span>
+          </Link>
+
           {/* Roster Button (Visible to ALL Staff) */}
           <Link 
             to="/roster" 
