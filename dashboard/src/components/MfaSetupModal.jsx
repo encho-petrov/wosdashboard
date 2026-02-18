@@ -4,7 +4,7 @@ import { toast } from 'react-toastify';
 import { QRCodeSVG } from 'qrcode.react'; // Import the QR library
 import { X, ShieldCheck } from 'lucide-react';
 
-export default function MfaSetupModal({ onClose }) {
+export default function MfaSetupModal({ onClose, isForced }) {
     const [setupData, setSetupData] = useState({ secret: '', url: '' });
     const [code, setCode] = useState('');
     const [loading, setLoading] = useState(true);
@@ -31,8 +31,15 @@ export default function MfaSetupModal({ onClose }) {
                 secret: setupData.secret,
                 code: code
             });
+
+            localStorage.setItem('mfa_enabled', 'true');
             toast.success("Two-Factor Authentication Enabled!");
-            onClose(); // Close modal on success
+
+            if (isForced) {
+                window.location.reload();
+            } else {
+                onClose();
+            }
         } catch (err) {
             toast.error(err.response?.data?.error || "Invalid code, try again");
         } finally {
@@ -47,9 +54,11 @@ export default function MfaSetupModal({ onClose }) {
                     <h3 className="text-lg font-bold text-white flex items-center gap-2">
                         <ShieldCheck className="text-green-500 w-5 h-5" /> Enable 2FA
                     </h3>
+                    {!isForced && (
                     <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
                         <X size={20} />
                     </button>
+                    )}
                 </div>
 
                 {loading ? (
@@ -81,7 +90,9 @@ export default function MfaSetupModal({ onClose }) {
                             />
 
                             <div className="flex justify-end gap-3 pt-2">
-                                <button type="button" onClick={onClose} className="px-4 py-2 text-gray-400 font-bold hover:text-white">Cancel</button>
+                                {!isForced && (
+                                    <button type="button" onClick={onClose} className="px-4 py-2 text-gray-400 font-bold hover:text-white">Cancel</button>
+                                )}
                                 <button
                                     type="submit"
                                     disabled={verifying || code.length !== 6}

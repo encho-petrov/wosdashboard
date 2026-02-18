@@ -27,15 +27,15 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
-  const login = async (username, password) => {
+  const login = async (token, role, username, mfaEnabled) => {
     try {
-      const res = await client.post('/login', { username, password });
-      const { token, role } = res.data;
-      
       localStorage.setItem('token', token);
+      localStorage.setItem('mfa_enabled', mfaEnabled);
+
       setUser({ username, role });
       return true;
     } catch (err) {
+      console.error("Failed to set auth state:", err);
       throw err;
     }
   };

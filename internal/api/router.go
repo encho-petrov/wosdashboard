@@ -64,8 +64,6 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int) 
 
 		engine.Redis.ClearLoginAttempts(ip)
 
-		engine.Redis.ClearLoginAttempts(ip)
-
 		if user.MFAEnabled {
 			tempToken := fmt.Sprintf("%d", time.Now().UnixNano())
 
@@ -79,7 +77,7 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int) 
 		}
 
 		token, _ := auth.GenerateToken(user.Username, user.Role)
-		c.JSON(http.StatusOK, gin.H{"token": token, "role": user.Role})
+		c.JSON(http.StatusOK, gin.H{"token": token, "role": user.Role, "mfa_enabled": user.MFAEnabled})
 	})
 
 	r.POST("/api/login/mfa", func(c *gin.Context) {
@@ -389,7 +387,7 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int) 
 			c.JSON(200, gin.H{"secret": key.Secret(), "url": key.URL()})
 		})
 
-		authorized.POST("/moderator/mfa/enable", func(c *gin.Context) {
+		authorized.POST("/mfa/enable", func(c *gin.Context) {
 			var input struct {
 				Secret string `json:"secret" binding:"required"`
 				Code   string `json:"code" binding:"required"`

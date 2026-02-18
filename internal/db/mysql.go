@@ -253,7 +253,7 @@ func (s *Store) CompleteJob(jobID, status, reportPath string) error {
 
 func (s *Store) GetUserByUsername(username string) (*User, error) {
 	var user User
-	query := `SELECT id, username, password_hash, role, alliance_id FROM users WHERE username = ?`
+	query := `SELECT id, username, password_hash, role, mfa_secret, mfa_enabled, alliance_id FROM users WHERE username = ?`
 	err := s.db.Get(&user, query, username)
 	return &user, err
 }

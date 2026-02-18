@@ -19,7 +19,7 @@ export default function ChangePasswordModal({ onClose }) {
         setLoading(true);
         try {
             // Adjust this endpoint to match whatever your router.go expects for password changes
-            await client.post('/moderator/users/change-password', {
+            await client.post('/moderator/change-password', {
                 oldPassword: passwords.old,
                 newPassword: passwords.new
             });

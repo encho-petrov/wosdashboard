@@ -5,17 +5,22 @@ import { toast } from 'react-toastify';
 import { Link } from 'react-router-dom';
 import {
   LogOut, Play, Download, Activity, FileText,
-  CheckCircle, Users as UsersIcon, List, Swords, Sword, Shield
+  CheckCircle, Users as UsersIcon, List, Swords, Sword, Shield, KeyRound
 } from 'lucide-react';
+
+import ChangePasswordModal from '../components/ChangePasswordModal';
+import MfaSetupModal from '../components/MfaSetupModal';
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
 
-  // State
   const [codes, setCodes] = useState('');
   const [activeJob, setActiveJob] = useState(null);
   const [history, setHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
+
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showMfaModal, setShowMfaModal] = useState(false); // <-- ADD THIS
 
   const wasRunning = useRef(false);
 
@@ -33,6 +38,9 @@ export default function Dashboard() {
 
   // 2. Poll Real-time Status
   useEffect(() => {
+    if (localStorage.getItem('mfa_enabled') === 'false') {
+      setShowMfaModal(true);
+    }
     fetchHistory();
 
     const interval = setInterval(async () => {
@@ -97,7 +105,6 @@ export default function Dashboard() {
   return (
       <div className="min-h-screen bg-gray-900 text-gray-100 font-sans">
 
-        {/* --- NAVBAR --- */}
         <nav className="bg-gray-800 border-b border-gray-700 px-6 py-4 flex flex-col md:flex-row justify-between items-center shadow-md gap-4">
 
           {/* Left: Brand */}
@@ -156,7 +163,8 @@ export default function Dashboard() {
                   <Shield className="w-4 h-4" />
                   <span>Alliances</span>
                 </Link>
-             )}
+            )}
+
             <div className="h-6 w-px bg-gray-700 mx-1 hidden md:block"></div>
 
             <div className="flex items-center space-x-3">
@@ -164,6 +172,16 @@ export default function Dashboard() {
                 <div className="text-sm font-bold text-white">{user?.username}</div>
                 <div className="text-xs text-gray-500 uppercase">{user?.role}</div>
               </div>
+
+              {/* --- CHANGE PASSWORD BUTTON --- */}
+              <button
+                  onClick={() => setShowPasswordModal(true)}
+                  className="p-2 hover:bg-gray-700 rounded-full transition-colors text-gray-400 hover:text-blue-400"
+                  title="Change Password"
+              >
+                <KeyRound className="w-5 h-5" />
+              </button>
+
               <button
                   onClick={logout}
                   className="p-2 hover:bg-gray-700 rounded-full transition-colors text-gray-400 hover:text-red-400"
@@ -299,6 +317,17 @@ export default function Dashboard() {
             </div>
           </div>
         </main>
+
+        {/* --- MOUNT THE MODAL COMPONENT --- */}
+        {showPasswordModal && (
+            <ChangePasswordModal onClose={() => setShowPasswordModal(false)} />
+        )}
+        {showMfaModal && (
+            <MfaSetupModal
+                onClose={() => setShowMfaModal(false)}
+                isForced={localStorage.getItem('mfa_enabled') === 'false'}
+            />
+        )}
       </div>
   );
 }

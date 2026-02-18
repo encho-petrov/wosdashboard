@@ -84,7 +84,7 @@ export default function PlayerDashboard() {
 
                 {/* Power Badge */}
                 <span className="px-3 py-1 rounded bg-yellow-900/20 text-yellow-500 border border-yellow-500/20 text-sm font-mono font-bold">
-                 ⚡ {player.tundraPower ? player.tundraPower.toLocaleString() : "0"}
+                 ⚡ {player.power ? player.power.toLocaleString() : "0"}
                </span>
 
                 {/* Troop Badge */}
