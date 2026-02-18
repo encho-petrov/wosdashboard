@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
 import {
   Users, Edit2, Search, Save, X, RefreshCw, ArrowLeft,
-  Swords, Snowflake
+  Swords, Snowflake, Trash2, Plus
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -25,6 +25,11 @@ export default function Roster() {
   // Editing State
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({});
+
+  // add players
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [bulkIds, setBulkIds] = useState('');
+  const [isAdding, setIsAdding] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -71,6 +76,38 @@ export default function Roster() {
       toast.error("Failed to load roster");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async (fid, nickname) => {
+    if (!window.confirm(`Are you sure you want to remove ${nickname} from the roster?`)) return;
+
+    try {
+      await client.delete(`/moderator/players/${fid}`);
+      toast.success(`${nickname} removed successfully`);
+      fetchData(); // Refresh the table to show they are gone
+    } catch (err) {
+      toast.error("Failed to remove player");
+      console.error(err);
+    }
+  };
+
+  const handleBatchAdd = async (e) => {
+    e.preventDefault();
+    setIsAdding(true);
+    try {
+      // We send data in the exact format your existing router.go expects:
+      // { "players": "123, 456, 789" }
+      await client.post('/moderator/players', { players: bulkIds });
+
+      toast.success("IDs added to roster successfully!");
+      setShowAddModal(false);
+      setBulkIds('');
+      fetchData(); // Refresh the table
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Failed to add players");
+    } finally {
+      setIsAdding(false);
     }
   };
 
@@ -170,6 +207,14 @@ export default function Roster() {
               >
                 <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
                 {isSyncing ? 'Syncing...' : 'Sync Data'}
+              </button>
+
+              <button
+                  onClick={() => setShowAddModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-sm transition-all shadow-lg shadow-blue-900/20"
+              >
+                <Plus size={18} />
+                <span>Add Players</span>
               </button>
 
               <div className="relative flex-1 md:flex-none">
@@ -394,13 +439,28 @@ export default function Roster() {
                           <td className="p-4 text-right">
                             {editingId === p.fid ? (
                                 <div className="flex justify-end space-x-2">
-                                  <button onClick={handleSave} className="p-1.5 bg-green-600 rounded hover:bg-green-500 text-white"><Save className="w-4 h-4"/></button>
-                                  <button onClick={() => setEditingId(null)} className="p-1.5 bg-red-600 rounded hover:bg-red-500 text-white"><X className="w-4 h-4"/></button>
+                                  <button onClick={handleSave} className="p-1.5 bg-green-600 rounded hover:bg-green-500 text-white">
+                                    <Save className="w-4 h-4"/>
+                                  </button>
+                                  <button onClick={() => setEditingId(null)} className="p-1.5 bg-gray-600 rounded hover:bg-gray-500 text-white">
+                                    <X className="w-4 h-4"/>
+                                  </button>
                                 </div>
                             ) : (
-                                <button onClick={() => handleEdit(p)} className="p-1.5 hover:bg-gray-700 rounded text-blue-400 hover:text-white">
-                                  <Edit2 className="w-4 h-4" />
-                                </button>
+                                <div className="flex justify-end space-x-2">
+                                  <button onClick={() => handleEdit(p)} className="p-1.5 hover:bg-gray-700 rounded text-blue-400 hover:text-white transition-colors" title="Edit Player">
+                                    <Edit2 className="w-4 h-4" />
+                                  </button>
+
+                                  {/* The Delete Button */}
+                                  <button
+                                      onClick={() => handleDelete(p.fid, p.nickname)}
+                                      className="p-1.5 hover:bg-red-900/30 rounded text-gray-500 hover:text-red-500 transition-colors"
+                                      title="Remove from Roster"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
                             )}
                           </td>
                         </tr>
@@ -410,6 +470,57 @@ export default function Roster() {
             </div>
           </div>
         </div>
+        {showAddModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+              <div className="bg-gray-800 border border-gray-700 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden">
+                <div className="p-6 border-b border-gray-700 flex justify-between items-center">
+                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Plus className="text-blue-500" /> Bulk Import Players
+                  </h3>
+                  <button onClick={() => setShowAddModal(false)} className="text-gray-400 hover:text-white transition-colors">
+                    <X size={24} />
+                  </button>
+                </div>
+
+                <form onSubmit={handleBatchAdd} className="p-6 space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-gray-500 mb-2 tracking-widest">
+                      Player IDs (Comma Separated)
+                    </label>
+                    <textarea
+                        className="w-full h-48 bg-gray-900 border border-gray-700 rounded-xl p-4 text-white font-mono text-sm focus:border-blue-500 outline-none transition-all resize-none"
+                        placeholder="12345678, 98765432, 11223344..."
+                        value={bulkIds}
+                        onChange={(e) => setBulkIds(e.target.value)}
+                        disabled={isAdding}
+                    />
+                    <p className="mt-3 text-xs text-gray-500 italic">
+                      Tip: You can paste a list from Discord or Excel. The system handles extra spaces automatically.
+                    </p>
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-4">
+                    <button
+                        type="button"
+                        onClick={() => setShowAddModal(false)}
+                        className="px-6 py-2 text-gray-400 font-bold hover:text-white transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                        type="submit"
+                        disabled={isAdding || !bulkIds.trim()}
+                        className={`px-8 py-2 bg-blue-600 rounded-xl text-white font-bold flex items-center gap-2 transition-all ${
+                            isAdding ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-500'
+                        }`}
+                    >
+                      {isAdding ? 'Adding...' : 'Add to Roster'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+        )}
       </div>
   );
 }

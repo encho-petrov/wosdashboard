@@ -15,12 +15,13 @@ import (
 	"time"
 )
 
-const WorkerCount = 4
+const WorkerCount = 2 // <--- THE STAGGERED DUO
 
 var (
 	isPaused   bool
 	pauseMutex sync.RWMutex
 	pauseUntil time.Time
+	apiMutex   sync.Mutex // <--- GLOBAL API LOCK
 )
 
 type Processor struct {
@@ -43,224 +44,235 @@ func NewProcessor(pClient *client.PlayerClient, gClient *client.GiftClient, stor
 	}
 }
 
-// Helper to check if we can run a job (wraps Redis lock)
-func (p *Processor) CanStartJob(jobID string) bool {
-	return p.Redis.AcquireJobLock(jobID)
+// --- ROUTER API WRAPPERS ---
+
+func (p *Processor) IsJobRunning() bool {
+	return !p.Redis.AcquireJobLock("check_only")
 }
 
-func (p *Processor) StartWorker() {
-	log.Println("Worker: Engine started, waiting for jobs...")
-	for job := range p.JobQueue {
-		// 1. Create DB Record
-		err := p.Store.CreateJobRecord(job.JobID, job.GiftCodes, job.UserID)
-		if err != nil {
-			log.Printf("Worker: Failed to create job record: %v", err)
-		}
+func (p *Processor) GetStatus() (bool, *models.RedeemJob) {
+	return len(p.JobQueue) > 0, nil
+}
 
-		// 2. Run Job
-		log.Printf("Worker: Processing job %s", job.JobID)
-		p.processRedemption(job)
+func (p *Processor) StartJob(codes []string, targets []models.PlayerData, initiatedBy int64) (string, error) {
+	jobID, err := p.Store.CreateJob(initiatedBy, strings.Join(codes, ","), "PENDING", len(targets))
+	if err != nil {
+		return "", err
+	}
 
-		// 3. Cleanup
-		p.Redis.ReleaseJobLock()
-		log.Printf("Worker: Job %s completed", job.JobID)
+	job := &models.RedeemJob{
+		JobID:     jobID,
+		GiftCodes: codes,
+		UserID:    initiatedBy,
+		Total:     len(targets),
+		Status:    "PENDING",
+		CreatedAt: time.Now(),
+		Targets:   targets, // The list of players to process
+	}
+	p.JobQueue <- job
+	return jobID, nil
+}
+
+// --- CIRCUIT BREAKER (WAF PROTECTION) ---
+
+func triggerPause() {
+	pauseMutex.Lock()
+	defer pauseMutex.Unlock()
+	if !isPaused {
+		isPaused = true
+		pauseUntil = time.Now().Add(60 * time.Second)
+		log.Println("🚨 WAF_BLOCK Detected! Triggering 60-second Global Pause for all workers.")
 	}
 }
 
-func (p *Processor) processRedemption(job *models.RedeemJob) {
-	var allEntries []models.RedeemJobEntry
-	var entriesMutex sync.Mutex
+func checkPause() {
+	pauseMutex.RLock()
+	paused := isPaused
+	until := pauseUntil
+	pauseMutex.RUnlock()
 
-	// Calculate total work for progress bar
-	totalPlayers := 0
+	if paused {
+		if time.Now().Before(until) {
+			sleepDur := time.Until(until)
+			log.Printf("Worker sleeping for %v to respect Global Pause...", sleepDur)
+			time.Sleep(sleepDur)
+		}
+		// Time's up, lift the pause
+		pauseMutex.Lock()
+		if isPaused && time.Now().After(pauseUntil) {
+			isPaused = false
+			log.Println("✅ Global Pause lifted. Resuming operations safely.")
+		}
+		pauseMutex.Unlock()
+	}
+}
+
+// --- API LOCK & JITTER ---
+
+func (p *Processor) safeAPICall(call func() error) error {
+	checkPause() // Wait if globally paused
+
+	apiMutex.Lock() // Grab the global API lock
+	defer apiMutex.Unlock()
+
+	err := call()
+
+	// JITTER: Wait randomly between 1.0 and 2.5 seconds before releasing lock
+	jitter := time.Duration(1000+rand.Intn(1500)) * time.Millisecond
+	time.Sleep(jitter)
+
+	return err
+}
+
+// --- WORKER ENGINE ---
+
+func (p *Processor) StartWorkers() {
+	for i := 1; i <= WorkerCount; i++ {
+		go p.worker(i)
+	}
+}
+
+func (p *Processor) worker(id int) {
+	for job := range p.JobQueue {
+		p.processJob(job, id)
+	}
+}
+
+func (p *Processor) processJob(job *models.RedeemJob, workerID int) {
+	log.Printf("[Worker %d] Starting Job %s", workerID, job.JobID)
+	p.Redis.AcquireJobLock(job.JobID)
+	defer p.Redis.ReleaseJobLock()
+
+	p.Store.UpdateJobProgress(job.JobID, 0)
+	var reportEntries []models.RedeemJobEntry
 	processedCount := 0
 
-	for _, code := range job.GiftCodes {
-		// Just getting count first
-		fids, _ := p.Store.GetPendingPlayers(code, 100000)
-		totalPlayers += len(fids)
+	for _, target := range job.Targets {
+		for _, code := range job.GiftCodes {
+			status, msg, updatedNick := p.redeemForPlayer(target.Fid, target.Nickname, code)
+
+			reportEntries = append(reportEntries, models.RedeemJobEntry{
+				PlayerId:     target.Fid,
+				Nickname:     updatedNick,
+				GiftCode:     code,
+				RedeemStatus: status,
+				RedeemMsg:    msg,
+			})
+		}
+
+		processedCount++
+		p.Store.UpdateJobProgress(job.JobID, processedCount)
+		p.Redis.SetJobProgress(job.JobID, processedCount, job.Total, "RUNNING")
 	}
 
-	// Initial Status Update
-	p.Store.UpdateJobStatus(job.JobID, "RUNNING", 0, totalPlayers)
-	p.Redis.SetJobProgress(job.JobID, 0, totalPlayers, "RUNNING")
-
-	for _, code := range job.GiftCodes {
-		fids, err := p.Store.GetPendingPlayers(code, 5000) // Batch size
-		if err != nil {
-			log.Printf("Worker: DB Error %v", err)
-			continue
-		}
-
-		if len(fids) == 0 {
-			continue
-		}
-
-		log.Printf("Worker: Starting batch of %d players for code %s with %d threads", len(fids), code, WorkerCount)
-
-		tasks := make(chan int64, len(fids))
-		var wg sync.WaitGroup
-
-		// Spawn Workers
-		for i := 0; i < WorkerCount; i++ {
-			wg.Add(1)
-			go p.worker(code, tasks, &allEntries, &entriesMutex, &wg, &processedCount, totalPlayers, job.JobID)
-			time.Sleep(3 * time.Second) // Stagger start to avoid WAF burst
-		}
-
-		for _, fid := range fids {
-			tasks <- fid
-		}
-		close(tasks)
-
-		wg.Wait()
-	}
-
-	// Job Finished
-	filename, err := reports.ExportJobResults(job, allEntries)
-	if err != nil {
-		log.Printf("Failed to export: %v", err)
-		p.Store.UpdateJobStatus(job.JobID, "FAILED", processedCount, totalPlayers)
-		p.Redis.SetJobProgress(job.JobID, processedCount, totalPlayers, "FAILED")
-	} else {
-		log.Printf("Report saved: %s", filename)
-		p.Store.CompleteJob(job.JobID, filename)
-		p.Redis.SetJobProgress(job.JobID, totalPlayers, totalPlayers, "COMPLETED")
+	reportPath, err := reports.ExportJobResults(job, reportEntries)
+	if err == nil {
+		p.Store.CompleteJob(job.JobID, "COMPLETED", reportPath)
 	}
 }
 
-func (p *Processor) worker(code string, tasks <-chan int64, allEntries *[]models.RedeemJobEntry, mu *sync.Mutex, wg *sync.WaitGroup, processedCount *int, total int, jobID string) {
-	defer wg.Done()
+func (p *Processor) redeemForPlayer(fid int64, nickname, code string) (int, string, string) {
+	attempt := 1
+	maxAttempts := 3
+	fidStr := fmt.Sprintf("%d", fid)
 
-	for fid := range tasks {
-		// Circuit Breaker Check
-		pauseMutex.RLock()
-		if isPaused {
-			wait := time.Until(pauseUntil)
-			pauseMutex.RUnlock()
-			if wait > 0 {
-				log.Printf("[Worker] Circuit Open. Sleeping for %v...", wait)
-				time.Sleep(wait)
-			}
-			pauseMutex.Lock()
-			isPaused = false
-			pauseMutex.Unlock()
-		} else {
-			pauseMutex.RUnlock()
-		}
+	for attempt <= maxAttempts {
+		checkPause()
 
-		// Random jitter to look human
-		time.Sleep(time.Duration(2000+rand.Intn(3000)) * time.Millisecond)
-
-		status, msg, nickname := p.redeemWithRetry(fid, code)
-
-		// Trigger Circuit Breaker on WAF Block
-		if strings.Contains(msg, "WAF_BLOCK") {
-			pauseMutex.Lock()
-			if !isPaused {
-				log.Println("🚨 WAF BLOCK DETECTED! Pausing all workers for 60 seconds...")
-				isPaused = true
-				pauseUntil = time.Now().Add(60 * time.Second)
-			}
-			pauseMutex.Unlock()
-		}
-
-		mu.Lock()
-		// Add Result
-		*allEntries = append(*allEntries, models.RedeemJobEntry{
-			PlayerId:     fid,
-			Nickname:     nickname,
-			RedeemStatus: status,
-			RedeemMsg:    msg,
+		// 1. Player Login (Uses API Lock)
+		var loginErr error
+		p.safeAPICall(func() error {
+			// WE CHANGE THIS LINE
+			_, loginErr = p.PlayerClient.GetPlayerInfo(fid)
+			return loginErr
 		})
 
-		// Update Progress
-		*processedCount++
-		current := *processedCount
-
-		// Update Redis frequently (every 5)
-		if current%5 == 0 {
-			p.Redis.SetJobProgress(jobID, current, total, "RUNNING")
-		}
-		// Update DB less frequently (every 20)
-		if current%20 == 0 {
-			p.Store.UpdateJobStatus(jobID, "RUNNING", current, total)
-		}
-		mu.Unlock()
-	}
-}
-
-func (p *Processor) redeemWithRetry(fid int64, code string) (int, string, string) {
-	fidStr := fmt.Sprintf("%d", fid)
-	nickname := ""
-
-	// Share connection for Keep-Alive
-	p.GiftClient.SetHttpClient(p.PlayerClient.GetHttpClient())
-
-	info, err := p.PlayerClient.GetPlayerInfo(fid)
-	if err == nil && info != nil {
-		nickname = info.Data.Nickname
-	}
-	if err != nil && strings.Contains(err.Error(), "WAF_BLOCK") {
-		return -2, "WAF_BLOCK", nickname
-	}
-
-	for i := 0; i < 3; i++ {
-		imgBase64, err := p.PlayerClient.GetCaptcha(fid)
-		if err != nil {
-			if strings.Contains(err.Error(), "WAF_BLOCK") {
-				return -2, "WAF_BLOCK", nickname
+		if loginErr != nil {
+			if strings.Contains(loginErr.Error(), "WAF_BLOCK") {
+				triggerPause()
+				continue // WAF Blocks do not consume an attempt
 			}
-			log.Printf("[FID %d] Captcha Error: %v", fid, err)
-			return -2, "Captcha Fetch Failed", nickname
+			log.Printf("[FID %d] Login Error (Attempt %d): %v", fid, attempt, loginErr)
+			attempt++
+			continue
 		}
 
+		// 2. Fetch Captcha (Uses API Lock)
+		var imgBase64 string
+		var fetchErr error
+		p.safeAPICall(func() error {
+			imgBase64, fetchErr = p.PlayerClient.GetCaptcha(fid)
+			return fetchErr
+		})
+
+		if fetchErr != nil {
+			if strings.Contains(fetchErr.Error(), "WAF_BLOCK") {
+				triggerPause()
+				continue
+			}
+			log.Printf("[FID %d] Captcha Error (Attempt %d): %v", fid, attempt, fetchErr)
+			attempt++
+			continue
+		}
+
+		// 3. Solve Captcha (NO API Lock needed! Solves concurrently with 2Captcha)
 		solved, err := p.Solver.Solve(imgBase64)
 		if err != nil {
 			log.Printf("[FID %d] Solver Error: %v", fid, err)
+			attempt++
 			continue
 		}
 
-		errCode, msg, redeemNickname, err := p.GiftClient.RedeemGift(fidStr, code, solved)
-		if err != nil {
-			if strings.Contains(err.Error(), "WAF_BLOCK") {
-				return -2, "WAF_BLOCK", nickname
-			}
-			log.Printf("[FID %d] Redeem Error: %v", fid, err)
-			continue
-		}
+		// 4. Redeem Gift (Uses API Lock)
+		var errCode int
+		var msg, redeemNickname string
+		var redeemErr error
+
+		p.safeAPICall(func() error {
+			errCode, msg, redeemNickname, redeemErr = p.GiftClient.RedeemGift(fidStr, code, solved)
+			return redeemErr
+		})
 
 		if redeemNickname != "" {
 			nickname = redeemNickname
 		}
 
-		if errCode == 0 {
+		if redeemErr != nil {
+			if strings.Contains(redeemErr.Error(), "WAF_BLOCK") {
+				triggerPause()
+				continue
+			}
+			log.Printf("[FID %d] Redeem Timeout/Error (Attempt %d): %v", fid, attempt, redeemErr)
+			attempt++
+			continue
+		}
+
+		// 5. Handle Success
+		if errCode == 20000 || errCode == 0 || msg == "SUCCESS" {
 			p.Store.MarkAsRedeemed(fid, code)
 			return 1, "Success", nickname
 		}
 
-		// Permanent Failures (Stop Retrying)
-		if strings.Contains(msg, "USED") ||
-			strings.Contains(msg, "SAME TYPE EXCHANGE") ||
+		// 6. Ghost Redemption Fix (Context-Aware Check)
+		isGhostSuccess := strings.Contains(msg, "USED") || strings.Contains(msg, "SAME TYPE EXCHANGE")
+		if isGhostSuccess && attempt > 1 {
+			log.Printf("[FID %d] 👻 Ghost Redemption Detected on Attempt %d. Marking as Success.", fid, attempt)
+			p.Store.MarkAsRedeemed(fid, code)
+			return 1, "Success (Recovered)", nickname
+		}
+
+		// 7. Permanent Failures
+		if isGhostSuccess ||
 			strings.Contains(msg, "CDK NOT FOUND") ||
 			strings.Contains(msg, "TIME EXPIRED") ||
-			strings.Contains(msg, "LIMIT") ||
-			strings.Contains(msg, "RECEIVED") { // Handles "Already Received"
-
-			p.Store.MarkAsRedeemed(fid, code)
-			return -1, msg, nickname
+			strings.Contains(msg, "NOT MEET CONDITIONS") ||
+			strings.Contains(msg, "NOT IN THE REDEMPTION") {
+			return errCode, msg, nickname
 		}
 
-		// Temporary Failures (Retry)
-		if msg == "CAPTCHA CHECK ERROR." {
-			continue
-		}
-
-		if msg == "CAPTCHA CHECK TOO FREQUENT." || msg == "CAPTCHA GET TOO FREQUENT." {
-			time.Sleep(5 * time.Second)
-			continue
-		}
+		log.Printf("[FID %d] Attempt %d Failed: %s", fid, attempt, msg)
+		attempt++
 	}
 
-	return -2, "Retries Exhausted", nickname
+	return -1, "Max Retries Reached", nickname
 }

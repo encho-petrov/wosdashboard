@@ -22,7 +22,7 @@ type GiftClient struct {
 
 func NewGiftClient(secret string) *GiftClient {
 	return &GiftClient{
-		HttpClient: &http.Client{Timeout: 15 * time.Second},
+		HttpClient: &http.Client{Timeout: 20 * time.Second},
 		Secret:     secret,
 		BaseURL:    "https://wos-giftcode-api.centurygame.com",
 	}

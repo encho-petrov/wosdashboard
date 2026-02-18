@@ -20,7 +20,7 @@ type PlayerClient struct {
 
 func NewPlayerClient(secret string) *PlayerClient {
 	return &PlayerClient{
-		HttpClient: &http.Client{Timeout: 10 * time.Second},
+		HttpClient: &http.Client{Timeout: 15 * time.Second},
 		Secret:     secret,
 		BaseURL:    "https://wos-giftcode-api.centurygame.com",
 	}

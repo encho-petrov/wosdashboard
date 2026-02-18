@@ -141,6 +141,12 @@ type DashboardData struct {
 	Teammates []PlayerRow `json:"teammates"`
 }
 
+type FilterOptions struct {
+	TroopTypes         []string `json:"troopTypes"`
+	BattleAvailability []string `json:"battleAvailability"`
+	TundraAvailability []string `json:"tundraAvailability"`
+}
+
 type Store struct {
 	db *sqlx.DB
 }
@@ -185,7 +191,7 @@ func (s *Store) MarkAsRedeemed(fid int64, code string) error {
 		log.Printf("[DB ERROR] Failed to mark redeemed: %v", err)
 		return err
 	}
-	return nil
+	return err
 }
 
 func (s *Store) AddPlayers(fids []int64) (added int, skipped int, err error) {
@@ -231,9 +237,15 @@ func (s *Store) UpdateJobStatus(jobID string, status string, processed, total in
 	return err
 }
 
-func (s *Store) CompleteJob(jobID, reportPath string) error {
-	query := `UPDATE jobs SET status = 'COMPLETED', completed_at = NOW(), report_path = ? WHERE job_id = ?`
-	_, err := s.db.Exec(query, reportPath, jobID)
+//func (s *Store) CompleteJob(jobID, reportPath string) error {
+//	query := `UPDATE jobs SET status = 'COMPLETED', completed_at = NOW(), report_path = ? WHERE job_id = ?`
+//	_, err := s.db.Exec(query, reportPath, jobID)
+//	return err
+//}
+
+func (s *Store) CompleteJob(jobID, status, reportPath string) error {
+	query := `UPDATE jobs SET status = ?, completed_at = NOW(), report_path = ? WHERE job_id = ?`
+	_, err := s.db.Exec(query, status, reportPath, jobID)
 	return err
 }
 
@@ -368,8 +380,8 @@ func (s *Store) GetPlayers(allianceFilter *int) ([]PlayerRow, error) {
             p.player_id, 
             COALESCE(p.nickname, 'Unknown') AS nickname, 
             COALESCE(p.avatar_image, '') AS avatar_image, 
-            p.stove_lv, 
-            p.stove_lv_content,
+            COALESCE(p.stove_lv, 0) as stove_lv, 
+            COALESCE(p.stove_lv_content, '') as stove_lv_content,
             p.tundra_power, 
             COALESCE(p.troop_type, 'None') AS troop_type,
             COALESCE(p.battle_availability, 'Unavailable') AS battle_availability,
@@ -613,5 +625,43 @@ func (s *Store) UpdateAlliance(id int, name, aType string) error {
 
 func (s *Store) DeleteAlliance(id int) error {
 	_, err := s.db.Exec("DELETE FROM alliances WHERE id = ?", id)
+	return err
+}
+
+func (s *Store) DeletePlayer(fid int64) error {
+	_, err := s.db.Exec("DELETE FROM players WHERE player_id = ?", fid)
+	return err
+}
+
+func (s *Store) GetWarRoomFilterOptions() (FilterOptions, error) {
+	var opts FilterOptions
+
+	err := s.db.Select(&opts.TroopTypes, "SELECT DISTINCT COALESCE(troop_type, 'None') FROM players WHERE troop_type IS NOT NULL")
+	if err != nil {
+		return opts, err
+	}
+
+	err = s.db.Select(&opts.BattleAvailability, "SELECT DISTINCT COALESCE(battle_availability, 'Unavailable') FROM players")
+	if err != nil {
+		return opts, err
+	}
+
+	err = s.db.Select(&opts.TundraAvailability, "SELECT DISTINCT COALESCE(tundra_availability, 'Unavailable') FROM players")
+
+	return opts, err
+}
+
+func (s *Store) CreateJob(initiatedBy int64, codes, status string, total int) (string, error) {
+	jobID := fmt.Sprintf("job_%d", time.Now().UnixNano())
+
+	query := `INSERT INTO jobs (job_id, initiated_by_user_id, gift_codes, status, total_players, processed_players, created_at) 
+	          VALUES (?, ?, ?, ?, ?, 0, NOW())`
+
+	_, err := s.db.Exec(query, jobID, initiatedBy, codes, status, total)
+	return jobID, err
+}
+
+func (s *Store) UpdateJobProgress(jobID string, processed int) error {
+	_, err := s.db.Exec("UPDATE jobs SET processed_players = ? WHERE job_id = ?", processed, jobID)
 	return err
 }

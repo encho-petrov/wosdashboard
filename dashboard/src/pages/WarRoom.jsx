@@ -1,353 +1,280 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
 import client from '../api/client';
-import { useAuth } from '../context/AuthContext'; // <--- FIXED: Added Import
+import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
 import {
     Swords, Shield, Users, Search,
-    ArrowLeft, Trophy, Lock, Unlock, ArrowDownWideNarrow, Trash2
+    ArrowLeft, Trophy, Lock, Unlock, ArrowDownWideNarrow, Trash2, X
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function WarRoom() {
-    const { user } = useAuth(); // <--- FIXED: Added Hook
+    const { user } = useAuth();
 
     const [players, setPlayers] = useState([]);
     const [stats, setStats] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [draggedPlayerId, setDraggedPlayerId] = useState(null);
 
-    // Filters & Sorting
+    const [filterOptions, setFilterOptions] = useState({
+        troopTypes: [],
+        battleAvailability: [],
+        tundraAvailability: []
+    });
+
     const [filterText, setFilterText] = useState('');
     const [filterTroops, setFilterTroops] = useState('All');
     const [filterAvail, setFilterAvail] = useState('All');
+    const [filterTundra, setFilterTundra] = useState('All');
     const [sortBy, setSortBy] = useState('Power');
 
     useEffect(() => { fetchData(); }, []);
 
     const fetchData = async () => {
         try {
-            const [pRes, sRes] = await Promise.all([
+            const [pRes, sRes, fRes] = await Promise.all([
                 client.get('/moderator/players'),
-                client.get('/moderator/war-room/stats')
+                client.get('/moderator/war-room/stats'),
+                client.get('/moderator/war-room/filters')
             ]);
             setPlayers(pRes.data);
             setStats(sRes.data);
-        } catch (err) { toast.error("Failed to load data"); }
-        finally { setLoading(false); }
-    };
-
-    // --- LOGIC ---
-
-    const sortList = (list) => {
-        return [...list].sort((a, b) => {
-            if (sortBy === 'Power') return (b.power || 0) - (a.power || 0);
-            if (sortBy === 'Furnace') return (b.stoveLv || 0) - (a.stoveLv || 0);
-            if (sortBy === 'Name') return a.nickname.localeCompare(b.nickname);
-            return 0;
-        });
-    };
-
-    // 1. Unassigned Pool
-    const poolPlayers = useMemo(() => {
-        let list = players.filter(p => {
-            if (p.fightingAllianceId) return false;
-            if (filterText && !p.nickname?.toLowerCase().includes(filterText.toLowerCase())) return false;
-            if (filterTroops !== 'All' && p.troopType !== filterTroops) return false;
-            return !(filterAvail !== 'All' && p.battleAvailability !== filterAvail);
-
-        });
-        return sortList(list);
-    }, [players, filterText, filterTroops, filterAvail, sortBy]);
-
-    // 2. Fighting Alliance Rosters
-    const allianceRosters = useMemo(() => {
-        const rosters = {};
-        stats.forEach(a => rosters[a.id] = []);
-        players.forEach(p => {
-            if (p.fightingAllianceId && rosters[p.fightingAllianceId]) {
-                rosters[p.fightingAllianceId].push(p);
-            }
-        });
-        Object.keys(rosters).forEach(key => {
-            rosters[key] = sortList(rosters[key]);
-        });
-        return rosters;
-    }, [players, stats, sortBy]);
-
-    // --- ACTIONS ---
-
-    const handleReset = async () => {
-        if (!window.confirm("DANGER: This will disband ALL teams, unlock alliances, and return ALL players to the reserve pool. Are you sure?")) return;
-
-        try {
-            await client.post('/moderator/war-room/reset');
-            toast.success("Event Reset Complete");
-            await fetchData();
+            setFilterOptions(fRes.data);
         } catch (err) {
-            toast.error("Reset failed");
+            toast.error("Failed to load war room data");
+        } finally {
+            setLoading(false);
         }
     };
 
-    const handleDragStart = (e, playerId, currentAllianceId) => {
-        if (currentAllianceId) {
-            const alliance = stats.find(a => a.id === currentAllianceId);
-            if (alliance?.isLocked) {
-                e.preventDefault();
-                toast.warning("This alliance is locked!");
-                return;
-            }
-        }
-        setDraggedPlayerId(playerId);
-        e.dataTransfer.effectAllowed = "move";
+    const filteredPlayers = useMemo(() => {
+        return players.filter(p => {
+            const matchesText = (p.nickname || '').toLowerCase().includes(filterText.toLowerCase()) ||
+                (p.fid || '').toString().includes(filterText);
+
+            const matchesTroops = filterTroops === 'All' || p.troopType === filterTroops;
+            const matchesAvail = filterAvail === 'All' || p.battleAvailability === filterAvail;
+            const matchesTundra = filterTundra === 'All' || p.tundraAvailability === filterTundra;
+
+            return matchesText && matchesTroops && matchesAvail && matchesTundra && !p.fightingAllianceId;
+        }).sort((a, b) => {
+            if (sortBy === 'Power') return (b.power || 0) - (a.power || 0);
+            return (a.nickname || '').localeCompare(b.nickname || '');
+        });
+    }, [players, filterText, filterTroops, filterAvail, filterTundra, sortBy]);
+
+    // --- Helper for Troop Colors ---
+    const getTroopColor = (type) => {
+        const t = (type || '').toLowerCase();
+        if (t.includes('helios')) return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
+        if (t.includes('brilliant')) return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+        if (t.includes('apex')) return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
+        if (t.includes('mixed')) return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
+        return 'bg-gray-900 text-gray-500 border-gray-700';
     };
 
-    const handleDrop = async (e, targetAllianceId) => {
-        e.preventDefault();
-        if (!draggedPlayerId) return;
+    const onDragStart = (e, fid) => {
+        e.dataTransfer.setData("playerFid", fid);
+    };
 
-        if (targetAllianceId) {
-            const alliance = stats.find(a => a.id === targetAllianceId);
-            if (alliance?.isLocked) {
-                toast.warning("Cannot add to a locked roster!");
-                return;
-            }
-        }
-
-        const updatedPlayers = players.map(p =>
-            p.fid === draggedPlayerId
-                ? { ...p, fightingAllianceId: targetAllianceId, fightingAllianceName: targetAllianceId ? 'Assigned' : null }
-                : p
-        );
-        setPlayers(updatedPlayers);
-        setDraggedPlayerId(null);
-
+    const onDrop = async (e, allianceId) => {
+        const fid = e.dataTransfer.getData("playerFid");
         try {
             await client.post('/moderator/war-room/deploy', {
-                playerIds: [draggedPlayerId],
-                allianceId: targetAllianceId
+                playerIds: [parseInt(fid)],
+                allianceId: allianceId
             });
-            toast.success("Troops moved");
-        } catch (err) {
-            toast.error("Move failed");
-            await fetchData();
-        }
+            fetchData();
+        } catch (err) { toast.error("Deployment failed"); }
     };
 
-    const toggleLock = async (alliance) => {
+    const toggleLock = async (allianceId, currentLock) => {
         try {
-            const newStatus = !alliance.isLocked;
-            setStats(stats.map(s => s.id === alliance.id ? {...s, isLocked: newStatus} : s));
-
             await client.post('/moderator/war-room/lock', {
-                allianceId: alliance.id,
-                isLocked: newStatus
+                allianceId,
+                isLocked: !currentLock
             });
-            toast.info(newStatus ? "Roster Locked" : "Roster Unlocked");
-        } catch (err) {
-            toast.error("Failed to toggle lock");
-            await fetchData();
-        }
+            fetchData();
+        } catch (err) { toast.error("Failed to update lock"); }
     };
 
-    const handleDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; };
-
-    const getColumnStats = (allianceId) => {
-        const roster = allianceRosters[allianceId] || [];
-        return {
-            count: roster.length,
-            power: roster.reduce((sum, p) => sum + (p.power || 0), 0)
-        };
-    };
-
-    // --- RENDERER ---
-    const PlayerCard = ({ p, isCompact = false, locked = false }) => (
-        <div
-            draggable={!locked}
-            onDragStart={(e) => handleDragStart(e, p.fid, p.fightingAllianceId)}
-            className={`bg-gray-800 border border-gray-700 rounded-lg p-3 flex items-center gap-3 transition-all shadow-sm group relative ${
-                locked ? 'opacity-75 cursor-not-allowed' : 'cursor-grab hover:bg-gray-750 hover:border-blue-500/50'
-            } ${isCompact ? 'text-xs' : ''}`}
-        >
-            <div className="relative">
-                <img src={p.avatar} className={`${isCompact ? 'w-8 h-8' : 'w-10 h-10'} rounded-full bg-black`} alt="" />
-                {p.stoveImg && (
-                    <div className="absolute -bottom-1 -right-1 bg-gray-900 rounded-full p-0.5 border border-gray-600">
-                        <img src={p.stoveImg} className={`${isCompact ? 'w-3 h-3' : 'w-4 h-4'} object-contain`} alt="" />
-                    </div>
-                )}
-            </div>
-            <div className="flex-1 min-w-0">
-                <div className="flex justify-between items-start">
-                    <span className="font-bold text-gray-200 truncate">{p.nickname}</span>
-                    {!isCompact && <span className="text-yellow-500 font-mono text-xs">{p.power?.toLocaleString()}</span>}
-                </div>
-
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                    {/* Troop Badge */}
-                    {p.troopType !== 'None' && (
-                        <span className={`px-1.5 py-0.5 rounded-[3px] text-[10px] font-bold uppercase ${
-                            p.troopType === 'Helios' ? 'bg-orange-900/40 text-orange-400 border border-orange-500/30' :
-                                'bg-blue-900/40 text-blue-400 border border-blue-500/30'
-                        }`}>{p.troopType.substring(0, 1)}</span>
-                    )}
-
-                    {/* General Alliance Badge */}
-                    {p.allianceName && (
-                        <span className="px-1.5 py-0.5 rounded-[3px] text-[10px] font-bold bg-gray-700 text-gray-300 border border-gray-600 truncate max-w-[80px]" title={p.allianceName}>
-               {p.allianceName}
-             </span>
-                    )}
-
-                    {/* Availability Dot */}
-                    <div
-                        className={`w-2 h-2 rounded-full ${p.battleAvailability === 'Full' || p.battleAvailability === '4h+' ? 'bg-green-500' : 'bg-gray-600'}`}
-                        title={`Availability: ${p.battleAvailability}`}
-                    />
-                </div>
-            </div>
-            {isCompact && <div className="text-right text-yellow-500 font-mono">{p.power?.toLocaleString()}</div>}
-        </div>
-    );
+    if (loading) return <div className="p-10 text-white font-mono">LOADING WAR ROOM...</div>;
 
     return (
-        <div className="h-screen bg-gray-900 text-gray-100 flex flex-col overflow-hidden font-sans">
+        <div className="min-h-screen bg-gray-950 text-gray-100 font-sans p-4 md:p-6">
+            <div className="max-w-[1600px] mx-auto space-y-6">
 
-            {/* HEADER */}
-            <div className="h-16 bg-gray-800 border-b border-gray-700 flex justify-between items-center px-6 shrink-0 z-10 shadow-md">
-                <div className="flex items-center gap-4">
-                    <Link to="/" className="p-2 bg-gray-900 rounded-lg text-gray-400 hover:text-white border border-gray-700">
-                        <ArrowLeft className="w-5 h-5" />
-                    </Link>
-                    <h1 className="text-xl font-bold flex items-center text-white">
-                        <Swords className="mr-3 text-red-500 w-6 h-6" /> War Room
-                    </h1>
-                </div>
-
-                <div className="flex items-center gap-6 text-sm">
-                    <div className="flex items-center gap-2"><Users className="w-4 h-4 text-blue-400"/><span className="text-white font-bold">{players.length}</span></div>
-                    <div className="flex items-center gap-2"><Trophy className="w-4 h-4 text-yellow-400"/><span className="text-white font-bold">{(players.reduce((sum, p) => sum + (p.power || 0), 0)).toLocaleString()}</span></div>
-
-                    {/* RESET BUTTON (ADMIN ONLY) */}
-                    {user?.role === 'admin' && (
-                        <button
-                            onClick={handleReset}
-                            className="ml-4 px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-bold uppercase rounded border border-red-400 flex items-center gap-2"
-                        >
-                            <Trash2 className="w-4 h-4" /> End Event
-                        </button>
-                    )}
-                </div>
-            </div>
-
-            <div className="flex-1 flex overflow-hidden">
-
-                {/* --- LEFT: POOL --- */}
-                <div className="w-[400px] flex flex-col border-r border-gray-700 bg-gray-800/50">
-                    <div className="p-4 space-y-3 bg-gray-800 border-b border-gray-700 z-10">
-                        {/* Search */}
-                        <div className="relative">
-                            <Search className="absolute left-3 top-2.5 text-gray-500 w-4 h-4" />
-                            <input type="text" placeholder="Search..." className="w-full bg-gray-900 border border-gray-600 rounded-lg pl-10 pr-4 py-2 text-sm outline-none"
-                                   value={filterText} onChange={e => setFilterText(e.target.value)} />
+                {/* Header Section */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-900/50 p-4 rounded-2xl border border-gray-800">
+                    <div className="flex items-center gap-4">
+                        <Link to="/" className="p-2 bg-gray-800 rounded-xl text-gray-400 hover:text-white border border-gray-700 transition-all">
+                            <ArrowLeft size={20} />
+                        </Link>
+                        <div>
+                            <h1 className="text-2xl font-black tracking-tighter flex items-center gap-2">
+                                <Trophy className="text-yellow-500 w-6 h-6" /> WAR ROOM
+                            </h1>
+                            <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest">State Event Deployment</p>
                         </div>
-                        {/* Filters */}
-                        <div className="flex gap-2">
-                            <select className="flex-1 bg-gray-900 border border-gray-600 rounded-lg px-2 py-1.5 text-xs"
-                                    value={filterTroops} onChange={e => setFilterTroops(e.target.value)}>
-                                <option value="All">All Troops</option>
-                                <option value="Helios">Helios</option>
-                                <option value="Brilliant">Brilliant</option>
-                            </select>
-                            <select className="flex-1 bg-gray-900 border border-gray-600 rounded-lg px-2 py-1.5 text-xs"
-                                    value={filterAvail} onChange={e => setFilterAvail(e.target.value)}>
-                                <option value="All">Any Avail</option>
-                                <option value="Full">Full</option>
-                                <option value="4h+">4h+</option>
-                            </select>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                        <div className="relative group">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 group-focus-within:text-blue-500 transition-colors" />
+                            <input
+                                type="text"
+                                placeholder="Search..."
+                                className="bg-gray-900 border border-gray-700 rounded-xl py-2 pl-10 pr-4 text-sm focus:border-blue-500 outline-none w-64 transition-all"
+                                value={filterText}
+                                onChange={(e) => setFilterText(e.target.value)}
+                            />
                         </div>
-                        {/* Sorting */}
-                        <div className="flex items-center gap-2 pt-2 border-t border-gray-700">
-                            <ArrowDownWideNarrow className="w-4 h-4 text-gray-500" />
-                            <span className="text-xs text-gray-400">Sort by:</span>
+
+                        {[
+                            { id: 'troops', icon: <Swords size={16}/>, val: filterTroops, set: setFilterTroops, opts: filterOptions.troopTypes, label: 'All Types' },
+                            { id: 'battle', icon: <Shield size={16}/>, val: filterAvail, set: setFilterAvail, opts: filterOptions.battleAvailability, label: 'All Battle' },
+                            { id: 'tundra', icon: <Trophy size={16}/>, val: filterTundra, set: setFilterTundra, opts: filterOptions.tundraAvailability, label: 'All Tundra' }
+                        ].map(f => (
+                            <div key={f.id} className="flex items-center gap-2 bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 focus-within:border-blue-500 transition-all">
+                                <span className="text-gray-500">{f.icon}</span>
+                                <select
+                                    className="bg-transparent text-xs font-bold outline-none border-none text-gray-300 cursor-pointer"
+                                    value={f.val}
+                                    onChange={(e) => f.set(e.target.value)}
+                                >
+                                    <option value="All" className="bg-gray-900">{f.label}</option>
+                                    {f.opts?.map(opt => (
+                                        <option key={opt} value={opt} className="bg-gray-900">{opt}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        ))}
+
+                        <div className="flex items-center gap-2 bg-gray-900 border border-gray-700 rounded-xl px-3 py-2">
+                            <ArrowDownWideNarrow size={16} className="text-gray-500" />
                             <select
-                                className="bg-transparent text-blue-400 text-xs font-bold outline-none cursor-pointer hover:text-blue-300"
-                                value={sortBy} onChange={e => setSortBy(e.target.value)}
+                                className="bg-transparent text-xs font-bold outline-none border-none text-gray-300"
+                                value={sortBy}
+                                onChange={(e) => setSortBy(e.target.value)}
                             >
-                                <option value="Power">Highest Power</option>
-                                <option value="Furnace">Furnace Level</option>
-                                <option value="Name">Name (A-Z)</option>
+                                <option value="Power" className="bg-gray-900">Power</option>
+                                <option value="Name" className="bg-gray-900">Name</option>
                             </select>
                         </div>
                     </div>
-
-                    <div
-                        className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent"
-                        onDragOver={handleDragOver}
-                        onDrop={(e) => handleDrop(e, null)}
-                    >
-                        {poolPlayers.map(p => <PlayerCard key={p.fid} p={p} />)}
-                    </div>
                 </div>
 
-                {/* --- RIGHT: ALLIANCES --- */}
-                <div className="flex-1 bg-gray-900 p-6 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-700">
-                    <div className="flex gap-6 h-full min-w-max">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-180px)]">
+
+                    {/* Available Sidebar */}
+                    <div className="lg:col-span-3 bg-gray-900/30 border border-gray-800 rounded-2xl flex flex-col overflow-hidden">
+                        <div className="p-4 border-b border-gray-800 bg-gray-900/50 flex justify-between items-center">
+                            <h2 className="font-black text-sm uppercase tracking-widest text-gray-400">Available ({filteredPlayers.length})</h2>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-800">
+                            {filteredPlayers.map(p => (
+                                <div
+                                    key={p.fid}
+                                    draggable
+                                    onDragStart={(e) => onDragStart(e, p.fid)}
+                                    className="bg-gray-800/40 border border-gray-700 p-3 rounded-xl hover:border-blue-500 transition-all cursor-grab active:cursor-grabbing group shadow-lg"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="relative">
+                                            <img src={p.avatar} className="w-12 h-12 rounded-lg object-cover border-2 border-gray-700 shadow-inner" alt="" />
+                                            {/* ALLIANCE BADGE RESTORED */}
+                                            {p.allianceName && (
+                                                <div className="absolute -top-2 -left-2 bg-gray-900 text-[8px] font-black border border-gray-700 px-1 rounded shadow-md text-blue-400">
+                                                    {p.allianceName}
+                                                </div>
+                                            )}
+                                            {/* FURNACE IMAGE RESTORED */}
+                                            {p.stoveImg && (
+                                                <img src={p.stoveImg} className="absolute -bottom-2 -right-2 w-7 h-7 drop-shadow-md" title={`Furnace Lv ${p.stoveLv}`} alt="" />
+                                            )}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <h4 className="font-bold text-sm truncate text-white uppercase tracking-tight">{p.nickname}</h4>
+                                            <p className="text-[10px] text-gray-500 font-mono font-bold">{(p.power || 0).toLocaleString()} POWER</p>
+                                        </div>
+                                    </div>
+                                    <div className="mt-3 flex flex-wrap gap-1.5">
+                                        {/* TROOP COLORS RESTORED */}
+                                        <span className={`text-[9px] px-2 py-0.5 rounded-full border font-black uppercase tracking-tighter shadow-sm ${getTroopColor(p.troopType)}`}>
+                                            {p.troopType || 'NONE'}
+                                        </span>
+                                        <span className={`text-[9px] px-2 py-0.5 rounded-full border border-gray-700 bg-gray-900/50 font-black uppercase tracking-tighter ${p.battleAvailability === 'Available' ? 'text-green-400' : 'text-red-400'}`}>
+                                            {p.battleAvailability}
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Deployment Boards */}
+                    <div className="lg:col-span-9 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-800">
                         {stats.map(alliance => {
-                            const { count, power } = getColumnStats(alliance.id);
-                            const roster = allianceRosters[alliance.id] || [];
+                            const roster = players.filter(p => p.fightingAllianceId === alliance.id);
                             const isLocked = alliance.isLocked;
 
                             return (
                                 <div
                                     key={alliance.id}
-                                    onDragOver={handleDragOver}
-                                    onDrop={(e) => handleDrop(e, alliance.id)}
-                                    className={`w-[380px] flex flex-col bg-gray-800 rounded-xl border shadow-xl overflow-hidden transition-colors ${
-                                        isLocked ? 'border-red-900/50' : 'border-gray-700'
+                                    onDragOver={(e) => !isLocked && e.preventDefault()}
+                                    onDrop={(e) => !isLocked && onDrop(e, alliance.id)}
+                                    className={`flex flex-col h-[520px] rounded-2xl border-2 transition-all overflow-hidden shadow-2xl ${
+                                        isLocked ? 'border-red-900/50 bg-red-950/5' : 'border-gray-800 bg-gray-900/20 hover:border-blue-500/30'
                                     }`}
                                 >
-                                    <div className={`p-4 border-b ${isLocked ? 'bg-red-900/10 border-red-900/30' : 'bg-gray-750 border-gray-600'}`}>
-                                        <div className="flex justify-between items-start mb-2">
-                                            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                                                <Shield className={`w-5 h-5 ${isLocked ? 'text-gray-500' : 'text-red-500'}`} />
-                                                {alliance.name}
-                                            </h2>
+                                    <div className={`p-4 border-b ${isLocked ? 'border-red-900/50 bg-red-900/10' : 'border-gray-800 bg-gray-900/50'}`}>
+                                        <div className="flex justify-between items-center mb-2">
+                                            <h3 className="font-black text-lg tracking-tighter text-white uppercase">{alliance.name}</h3>
                                             <button
-                                                onClick={() => toggleLock(alliance)}
-                                                className={`p-1.5 rounded transition-colors ${
-                                                    isLocked ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-gray-700 text-gray-400 hover:text-white'
-                                                }`}
-                                                title={isLocked ? "Unlock Roster" : "Lock Roster"}
+                                                onClick={() => toggleLock(alliance.id, isLocked)}
+                                                className={`p-1.5 rounded-lg transition-colors ${isLocked ? 'text-red-500 bg-red-500/10' : 'text-gray-500 hover:bg-green-500/10 hover:text-green-500'}`}
                                             >
-                                                {isLocked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+                                                {isLocked ? <Lock size={18} /> : <Unlock size={18} />}
                                             </button>
                                         </div>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <div className="bg-gray-900/50 p-2 rounded border border-gray-600/50">
-                                                <div className="text-[10px] text-gray-400 uppercase">Power</div>
-                                                <div className="text-yellow-400 font-bold font-mono text-sm">{power.toLocaleString()}</div>
-                                            </div>
-                                            <div className="bg-gray-900/50 p-2 rounded border border-gray-600/50">
-                                                <div className="text-[10px] text-gray-400 uppercase">Players</div>
-                                                <div className="text-blue-400 font-bold font-mono text-sm">{count}</div>
-                                            </div>
+                                        <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-gray-500">
+                                            <span>{alliance.memberCount} MEMBERS</span>
+                                            <span>{(alliance.totalPower || 0).toLocaleString()} POWER</span>
                                         </div>
                                     </div>
 
-                                    <div className={`flex-1 overflow-y-auto p-3 space-y-2 transition-colors scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent ${isLocked ? 'bg-gray-900/80' : 'bg-gray-800/50'}`}>
-                                        {roster.length === 0 && !isLocked && (
-                                            <div className="h-full flex flex-col items-center justify-center text-gray-500 border-2 border-dashed border-gray-700 rounded-lg m-2 opacity-50">
-                                                <span className="text-sm">Drag troops here</span>
+                                    <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-black/20 scrollbar-thin scrollbar-thumb-gray-800">
+                                        {roster.length === 0 ? (
+                                            <div className="h-full flex items-center justify-center text-gray-700 border-2 border-dashed border-gray-800 rounded-xl uppercase text-[10px] font-bold">
+                                                {isLocked ? 'DEPLOYMENTS LOCKED' : 'DROP TROOPS HERE'}
                                             </div>
+                                        ) : (
+                                            roster.map(p => (
+                                                <div
+                                                    key={p.fid}
+                                                    className={`flex items-center gap-3 p-2 rounded-xl border bg-gray-900/80 group ${isLocked ? 'border-red-900/20' : 'border-gray-800 hover:border-blue-500/50'}`}
+                                                >
+                                                    <div className="relative">
+                                                        <img src={p.avatar} className="w-8 h-8 rounded-md object-cover border border-gray-700" alt="" />
+                                                        {p.stoveImg && <img src={p.stoveImg} className="absolute -bottom-1 -right-1 w-4 h-4" alt="" />}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="text-[11px] font-black text-white truncate uppercase">{p.nickname}</div>
+                                                        <div className={`text-[8px] font-bold inline-block px-1 rounded-sm border ${getTroopColor(p.troopType)}`}>
+                                                            {p.troopType}
+                                                        </div>
+                                                    </div>
+                                                    {!isLocked && (
+                                                        <button
+                                                            onClick={() => onDrop({ dataTransfer: { getData: () => p.fid } }, null)}
+                                                            className="opacity-0 group-hover:opacity-100 p-1 text-gray-500 hover:text-red-500"
+                                                        >
+                                                            <X size={14} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            ))
                                         )}
-                                        {isLocked && roster.length === 0 && (
-                                            <div className="h-full flex items-center justify-center text-red-500/50 text-sm italic">
-                                                Roster Locked
-                                            </div>
-                                        )}
-                                        {roster.map(p => (
-                                            <PlayerCard key={p.fid} p={p} isCompact={true} locked={isLocked} />
-                                        ))}
                                     </div>
                                 </div>
                             );

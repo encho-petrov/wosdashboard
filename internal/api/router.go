@@ -204,38 +204,30 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int) 
 				GiftCodes []string `json:"giftCodes" binding:"required"`
 			}
 			if err := c.ShouldBindJSON(&input); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 				return
 			}
 
-			username := c.GetString("username")
-			user, err := store.GetUserByUsername(username)
+			if engine.IsJobRunning() {
+				c.JSON(409, gin.H{"error": "A job is already running"})
+				return
+			}
+
+			user, _ := store.GetUserByUsername(c.GetString("username"))
+
+			players, _ := store.GetPlayers(nil)
+
+			var targets []models.PlayerData
+			for _, p := range players {
+				targets = append(targets, models.PlayerData{Fid: p.FID, Nickname: p.Nickname})
+			}
+
+			jobID, err := engine.StartJob(input.GiftCodes, targets, int64(user.ID))
 			if err != nil {
-				c.JSON(500, gin.H{"error": "User lookup failed"})
+				c.JSON(500, gin.H{"error": "Failed to start redemption job"})
 				return
 			}
 
-			jobID := fmt.Sprintf("JOB-%d", time.Now().Unix())
-
-			if !engine.CanStartJob(jobID) {
-				c.JSON(http.StatusConflict, gin.H{
-					"error":  "A job is already running. Please wait for it to finish.",
-					"status": "Running",
-				})
-				return
-			}
-
-			job := &models.RedeemJob{
-				JobID:       jobID,
-				GiftCodes:   input.GiftCodes,
-				RequestedBy: c.GetHeader("X-API-Key"),
-				UserID:      int64(user.ID),
-				CreatedAt:   time.Now(),
-				Status:      "Queued",
-			}
-
-			engine.JobQueue <- job
-			c.JSON(http.StatusAccepted, gin.H{"jobId": job.JobID, "status": "Queued"})
+			c.JSON(200, gin.H{"message": "Job Started", "jobId": jobID})
 		})
 
 		authorized.POST("/players", func(c *gin.Context) {
@@ -277,6 +269,21 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int) 
 				"added":   added,
 				"skipped": skipped,
 			})
+		})
+
+		authorized.DELETE("/players/:fid", func(c *gin.Context) {
+			fid, err := strconv.ParseInt(c.Param("fid"), 10, 64)
+			if err != nil {
+				c.JSON(400, gin.H{"error": "Invalid Player ID"})
+				return
+			}
+
+			if err := store.DeletePlayer(fid); err != nil {
+				c.JSON(500, gin.H{"error": "Failed to delete player from database"})
+				return
+			}
+
+			c.JSON(200, gin.H{"message": "Player removed from roster"})
 		})
 
 		authorized.POST("/change-password", func(c *gin.Context) {
@@ -554,6 +561,15 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int) 
 				return
 			}
 			c.JSON(200, gin.H{"message": "Player updated"})
+		})
+
+		authorized.GET("/war-room/filters", func(c *gin.Context) {
+			opts, err := store.GetWarRoomFilterOptions()
+			if err != nil {
+				c.JSON(500, gin.H{"error": "Failed to fetch filter options"})
+				return
+			}
+			c.JSON(200, opts)
 		})
 
 		authorized.GET("/options", func(c *gin.Context) {

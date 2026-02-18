@@ -29,6 +29,7 @@ type RedeemJobEntry struct {
 	VerifyStatus int    `json:"verifyStatus"`
 	RedeemStatus int    `json:"redeemStatus"`
 	RedeemMsg    string `json:"redeemMsg"`
+	GiftCode     string `json:"gitCode"`
 }
 
 type RedeemJob struct {
@@ -41,4 +42,5 @@ type RedeemJob struct {
 	Processed   int              `json:"processed"`
 	Total       int              `json:"total"`
 	Results     []RedeemJobEntry `json:"results"`
+	Targets     []PlayerData
 }

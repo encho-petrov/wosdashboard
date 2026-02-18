@@ -46,7 +46,7 @@ func main() {
 	redisStore := cache.NewRedisStore(cfg.Redis.Host, cfg.Redis.Password, cfg.Redis.DB)
 	engine := processor.NewProcessor(pClient, gClient, store, solver, redisStore)
 
-	go engine.StartWorker()
+	go engine.StartWorkers()
 	router := api.SetupRouter(engine, store, cfg.Game.TargetState)
 
 	log.Println("Server running on http://localhost:8080")
