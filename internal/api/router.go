@@ -124,13 +124,19 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int) 
 
 		playerGroup.GET("/dashboard", func(c *gin.Context) {
 			fidStr := c.GetString("username")
-			fid, _ := strconv.ParseInt(fidStr, 10, 64)
+
+			fid, err := strconv.ParseInt(fidStr, 10, 64)
+			if err != nil {
+				c.JSON(401, gin.H{"error": "Invalid token identity"})
+				return
+			}
 
 			data, err := store.GetPlayerDashboardData(fid)
 			if err != nil {
 				c.JSON(500, gin.H{"error": "Failed to load dashboard"})
 				return
 			}
+
 			c.JSON(200, data)
 		})
 	}
@@ -138,6 +144,61 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int) 
 	authorized := r.Group("/api/moderator")
 	authorized.Use(AuthMiddleware())
 	{
+		authorized.GET("/admin/alliances", func(c *gin.Context) {
+			list, err := store.GetAlliances()
+			if err != nil {
+				c.JSON(500, gin.H{"error": "Failed to fetch alliances"})
+				return
+			}
+			c.JSON(200, list)
+		})
+
+		// 2. Create New Alliance
+		authorized.POST("/admin/alliances", func(c *gin.Context) {
+			var input struct {
+				Name string `json:"name" binding:"required"`
+				Type string `json:"type" binding:"required"`
+			}
+			if err := c.ShouldBindJSON(&input); err != nil {
+				c.JSON(400, gin.H{"error": "Name and Type are required"})
+				return
+			}
+			if err := store.CreateAlliance(input.Name, input.Type); err != nil {
+				c.JSON(500, gin.H{"error": "Database error"})
+				return
+			}
+			c.JSON(200, gin.H{"message": "Alliance created successfully"})
+		})
+
+		// 3. Update Alliance
+		authorized.PUT("/admin/alliances/:id", func(c *gin.Context) {
+			id, _ := strconv.Atoi(c.Param("id"))
+			var input struct {
+				Name string `json:"name" binding:"required"`
+				Type string `json:"type" binding:"required"`
+			}
+			if err := c.ShouldBindJSON(&input); err != nil {
+				c.JSON(400, gin.H{"error": "Invalid input"})
+				return
+			}
+			if err := store.UpdateAlliance(id, input.Name, input.Type); err != nil {
+				c.JSON(500, gin.H{"error": "Update failed"})
+				return
+			}
+			c.JSON(200, gin.H{"message": "Alliance updated"})
+		})
+
+		// 4. Delete Alliance
+		authorized.DELETE("/admin/alliances/:id", func(c *gin.Context) {
+			id, _ := strconv.Atoi(c.Param("id"))
+			if err := store.DeleteAlliance(id); err != nil {
+				// Note: This usually fails if players are still assigned (Foreign Key)
+				c.JSON(400, gin.H{"error": "Cannot delete: Ensure no players are assigned to this alliance first."})
+				return
+			}
+			c.JSON(200, gin.H{"message": "Alliance deleted"})
+		})
+
 		authorized.POST("/redeem", func(c *gin.Context) {
 			var input struct {
 				GiftCodes []string `json:"giftCodes" binding:"required"`
@@ -495,7 +556,6 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int) 
 			c.JSON(200, gin.H{"message": "Player updated"})
 		})
 
-		// Helper Data for Dropdowns
 		authorized.GET("/options", func(c *gin.Context) {
 			alliances, _ := store.GetAlliances()
 			teams, _ := store.GetTeams()
@@ -551,30 +611,26 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int) 
 		})
 
 		admin.POST("/sync-roster", func(c *gin.Context) {
-			// 1. Get the list of IDs that need fixing
-			ids, err := store.GetIncompletePlayers()
+			playerIDs, err := store.GetAllPlayerIDs()
 			if err != nil {
-				c.JSON(500, gin.H{"error": "Failed to fetch incomplete records"})
+				fmt.Printf("Error fetching IDs: %v\n", err)
+				c.JSON(500, gin.H{"error": "Failed to fetch player list"})
 				return
 			}
 
-			if len(ids) == 0 {
-				c.JSON(200, gin.H{"message": "All players are already synced!"})
+			if len(playerIDs) == 0 {
+				c.JSON(200, gin.H{"message": "Roster is empty, nothing to sync."})
 				return
 			}
 
-			// 2. Start Background Process
-			go func(targetIDs []int64) {
-				fmt.Printf("[SYNC] Starting sync for %d players...\n", len(targetIDs))
+			go func(ids []int64) {
+				fmt.Printf("[SYNC] Starting roster refresh for %d players...\n", len(ids))
 
-				for i, fid := range targetIDs {
-					// A. Call Game API
+				for i, fid := range ids {
 					info, err := engine.PlayerClient.GetPlayerInfo(fid)
 
-					// B. If successful, update DB
 					if err == nil && info.Code == 0 {
-						// Reuse our Upsert logic
-						err := store.UpsertPlayer(
+						store.UpsertPlayer(
 							info.Data.Fid,
 							info.Data.Nickname,
 							info.Data.KID,
@@ -582,23 +638,20 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int) 
 							info.Data.StoveImg,
 							info.Data.Avatar,
 						)
-						if err != nil {
-							fmt.Printf("[SYNC] Failed to save FID %d: %v\n", fid, err)
-						} else {
-							fmt.Printf("[SYNC] Fixed %d/%d: %s\n", i+1, len(targetIDs), info.Data.Nickname)
-						}
+						fmt.Printf("[SYNC] Updated %d/%d: %s\n", i+1, len(ids), info.Data.Nickname)
 					} else {
-						fmt.Printf("[SYNC] API Error for FID %d\n", fid)
+						fmt.Printf("[SYNC] Failed to update FID %d\n", fid)
 					}
 
-					// C. Rate Limiting (VERY IMPORTANT)
-					// Sleep 200ms to avoid getting banned by WOS API
-					time.Sleep(500 * time.Millisecond)
+					time.Sleep(1500 * time.Millisecond)
 				}
-				fmt.Println("[SYNC] Completed.")
-			}(ids)
+				fmt.Println("[SYNC] Roster refresh complete.")
+			}(playerIDs)
 
-			c.JSON(200, gin.H{"message": fmt.Sprintf("Started background sync for %d players. Check logs for progress.", len(ids))})
+			c.JSON(200, gin.H{
+				"message": fmt.Sprintf("Started background update for %d players. This will take about %d seconds.",
+					len(playerIDs), len(playerIDs)/2),
+			})
 		})
 
 		admin.DELETE("/users/:id", func(c *gin.Context) {

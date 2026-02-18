@@ -75,14 +75,18 @@ export default function Roster() {
   };
 
   const handleSync = async () => {
-    setIsSyncing(true);
+    setIsSyncing(true); // Start spinner
     try {
       const res = await client.post('/admin/sync-roster');
-      toast.info(res.data.message);
-      setTimeout(() => fetchData(), 3000);
+
+      toast.info(res.data.message, { autoClose: 5000 });
+
+      setTimeout(() => setIsSyncing(false), 3000);
+
+      setTimeout(() => fetchData(), 30000);
+
     } catch (err) {
       toast.error("Sync failed to start");
-    } finally {
       setIsSyncing(false);
     }
   };

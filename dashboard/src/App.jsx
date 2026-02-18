@@ -10,7 +10,8 @@ import PlayerDashboard from './pages/PlayerDashboard';
 import Users from './pages/Users';
 import Roster from './pages/Roster';
 import WarRoom from './pages/WarRoom';
-import Squads from './pages/Squads'; // Ensure this is imported!
+import Squads from './pages/Squads';
+import Alliances from './pages/Alliances';
 
 const Home = () => {
   const { user } = useAuth();
@@ -44,33 +45,36 @@ function App() {
               </ProtectedRoute>
             } />
 
-            {/* Roster Route */}
             <Route path="/roster" element={
               <ProtectedRoute>
                 <Roster />
               </ProtectedRoute>
             } />
 
-            {/* War Room Route */}
             <Route path="/war-room" element={
               <ProtectedRoute>
                 <WarRoom />
               </ProtectedRoute>
             } />
 
-            {/* Squads Route */}
             <Route path="/squads" element={
               <ProtectedRoute>
                 <Squads />
               </ProtectedRoute>
             } />
 
-            {/* Users Route (Admin Only) */}
             <Route path="/users" element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <Users />
               </ProtectedRoute>
             } />
+
+            <Route path="/alliances" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <Alliances />
+              </ProtectedRoute>
+            }
+            />
 
           </Routes>
           <ToastContainer position="top-right" theme="dark" />

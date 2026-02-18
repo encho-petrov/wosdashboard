@@ -5,7 +5,7 @@ import { toast } from 'react-toastify';
 import { Link } from 'react-router-dom';
 import {
   LogOut, Play, Download, Activity, FileText,
-  CheckCircle, Users as UsersIcon, List, Swords, Sword
+  CheckCircle, Users as UsersIcon, List, Swords, Sword, Shield
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -148,7 +148,15 @@ export default function Dashboard() {
                   <span>Users</span>
                 </Link>
             )}
-
+            {user?.role === 'admin' && (
+                <Link
+                    to="/alliances"
+                    className="flex items-center space-x-2 px-3 py-1.5 bg-gray-700/50 text-gray-300 hover:bg-gray-700 rounded-lg transition-colors text-sm font-medium border border-gray-600/50"
+                >
+                  <Shield className="w-4 h-4" />
+                  <span>Alliances</span>
+                </Link>
+             )}
             <div className="h-6 w-px bg-gray-700 mx-1 hidden md:block"></div>
 
             <div className="flex items-center space-x-3">

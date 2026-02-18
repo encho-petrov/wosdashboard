@@ -14,7 +14,8 @@ export default function PlayerDashboard() {
 
   const fetchDashboard = async () => {
     try {
-      const res = await client.get('/player/dashboard'); // Use the NEW endpoint
+      // Calls the new endpoint we just created
+      const res = await client.get('/player/dashboard');
       setData(res.data);
     } catch (err) {
       console.error("Dashboard error:", err);
@@ -56,12 +57,12 @@ export default function PlayerDashboard() {
             {/* Avatar + Furnace Icon */}
             <div className="relative">
               <img
+                  alt="avatar"
                   src={player.avatar || "https://via.placeholder.com/100"}
                   className="w-24 h-24 rounded-full border-4 border-gray-700 bg-black object-cover"
               />
               {player.stoveImg && (
                   <div className="absolute -bottom-2 -right-2 bg-gray-800 rounded-full p-1.5 border border-gray-600 shadow-lg">
-                    {/* Replaces the text "80" with the image */}
                     <img src={player.stoveImg} className="w-10 h-10 object-contain" alt="Furnace" />
                   </div>
               )}
@@ -135,12 +136,12 @@ export default function PlayerDashboard() {
                     <div className="space-y-3 flex-1 overflow-y-auto max-h-[200px] pr-2 scrollbar-thin scrollbar-thumb-gray-600">
                       {teammates && teammates.length > 0 ? teammates.map(tm => (
                           <div key={tm.fid} className="flex items-center gap-3 bg-gray-700/30 p-2 rounded hover:bg-gray-700/50 transition-colors">
-                            <img src={tm.avatar} className="w-8 h-8 rounded-full bg-black" />
+                            <img alt="avatar" src={tm.avatar} className="w-8 h-8 rounded-full bg-black" />
                             <div className="flex-1">
                               <div className="text-sm font-bold text-gray-200">{tm.nickname}</div>
                               <div className="text-xs text-yellow-500 font-mono">{tm.tundraPower ? tm.tundraPower.toLocaleString() : 0}</div>
                             </div>
-                            {tm.stoveImg && <img src={tm.stoveImg} className="w-5 h-5 object-contain" />}
+                            {tm.stoveImg && <img alt="avatar" src={tm.stoveImg} className="w-5 h-5 object-contain" />}
                           </div>
                       )) : (
                           <div className="text-gray-500 text-sm italic text-center py-4">No other members yet</div>

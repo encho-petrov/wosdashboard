@@ -111,6 +111,7 @@ type PlayerRow struct {
 type AllianceOption struct {
 	ID   int    `db:"id" json:"id"`
 	Name string `db:"name" json:"name"`
+	Type string `db:"type" json:"type"`
 }
 
 type TeamOption struct {
@@ -416,7 +417,7 @@ func (s *Store) UpdatePlayerDetails(fid int64, power int64, troopType string, ba
 
 func (s *Store) GetAlliances() ([]AllianceOption, error) {
 	var list []AllianceOption
-	err := s.db.Select(&list, "SELECT id, name FROM alliances ORDER BY name ASC")
+	err := s.db.Select(&list, "SELECT id, name, type FROM alliances ORDER BY name, type ASC")
 	return list, err
 }
 
@@ -427,7 +428,6 @@ func (s *Store) GetTeams() ([]TeamOption, error) {
 }
 
 func (s *Store) GetIncompletePlayers() ([]int64, error) {
-	// UPDATED: Selects players if they are missing a nickname OR an avatar OR have level 0
 	query := `
         SELECT player_id 
         FROM players 
@@ -443,7 +443,6 @@ func (s *Store) GetIncompletePlayers() ([]int64, error) {
 }
 
 func (s *Store) BulkAssignFightingAlliance(playerIDs []int64, allianceID *int) error {
-	// If allianceID is nil, it sets them to NULL (Unassigned)
 	query, args, err := sqlx.In("UPDATE players SET fighting_alliance_id = ? WHERE player_id IN (?)", allianceID, playerIDs)
 	if err != nil {
 		return err
@@ -477,54 +476,54 @@ func (s *Store) ToggleAllianceLock(allianceID int, isLocked bool) error {
 }
 
 func (s *Store) ResetEvent() error {
-	// 1. Unlock all alliances
 	_, err := s.db.Exec("UPDATE alliances SET is_locked = FALSE")
 	if err != nil {
 		return err
 	}
 
-	// 2. Remove players from Fighting Alliances and Teams
-	// Note: We keep General Alliance (alliance_id) intact!
 	_, err = s.db.Exec("UPDATE players SET fighting_alliance_id = NULL, team_id = NULL")
 	if err != nil {
 		return err
 	}
 
-	// 3. Disband all War Teams
-	// Assuming you identify War Teams by having a fighting_alliance_id (see Part 2)
 	_, err = s.db.Exec("DELETE FROM teams WHERE fighting_alliance_id IS NOT NULL")
 
 	return err
 }
 
 func (s *Store) PromoteCaptain(fid int64, fightingAllianceID int) error {
-	// 1. Get Nickname
-	var nickname string
-	if err := s.db.Get(&nickname, "SELECT nickname FROM players WHERE player_id = ?", fid); err != nil {
-		return err
+	var player struct {
+		Nickname   string `db:"nickname"`
+		AllianceID *int   `db:"alliance_id"`
 	}
 
-	// 2. Create Team
-	res, err := s.db.Exec("INSERT INTO teams (name, captain_fid, fighting_alliance_id) VALUES (?, ?, ?)",
-		nickname+"'s Squad", fid, fightingAllianceID)
+	query := "SELECT nickname, alliance_id FROM players WHERE player_id = ?"
+	if err := s.db.Get(&player, query, fid); err != nil {
+		return fmt.Errorf("failed to fetch player data: %v", err)
+	}
+
+	res, err := s.db.Exec(`
+        INSERT INTO teams (name, captain_fid, fighting_alliance_id, alliance_id) 
+        VALUES (?, ?, ?, ?)`,
+		player.Nickname+"'s Squad", fid, fightingAllianceID, player.AllianceID,
+	)
+
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create team: %v", err)
 	}
 
-	// 3. Auto-assign captain to the team
 	teamID, _ := res.LastInsertId()
 	_, err = s.db.Exec("UPDATE players SET team_id = ? WHERE player_id = ?", teamID, fid)
+
 	return err
 }
 
 func (s *Store) DemoteCaptain(teamID int) error {
-	// 1. Unassign all players
 	_, err := s.db.Exec("UPDATE players SET team_id = NULL WHERE team_id = ?", teamID)
 	if err != nil {
 		return err
 	}
 
-	// 2. Delete Team
 	_, err = s.db.Exec("DELETE FROM teams WHERE id = ?", teamID)
 	return err
 }
@@ -550,7 +549,7 @@ func (s *Store) AssignToSquad(fid int64, teamID *int) error {
 }
 
 func (s *Store) GetPlayerDashboardData(fid int64) (*DashboardData, error) {
-	// A. Get Player Details + Alliances + Team Name
+	// 1. Get Player Details + General Alliance + Fighting Alliance + Team Name
 	query := `
         SELECT 
             p.player_id, 
@@ -580,10 +579,9 @@ func (s *Store) GetPlayerDashboardData(fid int64) (*DashboardData, error) {
 		return nil, err
 	}
 
-	// B. Get Teammates (if assigned)
+	// 2. Get Teammates (if assigned to a squad)
 	var teammates []PlayerRow
 	if player.TeamID != nil {
-		// Fetch other players in the same team
 		tQuery := `
             SELECT player_id, nickname, avatar_image, tundra_power, stove_lv_content
             FROM players 
@@ -594,4 +592,26 @@ func (s *Store) GetPlayerDashboardData(fid int64) (*DashboardData, error) {
 	}
 
 	return &DashboardData{Player: player, Teammates: teammates}, nil
+}
+
+func (s *Store) GetAllPlayerIDs() ([]int64, error) {
+	var ids []int64
+	query := "SELECT player_id FROM players"
+	err := s.db.Select(&ids, query)
+	return ids, err
+}
+
+func (s *Store) CreateAlliance(name, aType string) error {
+	_, err := s.db.Exec("INSERT INTO alliances (name, type) VALUES (?, ?)", name, aType)
+	return err
+}
+
+func (s *Store) UpdateAlliance(id int, name, aType string) error {
+	_, err := s.db.Exec("UPDATE alliances SET name = ?, type = ? WHERE id = ?", name, aType, id)
+	return err
+}
+
+func (s *Store) DeleteAlliance(id int) error {
+	_, err := s.db.Exec("DELETE FROM alliances WHERE id = ?", id)
+	return err
 }
