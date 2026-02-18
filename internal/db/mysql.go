@@ -85,6 +85,8 @@ type User struct {
 	PasswordHash string `db:"password_hash"`
 	Role         string `db:"role"`
 	AllianceID   *int   `db:"alliance_id"`
+	MFASecret    string `db:"mfa_secret" json:"-"`
+	MFAEnabled   bool   `db:"mfa_enabled" json:"mfa_enabled"`
 }
 
 type PlayerRow struct {
@@ -663,5 +665,10 @@ func (s *Store) CreateJob(initiatedBy int64, codes, status string, total int) (s
 
 func (s *Store) UpdateJobProgress(jobID string, processed int) error {
 	_, err := s.db.Exec("UPDATE jobs SET processed_players = ? WHERE job_id = ?", processed, jobID)
+	return err
+}
+
+func (s *Store) EnableUserMFA(id int64, secret string) error {
+	_, err := s.db.Exec("UPDATE users SET mfa_secret = ?, mfa_enabled = TRUE WHERE id = ?", secret, id)
 	return err
 }

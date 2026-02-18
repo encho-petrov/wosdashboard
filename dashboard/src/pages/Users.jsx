@@ -255,6 +255,7 @@ export default function Users() {
                            )}
                         </td>
                         <td className="p-4 text-right">
+                          {user.id !== 1 && (
                           <button 
                             onClick={() => handleDelete(u.id)}
                             className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-900/20 rounded-lg transition-all"
@@ -262,6 +263,7 @@ export default function Users() {
                           >
                             <Trash2 className="w-5 h-5" />
                           </button>
+                          )}
                         </td>
                       </tr>
                     ))

@@ -18,18 +18,14 @@ type RedisStore struct {
 func NewRedisStore(host, password string, db int) *RedisStore {
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     host,
-		Password: password, // no password set
-		DB:       db,       // use default DB
+		Password: password,
+		DB:       db,
 	})
 
 	return &RedisStore{Client: rdb}
 }
 
-// Global Lock for the Job Runner
 func (r *RedisStore) AcquireJobLock(jobID string) bool {
-	// SetNX = SET if Not Exists
-	// We set a key "job_running" with value "jobID".
-	// If it already exists, this returns false.
 	success, err := r.Client.SetNX(ctx, "global_job_lock", jobID, 24*time.Hour).Result()
 	if err != nil {
 		return false
@@ -41,7 +37,6 @@ func (r *RedisStore) ReleaseJobLock() {
 	r.Client.Del(ctx, "global_job_lock")
 }
 
-// Real-time Dashboard Updates
 type JobProgress struct {
 	JobID     string `json:"job_id"`
 	Total     int    `json:"total"`
@@ -58,10 +53,8 @@ func (r *RedisStore) SetJobProgress(jobID string, current, total int, status str
 	}
 	data, _ := json.Marshal(progress)
 
-	// Store in Redis (Expire after 1 hour)
 	r.Client.Set(ctx, fmt.Sprintf("job_progress:%s", jobID), data, 1*time.Hour)
 
-	// Also update a "Current Job" key for easy frontend fetching
 	r.Client.Set(ctx, "current_job_status", data, 1*time.Hour)
 }
 
@@ -77,4 +70,36 @@ func (r *RedisStore) GetCurrentJobStatus() *JobProgress {
 		return nil
 	}
 	return &progress
+}
+
+func (r *RedisStore) GetLoginAttempts(ip string) int {
+	key := "failed_login:" + ip
+	val, _ := r.Client.Get(ctx, key).Int()
+	return val
+}
+
+func (r *RedisStore) RecordFailedLogin(ip string) {
+	key := "failed_login:" + ip
+	count, _ := r.Client.Incr(ctx, key).Result()
+	if count == 1 {
+		r.Client.Expire(ctx, key, 15*time.Minute)
+	}
+}
+
+func (r *RedisStore) ClearLoginAttempts(ip string) {
+	r.Client.Del(ctx, "failed_login:"+ip)
+}
+
+func (r *RedisStore) SetMfaSession(token, username string) {
+	// Store the temporary token for 5 minutes
+	r.Client.Set(ctx, "mfa_session:"+token, username, 5*time.Minute)
+}
+
+func (r *RedisStore) GetMfaSession(token string) string {
+	val, _ := r.Client.Get(ctx, "mfa_session:"+token).Result()
+	return val
+}
+
+func (r *RedisStore) DeleteMfaSession(token string) {
+	r.Client.Del(ctx, "mfa_session:"+token)
 }

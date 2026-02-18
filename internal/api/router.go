@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pquerna/otp/totp"
 )
 
 func SetupRouter(engine *processor.Processor, store *db.Store, targetState int) *gin.Engine {
@@ -31,6 +32,13 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int) 
 	})
 
 	r.POST("/api/login", func(c *gin.Context) {
+		ip := c.ClientIP()
+
+		if engine.Redis.GetLoginAttempts(ip) >= 5 {
+			c.JSON(http.StatusTooManyRequests, gin.H{"error": "Too many failed attempts. Try again in 15 minutes."})
+			return
+		}
+
 		var input struct {
 			Username string `json:"username" binding:"required"`
 			Password string `json:"password" binding:"required"`
@@ -43,16 +51,62 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int) 
 
 		user, err := store.GetUserByUsername(input.Username)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"}) // Don't say "User not found"
-			return
-		}
-
-		if !auth.CheckPassword(input.Password, user.PasswordHash) {
+			engine.Redis.RecordFailedLogin(ip)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
 			return
 		}
 
+		if !auth.CheckPassword(input.Password, user.PasswordHash) {
+			engine.Redis.RecordFailedLogin(ip)
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+			return
+		}
+
+		engine.Redis.ClearLoginAttempts(ip)
+
+		engine.Redis.ClearLoginAttempts(ip)
+
+		if user.MFAEnabled {
+			tempToken := fmt.Sprintf("%d", time.Now().UnixNano())
+
+			engine.Redis.SetMfaSession(tempToken, user.Username)
+
+			c.JSON(http.StatusOK, gin.H{
+				"mfa_required": true,
+				"temp_token":   tempToken,
+			})
+			return
+		}
+
 		token, _ := auth.GenerateToken(user.Username, user.Role)
+		c.JSON(http.StatusOK, gin.H{"token": token, "role": user.Role})
+	})
+
+	r.POST("/api/login/mfa", func(c *gin.Context) {
+		var input struct {
+			TempToken string `json:"temp_token" binding:"required"`
+			Code      string `json:"code" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&input); err != nil {
+			return
+		}
+
+		username := engine.Redis.GetMfaSession(input.TempToken)
+		if username == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Session expired. Please log in again."})
+			return
+		}
+
+		user, _ := store.GetUserByUsername(username)
+		if !totp.Validate(input.Code, user.MFASecret) {
+			// Optional: you could add rate limiting here too!
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authenticator code"})
+			return
+		}
+
+		engine.Redis.DeleteMfaSession(input.TempToken)
+		token, _ := auth.GenerateToken(user.Username, user.Role)
+
 		c.JSON(http.StatusOK, gin.H{"token": token, "role": user.Role})
 	})
 
@@ -318,6 +372,47 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int) 
 			}
 
 			c.JSON(http.StatusOK, gin.H{"message": "Password updated successfully"})
+		})
+
+		authorized.GET("/mfa/generate", func(c *gin.Context) {
+			username := c.GetString("username")
+
+			key, err := totp.Generate(totp.GenerateOpts{
+				Issuer:      "WoS Admin Panel",
+				AccountName: username,
+			})
+			if err != nil {
+				c.JSON(500, gin.H{"error": "Failed to generate MFA token"})
+				return
+			}
+
+			c.JSON(200, gin.H{"secret": key.Secret(), "url": key.URL()})
+		})
+
+		authorized.POST("/moderator/mfa/enable", func(c *gin.Context) {
+			var input struct {
+				Secret string `json:"secret" binding:"required"`
+				Code   string `json:"code" binding:"required"`
+			}
+			if err := c.ShouldBindJSON(&input); err != nil {
+				return
+			}
+
+			username := c.GetString("username")
+			user, _ := store.GetUserByUsername(username)
+
+			valid := totp.Validate(input.Code, input.Secret)
+			if !valid {
+				c.JSON(400, gin.H{"error": "Invalid authenticator code"})
+				return
+			}
+
+			if err := store.EnableUserMFA(int64(user.ID), input.Secret); err != nil {
+				c.JSON(500, gin.H{"error": "Failed to save MFA settings"})
+				return
+			}
+
+			c.JSON(200, gin.H{"message": "MFA Enabled Successfully"})
 		})
 
 		authorized.POST("/create-user", func(c *gin.Context) {
@@ -673,6 +768,11 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int) 
 		admin.DELETE("/users/:id", func(c *gin.Context) {
 			idParam := c.Param("id")
 			id, _ := strconv.Atoi(idParam)
+
+			if id == 1 {
+				c.JSON(http.StatusForbidden, gin.H{"error": "The master admin account cannot be deleted."})
+				return
+			}
 
 			if err := store.DeleteUser(id); err != nil {
 				c.JSON(500, gin.H{"error": "Failed to delete user"})
