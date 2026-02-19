@@ -729,7 +729,8 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 		authorized.GET("/options", func(c *gin.Context) {
 			alliances, _ := store.GetAlliances()
 			teams, _ := store.GetTeams()
-			c.JSON(200, gin.H{"alliances": alliances, "teams": teams})
+			rosterstats, _ := store.GetRosterStats()
+			c.JSON(200, gin.H{"alliances": alliances, "teams": teams, "rosterstats": rosterstats})
 		})
 	}
 

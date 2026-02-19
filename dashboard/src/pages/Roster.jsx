@@ -14,8 +14,15 @@ export default function Roster() {
   // --- ORIGINAL DATA STATE ---
   const [players, setPlayers] = useState([]);
   const [filteredPlayers, setFilteredPlayers] = useState([]);
-  const [options, setOptions] = useState({ alliances: [], teams: [] });
-  const [loading, setLoading] = useState(true);
+  const [options, setOptions] = useState({
+    alliances: [],
+    teams: [],
+    rosterstats: {
+      troopTypes: [],
+      battleAvailability: [],
+      tundraAvailability: []
+    }
+  });  const [loading, setLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
 
   // --- ORIGINAL UI STATE ---
@@ -268,10 +275,9 @@ export default function Roster() {
                           <td className="p-4">
                             {editingId === p.fid ? (
                                 <select className="bg-gray-900 border border-gray-600 rounded px-1 py-1 text-white text-xs" value={editForm.troopType} onChange={e => setEditForm({...editForm, troopType: e.target.value})}>
-                                  <option value="None">None</option>
-                                  <option value="Brilliant">Brilliant</option>
-                                  <option value="Helios">Helios</option>
-                                  <option value="Apex">Apex</option>
+                                  {options.rosterstats.troopTypes.map(t => (
+                                      <option key={t} value={t}>{t}</option>
+                                  ))}
                                 </select>
                             ) : (
                                 <span className={`px-2 py-1 rounded text-xs border ${p.troopType === 'Apex' ? 'bg-red-900/30 text-red-300 border-red-800' : p.troopType === 'Helios' ? 'bg-orange-900/30 text-orange-300 border-orange-800' : 'bg-gray-700 text-gray-400 border-gray-600'}`}>
@@ -282,15 +288,17 @@ export default function Roster() {
                           <td className="p-4 text-xs">
                             {editingId === p.fid ? (
                                 <select className="bg-gray-900 border border-gray-600 rounded px-1 py-1 text-white text-xs" value={editForm.battleAvailability} onChange={e => setEditForm({...editForm, battleAvailability: e.target.value})}>
-                                  <option value="Unavailable">Unavailable</option><option value="<2h">&lt; 2h</option><option value="2-3h">2-3h</option><option value="3-4h">3-4h</option><option value="4h+">4h+</option><option value="Full">Full</option>
-                                </select>
+                                  {options.rosterstats.battleAvailability.map(b => (
+                                      <option key={b} value={b}>{b}</option>
+                                  ))}                                </select>
                             ) : <span className={getBattleColor(p.battleAvailability)}>{p.battleAvailability}</span>}
                           </td>
                           <td className="p-4 text-xs">
                             {editingId === p.fid ? (
                                 <select className="bg-gray-900 border border-gray-600 rounded px-1 py-1 text-white text-xs" value={editForm.tundraAvailability} onChange={e => setEditForm({...editForm, tundraAvailability: e.target.value})}>
-                                  <option value="Unavailable">Unavailable</option><option value="Partial">Partial</option><option value="Full">Full</option>
-                                </select>
+                                  {options.rosterstats.tundraAvailability.map(t => (
+                                      <option key={t} value={t}>{t}</option>
+                                  ))}                                </select>
                             ) : <span className={p.tundraAvailability === 'Full' ? 'text-blue-400' : 'text-gray-500'}>{p.tundraAvailability}</span>}
                           </td>
                           <td className="p-4 text-xs text-gray-400">

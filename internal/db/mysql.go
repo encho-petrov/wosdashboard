@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -144,6 +145,12 @@ type DashboardData struct {
 }
 
 type FilterOptions struct {
+	TroopTypes         []string `json:"troopTypes"`
+	BattleAvailability []string `json:"battleAvailability"`
+	TundraAvailability []string `json:"tundraAvailability"`
+}
+
+type RosterStats struct {
 	TroopTypes         []string `json:"troopTypes"`
 	BattleAvailability []string `json:"battleAvailability"`
 	TundraAvailability []string `json:"tundraAvailability"`
@@ -655,6 +662,36 @@ func (s *Store) GetWarRoomFilterOptions() (FilterOptions, error) {
 	err = s.db.Select(&opts.TundraAvailability, "SELECT DISTINCT COALESCE(tundra_availability, 'Unavailable') FROM players")
 
 	return opts, err
+}
+
+func (s *Store) GetRosterStats() (RosterStats, error) {
+	var stats RosterStats
+
+	getEnumOptions := func(columnName string) ([]string, error) {
+		var rawType string
+		query := `
+            SELECT COLUMN_TYPE 
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_NAME = 'players' AND COLUMN_NAME = ? AND TABLE_SCHEMA = DATABASE()`
+
+		err := s.db.Get(&rawType, query, columnName)
+		if err != nil {
+			return nil, err
+		}
+
+		rawType = strings.TrimPrefix(rawType, "enum(")
+		rawType = strings.TrimSuffix(rawType, ")")
+		rawType = strings.ReplaceAll(rawType, "'", "")
+
+		return strings.Split(rawType, ","), nil
+	}
+
+	var err error
+	stats.TroopTypes, err = getEnumOptions("troop_type")
+	stats.BattleAvailability, err = getEnumOptions("battle_availability")
+	stats.TundraAvailability, err = getEnumOptions("tundra_availability")
+
+	return stats, err
 }
 
 func (s *Store) CreateJob(initiatedBy int64, codes, status string, total int) (string, error) {
