@@ -10,13 +10,20 @@ export default function AuditLogs() {
 
     useEffect(() => {
         client.get('/moderator/admin/audit-logs')
-            .then(res => setLogs(res.data))
+            .then(res => {
+                setLogs(res.data || []);
+            })
+            .catch(err => {
+                console.error("Failed to fetch audit logs:", err);
+                setLogs([]);
+            })
             .finally(() => setLoading(false));
     }, []);
 
-    const filteredLogs = logs.filter(l =>
-        l.action.toLowerCase().includes(filter.toLowerCase()) ||
-        l.details.toLowerCase().includes(filter.toLowerCase())
+    const safeLogs = Array.isArray(logs) ? logs : [];
+    const filteredLogs = safeLogs.filter(l =>
+        (l.action && l.action.toLowerCase().includes(filter.toLowerCase())) ||
+        (l.details && l.details.toLowerCase().includes(filter.toLowerCase()))
     );
 
     return (
