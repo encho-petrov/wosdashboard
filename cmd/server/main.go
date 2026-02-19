@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 	"gift-redeemer/internal/api"
 	"gift-redeemer/internal/auth"
 	"gift-redeemer/internal/cache"
@@ -9,18 +10,35 @@ import (
 	"gift-redeemer/internal/client"
 	"gift-redeemer/internal/config"
 	"gift-redeemer/internal/db"
+	"gift-redeemer/internal/models"
 	"gift-redeemer/internal/processor"
+	"gift-redeemer/internal/services"
 	"log"
+	"strings"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/mysql"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/robfig/cron/v3"
 )
 
-func runMigrations(db *sql.DB) error {
-	driver, err := mysql.WithInstance(db, &mysql.Config{})
+func runMigrations(baseDSN string) error {
+	migrationDSN := baseDSN
+	if strings.Contains(baseDSN, "?") {
+		migrationDSN += "&multiStatements=true"
+	} else {
+		migrationDSN += "?multiStatements=true"
+	}
+
+	mDB, err := sql.Open("mysql", migrationDSN)
 	if err != nil {
-		return err
+		return fmt.Errorf("could not open migration connection: %v", err)
+	}
+	defer mDB.Close()
+
+	driver, err := mysql.WithInstance(mDB, &mysql.Config{})
+	if err != nil {
+		return fmt.Errorf("migration driver error: %v", err)
 	}
 
 	m, err := migrate.NewWithDatabaseInstance(
@@ -29,16 +47,49 @@ func runMigrations(db *sql.DB) error {
 		driver,
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("migration instance error: %v", err)
 	}
 
-	err = m.Up()
-	if err != nil && err != migrate.ErrNoChange {
-		return err
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		return fmt.Errorf("migration failed: %v", err)
 	}
 
-	log.Println("Database migrations applied successfully!")
+	log.Println("✅ Database migrations applied successfully!")
 	return nil
+}
+
+func mapDayToCron(day string) string {
+	days := map[string]string{
+		"Sunday": "0", "Monday": "1", "Tuesday": "2",
+		"Wednesday": "3", "Thursday": "4", "Friday": "5", "Saturday": "6",
+	}
+	if val, ok := days[day]; ok {
+		return val
+	}
+	return "4"
+}
+
+func startDiscordWorker(store *db.Store, cfg models.DiscordConfig, seasonReferenceDate string) {
+	c := cron.New()
+
+	cronSpec := fmt.Sprintf("%s %s * * %s",
+		strings.Split(cfg.AnnounceTimeUTC, ":")[1],
+		strings.Split(cfg.AnnounceTimeUTC, ":")[0],
+		mapDayToCron(cfg.AnnounceDay))
+
+	c.AddFunc(cronSpec, func() {
+		targetSeason, upcomingWeek := services.CalculateUpcomingWeek(seasonReferenceDate)
+
+		entries, err := store.GetRotationForWeek(targetSeason, upcomingWeek)
+		if err != nil {
+			log.Printf("Error fetching rotation: %v", err)
+			return
+		}
+
+		services.SendDiscordRotation(cfg, upcomingWeek, entries)
+	})
+
+	c.Start()
 }
 
 func main() {
@@ -48,6 +99,8 @@ func main() {
 	}
 
 	auth.Init(cfg.ApiSecrets.JwtSecret)
+	dsn := fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true",
+		cfg.Database.User, cfg.Database.Password, cfg.Database.Host, cfg.Database.DBName)
 
 	store, err := db.NewStore(
 		cfg.Database.User,
@@ -55,11 +108,12 @@ func main() {
 		cfg.Database.Host,
 		cfg.Database.DBName,
 	)
+
 	if err != nil {
 		log.Fatalf("Failed to connect to DB: %v", err)
 	}
 
-	if err := runMigrations(store.GetRawDB()); err != nil {
+	if err := runMigrations(dsn); err != nil {
 		log.Fatalf("Migration failed: %v", err)
 	}
 

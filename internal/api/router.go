@@ -841,6 +841,58 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 			logAction(c, store, "DELETE_USER", fmt.Sprintf("Deleted user ID: %d", id))
 			c.JSON(200, gin.H{"message": "User deleted"})
 		})
+
+		rotation := authorized.Group("/rotation")
+		{
+			rotation.GET("/buildings", func(c *gin.Context) {
+				buildings, err := store.GetAllBuildings()
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch buildings"})
+					return
+				}
+				c.JSON(http.StatusOK, buildings)
+			})
+
+			rotation.GET("/schedule/:seasonId", func(c *gin.Context) {
+				seasonId, _ := strconv.Atoi(c.Param("seasonId"))
+				schedule, err := store.GetSeasonSchedule(seasonId)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch schedule"})
+					return
+				}
+				c.JSON(http.StatusOK, schedule)
+			})
+
+			rotation.GET("/rewards/:week", func(c *gin.Context) {
+				week, _ := strconv.Atoi(c.Param("week"))
+				rewards, err := store.GetWeeklyRewards(week)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch rewards"})
+					return
+				}
+				c.JSON(http.StatusOK, rewards)
+			})
+
+			rotation.POST("/save", AdminOnlyMiddleware(), func(c *gin.Context) {
+				var req struct {
+					SeasonID int                `json:"seasonId"`
+					Entries  []db.RotationEntry `json:"entries"`
+				}
+
+				if err := c.ShouldBindJSON(&req); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
+					return
+				}
+
+				if err := store.SaveSeasonRotation(req.SeasonID, req.Entries); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					return
+				}
+
+				logAction(c, store, "UPDATE_ROTATION", fmt.Sprintf("Updated rotation for Season %d", req.SeasonID))
+				c.JSON(http.StatusOK, gin.H{"message": "Rotation schedule updated successfully"})
+			})
+		}
 	}
 	return r
 }

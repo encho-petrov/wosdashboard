@@ -12,7 +12,8 @@ import Roster from './pages/Roster';
 import WarRoom from './pages/WarRoom';
 import Squads from './pages/Squads';
 import Alliances from './pages/Alliances';
-import AuditLogs from "./pages/AuditLogs.jsx";
+import AuditLogs from "./pages/AuditLogs";
+import Rotation from './pages/Rotation';
 
 const Home = () => {
   const { user } = useAuth();
@@ -69,6 +70,15 @@ function App() {
                 <Users />
               </ProtectedRoute>
             } />
+
+            <Route
+                path="/rotation"
+                element={
+                  <ProtectedRoute>
+                    <Rotation />
+                  </ProtectedRoute>
+                }
+            />
 
             <Route path="/alliances" element={
               <ProtectedRoute allowedRoles={['admin']}>

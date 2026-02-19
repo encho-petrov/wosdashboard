@@ -166,6 +166,33 @@ type AuditLog struct {
 	UserName  string    `db:"username" json:"username"`
 }
 
+type Building struct {
+	ID         int    `db:"id" json:"id"`
+	InternalID int    `db:"internal_id" json:"internal_id"`
+	Type       string `db:"type" json:"type"`
+}
+
+type BuildingReward struct {
+	BuildingID int    `db:"building_id" json:"building_id"`
+	Week       int    `db:"week_number" json:"week"`
+	Name       string `db:"reward_name" json:"name"`
+	Icon       string `db:"reward_icon" json:"icon"`
+}
+
+type RotationEntry struct {
+	SeasonID   int `db:"season_id" json:"seasonId"`
+	Week       int `db:"week_number" json:"week"`
+	BuildingID int `db:"building_id" json:"buildingId"`
+	AllianceID int `db:"alliance_id" json:"allianceId"`
+}
+
+type RotationEntryExtended struct {
+	Week         int    `db:"week_number" json:"week"`
+	InternalID   int    `db:"internal_id" json:"internalId"`
+	BuildingType string `db:"building_type" json:"buildingType"`
+	AllianceName string `db:"alliance_name" json:"allianceName"`
+}
+
 type Store struct {
 	db *sqlx.DB
 }
@@ -177,10 +204,6 @@ func NewStore(user, pass, host, dbName string) (*Store, error) {
 		return nil, err
 	}
 	return &Store{db: db}, nil
-}
-
-func (s *Store) GetRawDB() *sql.DB {
-	return s.db.DB
 }
 
 func (s *Store) GetPendingPlayers(code string, limit int) ([]int64, error) {
@@ -729,4 +752,93 @@ func (s *Store) GetAuditLogs() ([]AuditLog, error) {
               ORDER BY a.created_at DESC LIMIT 200`
 	err := s.db.Select(&logs, query)
 	return logs, err
+}
+
+func (s *Store) SaveSeasonRotation(seasonID int, entries []RotationEntry) error {
+	tx, err := s.db.Beginx()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	type checkKey struct {
+		week int
+		item string
+	}
+	limits := make(map[checkKey]map[int]int)
+
+	for _, e := range entries {
+		var bType string
+		err := tx.Get(&bType, "SELECT type FROM buildings WHERE id = ?", e.BuildingID)
+		if err != nil {
+			return err
+		}
+
+		key := checkKey{e.Week, bType}
+		if limits[key] == nil {
+			limits[key] = make(map[int]int)
+		}
+
+		limits[key][e.AllianceID]++
+		if limits[key][e.AllianceID] > 1 {
+			return fmt.Errorf("Conflict: Alliance %d assigned >1 %s in Week %d", e.AllianceID, bType, e.Week)
+		}
+	}
+
+	_, err = tx.Exec("DELETE FROM rotation_schedule WHERE season_id = ?", seasonID)
+	if err != nil {
+		return err
+	}
+
+	query := `INSERT INTO rotation_schedule (season_id, week_number, building_id, alliance_id) 
+              VALUES (:season_id, :week_number, :building_id, :alliance_id)`
+	_, err = tx.NamedExec(query, entries)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (s *Store) GetAllBuildings() ([]Building, error) {
+	var buildings []Building
+	err := s.db.Select(&buildings, "SELECT id, internal_id, type FROM buildings ORDER BY type DESC, internal_id ASC")
+	return buildings, err
+}
+
+func (s *Store) GetSeasonSchedule(seasonID int) ([]RotationEntry, error) {
+	var schedule []RotationEntry
+	query := `SELECT season_id, week_number, building_id, alliance_id 
+              FROM rotation_schedule 
+              WHERE season_id = ?`
+	err := s.db.Select(&schedule, query, seasonID)
+	return schedule, err
+}
+
+func (s *Store) GetWeeklyRewards(week int) ([]BuildingReward, error) {
+	var rewards []BuildingReward
+	query := `SELECT building_id, week_number, reward_name, reward_icon 
+              FROM building_rewards 
+              WHERE week_number = ?`
+	err := s.db.Select(&rewards, query, week)
+	return rewards, err
+}
+
+func (s *Store) GetRotationForWeek(seasonID int, week int) ([]RotationEntryExtended, error) {
+	var results []RotationEntryExtended
+
+	query := `
+        SELECT 
+            rs.week_number, 
+            b.internal_id, 
+            b.type AS building_type, 
+            a.name AS alliance_name
+        FROM rotation_schedule rs
+        JOIN buildings b ON rs.building_id = b.id
+        LEFT JOIN alliances a ON rs.alliance_id = a.id
+        WHERE rs.week_number = ? AND rs.season_id = ?
+        ORDER BY b.type DESC, b.internal_id ASC`
+
+	err := s.db.Select(&results, query, week, seasonID)
+	return results, err
 }

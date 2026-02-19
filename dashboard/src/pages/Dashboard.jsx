@@ -5,7 +5,7 @@ import { toast } from 'react-toastify';
 import { Link } from 'react-router-dom';
 import {
   LogOut, Play, Download, Activity, FileText,
-  CheckCircle, Users as UsersIcon, List, Swords, Sword, Shield, KeyRound, Terminal, ShieldCheck
+  CheckCircle, Users as UsersIcon, List, Swords, Sword, Shield, KeyRound, Terminal, ShieldCheck, LayoutGrid
 } from 'lucide-react';
 
 import ChangePasswordModal from '../components/ChangePasswordModal';
@@ -130,7 +130,14 @@ export default function Dashboard() {
           {/* Right: Actions & User */}
           <div className="flex flex-wrap justify-center items-center gap-3">
 
-            {/* 1. Roster */}
+            <Link
+                to="/rotation"
+                className="flex items-center space-x-2 px-3 py-1.5 bg-blue-600/10 text-blue-400 hover:bg-blue-600/20 rounded-lg transition-colors text-sm font-medium border border-blue-500/20"
+            >
+              <LayoutGrid className="w-4 h-4 text-blue-400" />
+              <span>Fortress Rotation</span>
+            </Link>
+
             <Link
                 to="/roster"
                 className="flex items-center space-x-2 px-3 py-1.5 bg-blue-600/10 text-blue-400 hover:bg-blue-600/20 rounded-lg transition-colors text-sm font-medium border border-blue-500/20"
@@ -139,7 +146,6 @@ export default function Dashboard() {
               <span>Roster</span>
             </Link>
 
-            {/* 2. War Room */}
             <Link
                 to="/war-room"
                 className="flex items-center space-x-2 px-3 py-1.5 bg-red-900/20 text-red-400 hover:bg-red-900/30 rounded-lg transition-colors text-sm font-medium border border-red-500/30"
@@ -148,7 +154,6 @@ export default function Dashboard() {
               <span>War Room</span>
             </Link>
 
-            {/* 3. Squads */}
             <Link
                 to="/squads"
                 className="flex items-center space-x-2 px-3 py-1.5 bg-purple-900/20 text-purple-400 hover:bg-purple-900/30 rounded-lg transition-colors text-sm font-medium border border-purple-500/30"

@@ -44,3 +44,10 @@ type RedeemJob struct {
 	Results     []RedeemJobEntry `json:"results"`
 	Targets     []PlayerData
 }
+
+type DiscordConfig struct {
+	WebhookURL      string `json:"webhookUrl"`
+	ChannelID       string `json:"channelId"`
+	AnnounceTimeUTC string `json:"announceTimeUtc"`
+	AnnounceDay     string `json:"announceDay"`
+}
