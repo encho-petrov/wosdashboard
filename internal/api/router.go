@@ -17,6 +17,21 @@ import (
 	"github.com/pquerna/otp/totp"
 )
 
+func logAction(c *gin.Context, store *db.Store, action string, details string) {
+	userId, _ := c.Get("userId")
+	uid, ok := userId.(int64)
+	if !ok {
+		uid = 0
+	}
+
+	_ = store.CreateAuditLog(db.AuditLog{
+		UserID:    uid,
+		Action:    action,
+		Details:   details,
+		IPAddress: c.ClientIP(),
+	})
+}
+
 func SetupRouter(engine *processor.Processor, store *db.Store, targetState int) *gin.Engine {
 	r := gin.Default()
 
@@ -154,7 +169,7 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int) 
 	})
 
 	playerGroup := r.Group("/api/player")
-	playerGroup.Use(AuthMiddleware())
+	playerGroup.Use(AuthMiddleware(store))
 	{
 		playerGroup.GET("/me", func(c *gin.Context) {
 			if c.GetString("role") != "player" {
@@ -194,7 +209,7 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int) 
 	}
 
 	authorized := r.Group("/api/moderator")
-	authorized.Use(AuthMiddleware())
+	authorized.Use(AuthMiddleware(store))
 	{
 		authorized.GET("/admin/alliances", func(c *gin.Context) {
 			list, err := store.GetAlliances()
@@ -251,6 +266,21 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int) 
 			c.JSON(200, gin.H{"message": "Alliance deleted"})
 		})
 
+		authorized.GET("/admin/audit-logs", func(c *gin.Context) {
+			if c.GetString("role") != "admin" {
+				c.JSON(http.StatusForbidden, gin.H{"error": "Admin access required"})
+				return
+			}
+
+			logs, err := store.GetAuditLogs()
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch logs"})
+				return
+			}
+
+			c.JSON(http.StatusOK, logs)
+		})
+
 		authorized.POST("/redeem", func(c *gin.Context) {
 			var input struct {
 				GiftCodes []string `json:"giftCodes" binding:"required"`
@@ -278,6 +308,8 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int) 
 				c.JSON(500, gin.H{"error": "Failed to start redemption job"})
 				return
 			}
+			details := fmt.Sprintf("Started redemption job with codes: %v", input.GiftCodes)
+			logAction(c, store, "START_REDEMPTION", details)
 
 			c.JSON(200, gin.H{"message": "Job Started", "jobId": jobID})
 		})
@@ -673,7 +705,7 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int) 
 	}
 
 	admin := r.Group("/api/admin")
-	admin.Use(AuthMiddleware())
+	admin.Use(AuthMiddleware(store))
 	admin.Use(func(c *gin.Context) {
 		role := c.GetString("role")
 		if role != "admin" {
@@ -776,6 +808,7 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int) 
 				c.JSON(500, gin.H{"error": "Failed to delete user"})
 				return
 			}
+			logAction(c, store, "DELETE_USER", fmt.Sprintf("Deleted user ID: %d", id))
 			c.JSON(200, gin.H{"message": "User deleted"})
 		})
 	}

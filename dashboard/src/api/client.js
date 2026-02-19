@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Point to your Go Backend
-const API_URL = '/api';
+const API_URL = 'http://localhost:8080/api';
 
 const client = axios.create({
   baseURL: API_URL,

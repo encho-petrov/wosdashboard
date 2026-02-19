@@ -2,13 +2,15 @@ package api
 
 import (
 	"gift-redeemer/internal/auth"
+	"gift-redeemer/internal/db"
+
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 )
 
-func AuthMiddleware() gin.HandlerFunc {
+func AuthMiddleware(store *db.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
@@ -30,7 +32,11 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// Store user info in context for the handler to use
+		user, err := store.GetUserByUsername(claims.Username)
+		if err == nil {
+			c.Set("userId", int64(user.ID)) // Store the ID for audit logs
+		}
+
 		c.Set("username", claims.Username)
 		c.Set("role", claims.Role)
 

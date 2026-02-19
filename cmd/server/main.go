@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"gift-redeemer/internal/api"
 	"gift-redeemer/internal/auth"
 	"gift-redeemer/internal/cache"
@@ -10,7 +11,35 @@ import (
 	"gift-redeemer/internal/db"
 	"gift-redeemer/internal/processor"
 	"log"
+
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/mysql"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
+
+func runMigrations(db *sql.DB) error {
+	driver, err := mysql.WithInstance(db, &mysql.Config{})
+	if err != nil {
+		return err
+	}
+
+	m, err := migrate.NewWithDatabaseInstance(
+		"file://migrations",
+		"mysql",
+		driver,
+	)
+	if err != nil {
+		return err
+	}
+
+	err = m.Up()
+	if err != nil && err != migrate.ErrNoChange {
+		return err
+	}
+
+	log.Println("Database migrations applied successfully!")
+	return nil
+}
 
 func main() {
 	cfg, err := config.LoadConfig()
@@ -28,6 +57,10 @@ func main() {
 	)
 	if err != nil {
 		log.Fatalf("Failed to connect to DB: %v", err)
+	}
+
+	if err := runMigrations(store.GetRawDB()); err != nil {
+		log.Fatalf("Migration failed: %v", err)
 	}
 
 	_, err = store.GetUserByUsername("admin")

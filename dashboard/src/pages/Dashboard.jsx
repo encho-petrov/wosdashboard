@@ -5,7 +5,7 @@ import { toast } from 'react-toastify';
 import { Link } from 'react-router-dom';
 import {
   LogOut, Play, Download, Activity, FileText,
-  CheckCircle, Users as UsersIcon, List, Swords, Sword, Shield, KeyRound
+  CheckCircle, Users as UsersIcon, List, Swords, Sword, Shield, KeyRound, Terminal
 } from 'lucide-react';
 
 import ChangePasswordModal from '../components/ChangePasswordModal';
@@ -145,7 +145,6 @@ export default function Dashboard() {
               <span>Squads</span>
             </Link>
 
-            {/* 4. Users (Admin Only) */}
             {user?.role === 'admin' && (
                 <Link
                     to="/users"
@@ -162,6 +161,16 @@ export default function Dashboard() {
                 >
                   <Shield className="w-4 h-4" />
                   <span>Alliances</span>
+                </Link>
+            )}
+
+            {user?.role === 'admin' && (
+                <Link
+                    to="/audit-logs"
+                    className="flex items-center space-x-2 px-3 py-1.5 bg-gray-700/50 text-gray-300 hover:bg-gray-700 rounded-lg transition-colors text-sm font-medium border border-gray-600/50"
+                >
+                  <Terminal className="w-4 h-4" />
+                  <span>Audit Logs</span>
                 </Link>
             )}
 

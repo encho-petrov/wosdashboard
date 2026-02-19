@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect } from 'react';
-import client from '../api/client'; // Verify this path is correct!
+import client from '../api/client';
 import { toast } from 'react-toastify';
-import { Shield, Plus, Edit2, Trash2, Save, X, ArrowLeft } from 'lucide-react';
+import { Shield, Plus, Edit2, Trash2, Save, X, ArrowLeft, Activity } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function Alliances() {
@@ -15,7 +15,6 @@ export default function Alliances() {
     const fetchAlliances = async () => {
         try {
             const res = await client.get('/moderator/admin/alliances');
-            // Ensure we always have an array even if the server returns null
             setAlliances(Array.isArray(res.data) ? res.data : []);
         } catch (err) {
             toast.error("Failed to load alliances");
@@ -52,91 +51,144 @@ export default function Alliances() {
         }
     };
 
-    if (loading) return <div className="p-10 text-white font-mono">LOADING ALLIANCES...</div>;
-
     return (
-        <div className="min-h-screen bg-gray-900 text-gray-100 p-6">
-            <div className="max-w-4xl mx-auto space-y-6">
+        <div className="min-h-screen bg-gray-900 text-gray-100 font-sans">
+            {/* Standardized Navbar matches Dashboard.jsx */}
+            <nav className="bg-gray-800 border-b border-gray-700 px-6 py-4 flex justify-between items-center shadow-md">
+                <div className="flex items-center space-x-3">
+                    <Activity className="text-blue-500 w-6 h-6" />
+                    <h1 className="text-xl font-bold tracking-wide">Alliance Management</h1>
+                </div>
+                <Link
+                    to="/"
+                    className="flex items-center space-x-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors text-sm font-medium border border-gray-600"
+                >
+                    <ArrowLeft className="w-4 h-4" />
+                    <span>Back to Dashboard</span>
+                </Link>
+            </nav>
 
-                {/* Header */}
-                <div className="flex justify-between items-center border-b border-gray-700 pb-6">
-                    <div className="flex items-center gap-4">
-                        <Link to="/" className="p-2 bg-gray-800 rounded-lg text-gray-400 hover:text-white border border-gray-700">
-                            <ArrowLeft className="w-5 h-5" />
-                        </Link>
-                        <h1 className="text-2xl font-bold flex items-center text-white">
-                            <Shield className="mr-3 text-blue-500 w-8 h-8" /> Alliance Management
-                        </h1>
+            <main className="container mx-auto px-4 py-8 max-w-7xl space-y-8">
+                {/* Header Row */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                        <h2 className="text-2xl font-bold flex items-center gap-3">
+                            <Shield className="text-blue-500 w-8 h-8" /> Alliances
+                        </h2>
+                        <p className="text-gray-500 text-sm mt-1">Configure and manage state alliance groups.</p>
                     </div>
+
                     <button
                         onClick={() => { setEditingId(-1); setForm({name:'', type:'General'}); }}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg flex items-center gap-2 font-bold"
+                        className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl font-bold shadow-lg shadow-blue-900/20 transition-all active:scale-95"
                     >
-                        <Plus className="w-4 h-4" /> Add Alliance
+                        <Plus className="w-5 h-5" /> Add New Alliance
                     </button>
                 </div>
 
-                {/* Inline Form */}
+                {/* Styled Inline Form Card */}
                 {editingId !== null && (
-                    <div className="bg-gray-800 p-6 rounded-xl border border-blue-500/50 flex flex-col md:flex-row gap-4 items-end">
-                        <div className="flex-1 w-full">
-                            <label className="text-xs text-gray-400 block mb-1 uppercase font-bold">Name</label>
-                            <input
-                                className="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white"
-                                value={form.name}
-                                onChange={e => setForm({...form, name: e.target.value})}
-                                autoFocus
-                            />
-                        </div>
-                        <div className="w-full md:w-48">
-                            <label className="text-xs text-gray-400 block mb-1 uppercase font-bold">Type</label>
-                            <select
-                                className="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white"
-                                value={form.type}
-                                onChange={e => setForm({...form, type: e.target.value})}
-                            >
-                                <option value="General">General</option>
-                                <option value="Fighting">Fighting</option>
-                            </select>
-                        </div>
-                        <div className="flex gap-2">
-                            <button onClick={handleSave} className="p-2.5 bg-green-600 rounded-lg hover:bg-green-500"><Save className="w-5 h-5"/></button>
-                            <button onClick={() => setEditingId(null)} className="p-2.5 bg-gray-600 rounded-lg hover:bg-gray-500"><X className="w-5 h-5"/></button>
+                    <div className="bg-gray-800 rounded-xl p-6 border border-blue-500/50 shadow-lg animate-in fade-in slide-in-from-top-4 duration-300">
+                        <h3 className="text-sm font-bold text-blue-400 uppercase tracking-widest mb-4">
+                            {editingId === -1 ? 'Create New Entry' : 'Edit Alliance'}
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-gray-400 uppercase">Alliance Name</label>
+                                <input
+                                    className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                    placeholder="e.g. [XYZ] Alliance Name"
+                                    value={form.name}
+                                    onChange={e => setForm({...form, name: e.target.value})}
+                                    autoFocus
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-gray-400 uppercase">Strategic Type</label>
+                                <select
+                                    className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                    value={form.type}
+                                    onChange={e => setForm({...form, type: e.target.value})}
+                                >
+                                    <option value="General">General</option>
+                                    <option value="Fighting">Fighting</option>
+                                </select>
+                            </div>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={handleSave}
+                                    className="flex-1 py-2.5 bg-green-600 hover:bg-green-500 text-white rounded-lg font-bold flex items-center justify-center gap-2 transition-all"
+                                >
+                                    <Save className="w-5 h-5"/> Save
+                                </button>
+                                <button
+                                    onClick={() => setEditingId(null)}
+                                    className="px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg font-bold transition-all"
+                                >
+                                    <X className="w-5 h-5"/>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
 
-                {/* Table */}
-                <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden shadow-2xl">
-                    <table className="w-full text-left">
-                        <thead className="bg-gray-700/50 text-gray-400 text-xs uppercase">
-                        <tr>
-                            <th className="p-4">Alliance Name</th>
-                            <th className="p-4">Type</th>
-                            <th className="p-4 text-right">Actions</th>
-                        </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-700">
-                        {alliances.map(a => (
-                            <tr key={a.id} className="hover:bg-gray-700/30">
-                                <td className="p-4 font-bold text-white">{a.name}</td>
-                                <td className="p-4">
-                                  <span className={`px-2 py-1 rounded text-[10px] font-bold border ${
-                                      a.type === 'Fighting' ? 'bg-red-900/30 text-red-400 border-red-800' : 'bg-blue-900/30 text-blue-400 border-blue-800'
-                                  }`}>
-                                    {(a.type || 'General').toUpperCase()}
-                                  </span>
-                                </td>
-                                <td className="p-4 text-right space-x-2">
-                                    <button onClick={() => { setEditingId(a.id); setForm({name: a.name, type: a.type}); }} className="p-1.5 hover:bg-blue-600/20 text-blue-400 rounded"><Edit2 className="w-4 h-4"/></button>
-                                    <button onClick={() => handleDelete(a.id)} className="p-1.5 hover:bg-red-600/20 text-red-400 rounded"><Trash2 className="w-4 h-4"/></button>
-                                </td>
+                {/* Standardized Table Card */}
+                <div className="bg-gray-800 rounded-xl border border-gray-700 shadow-lg overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead className="bg-gray-700/30 text-gray-400 text-xs uppercase tracking-wider">
+                            <tr>
+                                <th className="p-4">Alliance Details</th>
+                                <th className="p-4">Strategic Tag</th>
+                                <th className="p-4 text-right">Management</th>
                             </tr>
-                        ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody className="divide-y divide-gray-700 text-sm">
+                            {loading ? (
+                                <tr><td colSpan="3" className="p-12 text-center text-gray-500 animate-pulse font-mono">RETRIEVING ALLIANCES...</td></tr>
+                            ) : alliances.length === 0 ? (
+                                <tr><td colSpan="3" className="p-12 text-center text-gray-500 italic">No alliances registered in the system.</td></tr>
+                            ) : (
+                                alliances.map(a => (
+                                    <tr key={a.id} className="hover:bg-gray-700/30 transition-colors group">
+                                        <td className="p-4 font-bold text-white group-hover:text-blue-400 transition-colors">
+                                            {a.name}
+                                        </td>
+                                        <td className="p-4">
+                                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-black tracking-widest border ${
+                                                    a.type === 'Fighting'
+                                                        ? 'bg-red-900/20 text-red-400 border-red-500/30'
+                                                        : 'bg-blue-900/20 text-blue-400 border-blue-500/30'
+                                                }`}>
+                                                    {(a.type || 'General').toUpperCase()}
+                                                </span>
+                                        </td>
+                                        <td className="p-4 text-right">
+                                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button
+                                                    onClick={() => { setEditingId(a.id); setForm({name: a.name, type: a.type}); }}
+                                                    className="p-2 hover:bg-blue-600/20 text-blue-400 rounded-lg transition-colors"
+                                                    title="Edit Alliance"
+                                                >
+                                                    <Edit2 className="w-4 h-4"/>
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDelete(a.id)}
+                                                    className="p-2 hover:bg-red-600/20 text-red-400 rounded-lg transition-colors"
+                                                    title="Delete Alliance"
+                                                >
+                                                    <Trash2 className="w-4 h-4"/>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-            </div>
+            </main>
         </div>
     );
 }

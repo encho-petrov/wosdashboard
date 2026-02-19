@@ -12,6 +12,7 @@ import Roster from './pages/Roster';
 import WarRoom from './pages/WarRoom';
 import Squads from './pages/Squads';
 import Alliances from './pages/Alliances';
+import AuditLogs from "./pages/AuditLogs.jsx";
 
 const Home = () => {
   const { user } = useAuth();
@@ -76,6 +77,12 @@ function App() {
             }
             />
 
+            <Route path="/audit-logs" element={
+              <ProtectedRoute allowedRoles={['admin']}>
+              <AuditLogs />
+              </ProtectedRoute>
+            }
+            />
           </Routes>
           <ToastContainer position="top-right" theme="dark" />
         </AuthProvider>

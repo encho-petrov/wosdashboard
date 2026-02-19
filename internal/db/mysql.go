@@ -149,6 +149,16 @@ type FilterOptions struct {
 	TundraAvailability []string `json:"tundraAvailability"`
 }
 
+type AuditLog struct {
+	ID        int64     `db:"id" json:"id"`
+	UserID    int64     `db:"user_id" json:"user_id"`
+	Action    string    `db:"action" json:"action"`
+	Details   string    `db:"details" json:"details"`
+	IPAddress string    `db:"ip_address" json:"ip_address"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UserName  string    `db:"username" json:"username"`
+}
+
 type Store struct {
 	db *sqlx.DB
 }
@@ -160,6 +170,10 @@ func NewStore(user, pass, host, dbName string) (*Store, error) {
 		return nil, err
 	}
 	return &Store{db: db}, nil
+}
+
+func (s *Store) GetRawDB() *sql.DB {
+	return s.db.DB
 }
 
 func (s *Store) GetPendingPlayers(code string, limit int) ([]int64, error) {
@@ -239,12 +253,6 @@ func (s *Store) UpdateJobStatus(jobID string, status string, processed, total in
 	return err
 }
 
-//func (s *Store) CompleteJob(jobID, reportPath string) error {
-//	query := `UPDATE jobs SET status = 'COMPLETED', completed_at = NOW(), report_path = ? WHERE job_id = ?`
-//	_, err := s.db.Exec(query, reportPath, jobID)
-//	return err
-//}
-
 func (s *Store) CompleteJob(jobID, status, reportPath string) error {
 	query := `UPDATE jobs SET status = ?, completed_at = NOW(), report_path = ? WHERE job_id = ?`
 	_, err := s.db.Exec(query, status, reportPath, jobID)
@@ -273,8 +281,6 @@ func (s *Store) UpdatePassword(username, newHash string) error {
 func (s *Store) GetRecentJobs() ([]JobResponse, error) {
 	var rawJobs []jobRecordDB
 
-	// We can now safely use SELECT * because our struct matches the table
-	// But explicit selection is still safer for long-term maintenance
 	query := `
 		SELECT 
 			job_id, initiated_by_user_id, gift_codes, status, 
@@ -289,7 +295,6 @@ func (s *Store) GetRecentJobs() ([]JobResponse, error) {
 		return nil, err
 	}
 
-	// Map DB Struct -> API Struct
 	var apiJobs []JobResponse
 	for _, raw := range rawJobs {
 		job := JobResponse{
@@ -338,7 +343,6 @@ func (s *Store) DeleteUser(id int) error {
 }
 
 func (s *Store) UpsertPlayer(fid int64, nick string, kid, stoveLv int, stoveImg, avatar string) error {
-	// ON DUPLICATE KEY UPDATE: If player exists, just update their info
 	query := `
 		INSERT INTO players (player_id, nickname, kid, stove_lv, stove_lv_content, avatar_image)
 		VALUES (?, ?, ?, ?, ?, ?)
@@ -671,4 +675,21 @@ func (s *Store) UpdateJobProgress(jobID string, processed int) error {
 func (s *Store) EnableUserMFA(id int64, secret string) error {
 	_, err := s.db.Exec("UPDATE users SET mfa_secret = ?, mfa_enabled = TRUE WHERE id = ?", secret, id)
 	return err
+}
+
+func (s *Store) CreateAuditLog(log AuditLog) error {
+	query := `INSERT INTO audit_logs (user_id, action, details, ip_address) 
+              VALUES (?, ?, ?, ?)`
+	_, err := s.db.Exec(query, log.UserID, log.Action, log.Details, log.IPAddress)
+	return err
+}
+
+func (s *Store) GetAuditLogs() ([]AuditLog, error) {
+	var logs []AuditLog
+	query := `SELECT a.*, u.username as username 
+              FROM audit_logs a 
+              LEFT JOIN users u ON a.user_id = u.id 
+              ORDER BY a.created_at DESC LIMIT 200`
+	err := s.db.Select(&logs, query)
+	return logs, err
 }
