@@ -5,7 +5,7 @@ import { toast } from 'react-toastify';
 import { Link } from 'react-router-dom';
 import {
   LogOut, Play, Download, Activity, FileText,
-  CheckCircle, Users as UsersIcon, List, Swords, Sword, Shield, KeyRound, Terminal
+  CheckCircle, Users as UsersIcon, List, Swords, Sword, Shield, KeyRound, Terminal, ShieldCheck
 } from 'lucide-react';
 
 import ChangePasswordModal from '../components/ChangePasswordModal';
@@ -23,6 +23,16 @@ export default function Dashboard() {
   const [showMfaModal, setShowMfaModal] = useState(false); // <-- ADD THIS
 
   const wasRunning = useRef(false);
+  const [captchaBalance, setCaptchaBalance] = useState(null);
+
+  const fetchBalance = async () => {
+    try {
+      const res = await client.get('/moderator/captcha-balance');
+      setCaptchaBalance(res.data.balance);
+    } catch (err) {
+      console.error("Failed to fetch captcha balance");
+    }
+  };
 
   // 1. Fetch History
   const fetchHistory = async () => {
@@ -42,6 +52,7 @@ export default function Dashboard() {
       setShowMfaModal(true);
     }
     fetchHistory();
+    fetchBalance();
 
     const interval = setInterval(async () => {
       try {
@@ -58,6 +69,7 @@ export default function Dashboard() {
           }
         }
         wasRunning.current = isRunning;
+        await fetchBalance();
       } catch (error) {
         // Silent fail on polling errors
       }
@@ -270,6 +282,39 @@ export default function Dashboard() {
                     </div>
                   </div>
               )}
+            </div>
+          </div>
+
+          <div className="md:col-span-1 bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg flex flex-col justify-between relative overflow-hidden group">
+            {/* Decorative Background Icon */}
+            <ShieldCheck className="absolute -right-4 -bottom-4 w-32 h-32 text-blue-500/5 -rotate-12 transition-transform group-hover:scale-110 duration-500" />
+
+            <div>
+              <h2 className="text-lg font-semibold mb-1 flex items-center text-white relative z-10">
+                <Activity className="w-5 h-5 mr-2 text-blue-400"/> Captcha Credits
+              </h2>
+              <p className="text-xs text-gray-500 mb-4 relative z-10 uppercase tracking-widest font-bold">2Captcha Account Balance</p>
+            </div>
+
+            <div className="relative z-10 py-4 text-center">
+              {captchaBalance !== null ? (
+                  <div className="animate-in fade-in zoom-in duration-500">
+                    <span className="text-4xl font-black text-white tracking-tighter">$</span>
+                    <span className="text-5xl font-black text-white tracking-tighter">
+              {parseFloat(captchaBalance).toFixed(2)}
+            </span>
+                  </div>
+              ) : (
+                  <div className="text-gray-600 animate-pulse py-4 font-mono">LOADING...</div>
+              )}
+            </div>
+
+            <div className="relative z-10">
+              <div className={`text-[10px] font-bold text-center py-1 rounded-full uppercase tracking-tighter ${
+                  parseFloat(captchaBalance) < 1.00 ? 'bg-red-900/30 text-red-400 border border-red-800/50' : 'bg-green-900/20 text-green-400 border border-green-800/30'
+              }`}>
+                {parseFloat(captchaBalance) < 1.00 ? 'Low Balance - Refill Recommended' : 'System Credits Healthy'}
+              </div>
             </div>
           </div>
 

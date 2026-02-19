@@ -66,7 +66,10 @@ func main() {
 	_, err = store.GetUserByUsername("admin")
 	if err != nil {
 		hash, _ := auth.HashPassword("admin123") // Change this!
-		store.CreateUser("admin", hash, "admin", 0)
+		err := store.CreateUser("admin", hash, "admin", 0)
+		if err != nil {
+			return
+		}
 		log.Println("Created default admin user: admin / admin123")
 	}
 
@@ -80,7 +83,7 @@ func main() {
 	engine := processor.NewProcessor(pClient, gClient, store, solver, redisStore)
 
 	go engine.StartWorkers()
-	router := api.SetupRouter(engine, store, cfg.Game.TargetState)
+	router := api.SetupRouter(engine, store, cfg.Game.TargetState, cfg.ApiSecrets.CaptchaApiKey)
 
 	log.Println("Server running on http://localhost:8080")
 	if err := router.Run(":8080"); err != nil {

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"gift-redeemer/internal/auth"
 	"gift-redeemer/internal/db"
@@ -32,7 +33,7 @@ func logAction(c *gin.Context, store *db.Store, action string, details string) {
 	})
 }
 
-func SetupRouter(engine *processor.Processor, store *db.Store, targetState int) *gin.Engine {
+func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, apiKey string) *gin.Engine {
 	r := gin.Default()
 
 	r.Use(func(c *gin.Context) {
@@ -279,6 +280,34 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int) 
 			}
 
 			c.JSON(http.StatusOK, logs)
+		})
+
+		authorized.GET("/captcha-balance", func(c *gin.Context) {
+			url := fmt.Sprintf("https://2captcha.com/res.php?key=%s&action=getbalance&json=1", apiKey)
+
+			resp, err := http.Get(url)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to 2captcha"})
+				return
+			}
+			defer resp.Body.Close()
+
+			var result struct {
+				Status  int    `json:"status"`
+				Request string `json:"request"`
+			}
+
+			if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse 2captcha response"})
+				return
+			}
+
+			if result.Status != 1 {
+				c.JSON(http.StatusBadRequest, gin.H{"error": result.Request})
+				return
+			}
+
+			c.JSON(http.StatusOK, gin.H{"balance": result.Request})
 		})
 
 		authorized.POST("/redeem", func(c *gin.Context) {
