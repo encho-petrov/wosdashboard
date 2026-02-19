@@ -77,7 +77,7 @@ INSERT IGNORE INTO building_rewards (building_id, week_number, reward_name, rewa
 (6, 4, 'General Speedups', 'speedups.png'),
 (7, 4, 'Advanced Teleport', 'teleport.png'),
 (8, 4, 'Enhancement XP Component', 'enhancement.png'),
-(8, 4, 'Lethality Buff', 'lethality_buff.png'),
+(9, 4, 'Lethality Buff', 'lethality_buff.png'),
 (10, 4, 'TBC1', 'TBC1.png'),
 (11, 4, 'TBC1', 'TBC1.png'),
 (12, 4, 'General Speedups', 'speedups.png'),

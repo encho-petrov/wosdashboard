@@ -213,22 +213,34 @@ export default function Roster() {
             </div>
           </div>
 
-          {/* Tab Selection */}
-          <div className="flex flex-wrap gap-2">
-            {getTabs().map(tab => (
-                <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
-                        activeTab === tab.id ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700 border border-gray-700'
-                    }`}
-                >
-                  {tab.name}
-                </button>
-            ))}
+          {/* Tab Selection & Counter */}
+          <div className="flex items-center gap-4 overflow-x-auto pb-2 scrollbar-hide">
+
+            <div
+                className="flex items-center gap-2 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm font-bold text-gray-300 shadow-inner flex-shrink-0"
+                title="Current Player Count"
+            >
+              <Users size={16} className="text-blue-500" />
+              <span>{filteredPlayers.length}</span>
+            </div>
+
+            <div className="w-px h-6 bg-gray-700 hidden md:block flex-shrink-0"></div>
+
+            <div className="flex flex-wrap gap-2">
+              {getTabs().map(tab => (
+                  <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                          activeTab === tab.id ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700 border border-gray-700'
+                      }`}
+                  >
+                    {tab.name}
+                  </button>
+              ))}
+            </div>
           </div>
 
-          {/* --- RESTORED ORIGINAL TABLE STRUCTURE & COLUMNS --- */}
           <div className="bg-gray-800 rounded-xl border border-gray-700 shadow-xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse min-w-[1200px]">
