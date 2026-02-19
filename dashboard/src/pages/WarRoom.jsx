@@ -4,12 +4,13 @@ import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
 import {
     Swords, Shield, Users, Search,
-    ArrowLeft, Trophy, Lock, Unlock, ArrowDownWideNarrow, Trash2, X
+    ArrowLeft, Trophy, Lock, Unlock, ArrowDownWideNarrow, X, RotateCcw
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function WarRoom() {
     const { user } = useAuth();
+    const isAdmin = user?.role === 'admin';
 
     const [players, setPlayers] = useState([]);
     const [stats, setStats] = useState([]);
@@ -43,6 +44,20 @@ export default function WarRoom() {
             toast.error("Failed to load war room data");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleReset = async () => {
+        if (!window.confirm("Are you sure you want to reset the event? This will clear all War Room and Squad assignments and cannot be undone.")) {
+            return;
+        }
+
+        try {
+            await client.post('/moderator/war-room/reset');
+            toast.success("Event data has been reset successfully.");
+            fetchData(); // Refresh the page data
+        } catch (err) {
+            toast.error("Failed to reset event data.");
         }
     };
 
@@ -115,6 +130,16 @@ export default function WarRoom() {
                             </h1>
                             <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest">State Event Deployment</p>
                         </div>
+                        {isAdmin && (
+                            <button
+                                onClick={handleReset}
+                                className="ml-2 flex items-center gap-2 px-3 py-1.5 bg-red-900/20 hover:bg-red-900/40 text-red-400 border border-red-800/50 rounded-lg transition-all text-xs font-bold uppercase"
+                                title="Wipe all deployments"
+                            >
+                                <RotateCcw size={14} />
+                                Reset
+                            </button>
+                        )}
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3">

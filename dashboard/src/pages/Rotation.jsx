@@ -213,47 +213,53 @@ export default function Rotation() {
                                         const cellReward = weekRewards.find(r => r.building_id === b.id);
 
                                         return (
-                                            <td key={w} className={`p-2 ${conflict ? 'bg-red-900/10' : ''}`}>
-                                                <div className="relative group flex flex-col items-center">
-                                                    <select
-                                                        disabled={!isAdmin}
-                                                        value={currentAlliance}
-                                                        onChange={(e) => handleCellChange(b.id, w, e.target.value)}
-                                                        className={`w-full bg-gray-900 border appearance-none rounded-lg px-3 py-2 text-xs font-medium outline-none transition-all cursor-pointer ${
-                                                            conflict
-                                                                ? 'border-red-500 text-red-400'
-                                                                : currentAlliance
-                                                                    ? 'border-blue-500/30 text-blue-100 hover:border-blue-500'
-                                                                    : 'border-gray-700 text-gray-500 hover:border-gray-600'
-                                                        } disabled:cursor-default disabled:opacity-100`}
-                                                    >
-                                                        <option value="">- Unassigned -</option>
-                                                        {alliances.map(a => (
-                                                            <option key={a.id} value={a.id}>{a.name}</option>
-                                                        ))}
-                                                    </select>
+                                            <td key={w} className={`p-2 align-middle ${conflict ? 'bg-red-900/10' : ''}`}>
+                                                <div className="flex items-center gap-2 relative">
 
-                                                    {conflict && (
-                                                        <div className="absolute -top-1 -right-1 z-10">
-                                                            <AlertTriangle size={14} className="text-red-500 fill-red-900 drop-shadow-md" />
-                                                        </div>
-                                                    )}
-
-                                                    {/* --- REWARD ICON DISPLAY --- */}
-                                                    {cellReward && cellReward.reward_icon && (
-                                                        <div className="mt-1.5 flex items-center justify-center gap-1.5 opacity-60 group-hover:opacity-100 transition-opacity w-full px-1">
+                                                    {/* --- REWARD ICON (Left Side) --- */}
+                                                    {/* We use a fixed width container so the dropdowns stay perfectly aligned vertically even if an icon is missing */}
+                                                    <div className="flex-shrink-0 w-7 flex justify-center items-center">
+                                                        {cellReward && cellReward.icon && (
                                                             <img
-                                                                src={getRewardIcon(cellReward.reward_icon)}
-                                                                alt={cellReward.reward_name}
-                                                                className="w-4 h-4 object-contain"
-                                                                title={cellReward.reward_name}
+                                                                src={getRewardIcon(cellReward.icon)}
+                                                                alt={cellReward.name}
+                                                                // Larger size, no opacity, added drop shadow and a subtle hover grow effect
+                                                                className="w-7 h-7 object-contain drop-shadow-md hover:scale-110 transition-transform cursor-help"
+                                                                title={cellReward.name} // Native hover tooltip
                                                                 onError={(e) => e.target.style.display = 'none'}
                                                             />
-                                                            <span className="text-[9px] text-gray-400 uppercase tracking-wider font-semibold truncate" title={cellReward.reward_name}>
-                                                                {cellReward.reward_name}
-                                                            </span>
-                                                        </div>
-                                                    )}
+                                                        )}
+                                                    </div>
+
+                                                    {/* --- DROPDOWN (Right Side) --- */}
+                                                    <div className="relative w-full">
+                                                        <select
+                                                            disabled={!isAdmin}
+                                                            value={currentAlliance}
+                                                            onChange={(e) => handleCellChange(b.id, w, e.target.value)}
+                                                            // Removed horizontal padding slightly and centered text for 3-letter tags
+                                                            className={`w-full bg-gray-900 border appearance-none rounded-lg px-2 py-2 text-xs font-bold text-center outline-none transition-all cursor-pointer ${
+                                                                conflict
+                                                                    ? 'border-red-500 text-red-400'
+                                                                    : currentAlliance
+                                                                        ? 'border-blue-500/30 text-blue-100 hover:border-blue-500'
+                                                                        : 'border-gray-700 text-gray-500 hover:border-gray-600'
+                                                            } disabled:cursor-default`}
+                                                        >
+                                                            <option value="">---</option>
+                                                            {alliances.map(a => (
+                                                                <option key={a.id} value={a.id}>{a.name}</option>
+                                                            ))}
+                                                        </select>
+
+                                                        {/* Conflict Warning Indicator */}
+                                                        {conflict && (
+                                                            <div className="absolute -top-2 -right-2 z-10 bg-gray-900 rounded-full">
+                                                                <AlertTriangle size={16} className="text-red-500 fill-red-900 drop-shadow-md" />
+                                                            </div>
+                                                        )}
+                                                    </div>
+
                                                 </div>
                                             </td>
                                         );

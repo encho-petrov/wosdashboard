@@ -18,6 +18,7 @@ RUN apk --no-cache add ca-certificates tzdata
 
 COPY --from=builder /app/main .
 COPY --from=builder /app/appsettings.json .
+COPY --from=builder /app/migrations ./migrations
 
 RUN mkdir reports
 
