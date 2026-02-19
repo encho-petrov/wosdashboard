@@ -6,18 +6,6 @@ CREATE TABLE IF NOT EXISTS alliances (
     PRIMARY KEY (id)
 );
 
-CREATE TABLE IF NOT EXISTS audit_logs (
-    id int NOT NULL AUTO_INCREMENT,
-    user_id int DEFAULT NULL,
-    action varchar(100) DEFAULT NULL,
-    details text,
-    ip_address varchar(45) DEFAULT NULL,
-    created_at datetime DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    KEY user_id (user_id),
-    CONSTRAINT audit_logs_ibfk_1 FOREIGN KEY (user_id) REFERENCES users (id)
-);
-
 CREATE TABLE IF NOT EXISTS jobs (
     job_id varchar(50) NOT NULL,
     initiated_by_user_id int DEFAULT NULL,
@@ -31,14 +19,17 @@ CREATE TABLE IF NOT EXISTS jobs (
     PRIMARY KEY (job_id)
 );
 
-CREATE TABLE IF NOT EXISTS player_gift_codes (
-    player_id bigint NOT NULL,
-    gift_code varchar(128) NOT NULL,
-    redeemed_at datetime DEFAULT CURRENT_TIMESTAMP,
-    KEY idx_player_id (player_id),
-    KEY idx_gift_code (gift_code),
-    KEY idx_player_code (player_id,gift_code),
-    CONSTRAINT player_gift_codes_ibfk_1 FOREIGN KEY (player_id) REFERENCES players (player_id) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS teams (
+    id int NOT NULL AUTO_INCREMENT,
+    name varchar(50) NOT NULL,
+    alliance_id int NOT NULL,
+    captain_fid bigint DEFAULT NULL,
+    fighting_alliance_id int DEFAULT NULL,
+    PRIMARY KEY (id),
+    KEY alliance_id (alliance_id),
+    KEY fk_team_fighting_alliance (fighting_alliance_id),
+    CONSTRAINT fk_team_fighting_alliance FOREIGN KEY (fighting_alliance_id) REFERENCES alliances (id) ON DELETE CASCADE,
+    CONSTRAINT teams_ibfk_1 FOREIGN KEY (alliance_id) REFERENCES alliances (id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS players (
@@ -66,19 +57,6 @@ CREATE TABLE IF NOT EXISTS players (
     CONSTRAINT fk_player_team FOREIGN KEY (team_id) REFERENCES teams (id) ON DELETE SET NULL
 );
 
-CREATE TABLE IF NOT EXISTSteams (
-    id int NOT NULL AUTO_INCREMENT,
-    name varchar(50) NOT NULL,
-    alliance_id int NOT NULL,
-    captain_fid bigint DEFAULT NULL,
-    fighting_alliance_id int DEFAULT NULL,
-    PRIMARY KEY (id),
-    KEY alliance_id (alliance_id),
-    KEY fk_team_fighting_alliance (fighting_alliance_id),
-    CONSTRAINT fk_team_fighting_alliance FOREIGN KEY (fighting_alliance_id) REFERENCES alliances (id) ON DELETE CASCADE,
-    CONSTRAINT teams_ibfk_1 FOREIGN KEY (alliance_id) REFERENCES alliances (id) ON DELETE CASCADE
-);
-
 CREATE TABLE IF NOT EXISTS users (
     id int NOT NULL AUTO_INCREMENT,
     username varchar(50) NOT NULL,
@@ -92,4 +70,26 @@ CREATE TABLE IF NOT EXISTS users (
     UNIQUE KEY username (username),
     KEY fk_user_alliance (alliance_id),
     CONSTRAINT fk_user_alliance FOREIGN KEY (alliance_id) REFERENCES alliances (id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id int NOT NULL AUTO_INCREMENT,
+    user_id int DEFAULT NULL,
+    action varchar(100) DEFAULT NULL,
+    details text,
+    ip_address varchar(45) DEFAULT NULL,
+    created_at datetime DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY user_id (user_id),
+    CONSTRAINT audit_logs_ibfk_1 FOREIGN KEY (user_id) REFERENCES users (id)
+);
+
+CREATE TABLE IF NOT EXISTS player_gift_codes (
+    player_id bigint NOT NULL,
+    gift_code varchar(128) NOT NULL,
+    redeemed_at datetime DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_player_id (player_id),
+    KEY idx_gift_code (gift_code),
+    KEY idx_player_code (player_id,gift_code),
+    CONSTRAINT player_gift_codes_ibfk_1 FOREIGN KEY (player_id) REFERENCES players (player_id) ON DELETE CASCADE
 );
