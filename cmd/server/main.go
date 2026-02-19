@@ -122,7 +122,7 @@ func main() {
 		hash, _ := auth.HashPassword("admin123") // Change this!
 		err := store.CreateUser("admin", hash, "admin", 0)
 		if err != nil {
-			return
+			log.Fatalf("FATAL: Failed to create default admin user: %v", err)
 		}
 		log.Println("Created default admin user: admin / admin123")
 	}

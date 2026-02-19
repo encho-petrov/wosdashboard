@@ -297,8 +297,14 @@ func (s *Store) GetUserByUsername(username string) (*User, error) {
 }
 
 func (s *Store) CreateUser(username, passwordHash, role string, allianceId int) error {
+	var dbAllianceID interface{}
+	if allianceId == 0 {
+		dbAllianceID = nil
+	} else {
+		dbAllianceID = allianceId
+	}
 	query := `INSERT INTO users (username, password_hash, role, alliance_id) VALUES (?, ?, ?, ?)`
-	_, err := s.db.Exec(query, username, passwordHash, role, allianceId)
+	_, err := s.db.Exec(query, username, passwordHash, role, dbAllianceID)
 	return err
 }
 
