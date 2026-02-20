@@ -3,8 +3,8 @@ import client from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
 import {
-    Swords, Shield, Users, Search,
-    ArrowLeft, Trophy, Lock, Unlock, ArrowDownWideNarrow, X, RotateCcw
+    Swords, Shield, Search,
+    ArrowLeft, Trophy, Lock, Unlock, ArrowDownWideNarrow, X, RotateCcw, Megaphone
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -58,6 +58,32 @@ export default function WarRoom() {
             fetchData(); // Refresh the page data
         } catch (err) {
             toast.error("Failed to reset event data.");
+        }
+    };
+
+    const handleAnnounceWarRoom = async () => {
+        let description = "Here are the confirmed deployments for the upcoming battle:\n\n";
+
+        stats.forEach(alliance => {
+            const members = players.filter(p => p.fightingAllianceId === alliance.id);
+            if (members.length > 0) {
+                description += `**🛡️ ${alliance.name} (${members.length} Members)**\n`;
+                members.forEach(m => {
+                    description += `• ${m.nickname} - *${m.troopType}*\n`;
+                });
+                description += `\n`;
+            }
+        });
+
+        try {
+            await client.post('/moderator/discord/announce', {
+                title: "⚔️ War Room Locked & Deployed",
+                description: description,
+                color: 15158332
+            });
+            toast.success("War Room deployed to Discord!");
+        } catch (err) {
+            toast.error("Failed to announce deployments.");
         }
     };
 
@@ -140,6 +166,17 @@ export default function WarRoom() {
                                 Reset
                             </button>
                         )}
+
+                        {isAdmin && stats.some(a => a.isLocked) && (
+                            <button
+                                onClick={handleAnnounceWarRoom}
+                                className="ml-2 flex items-center gap-2 px-3 py-1.5 bg-blue-900/20 hover:bg-blue-900/40 text-blue-400 border border-blue-800/50 rounded-lg transition-all text-xs font-bold uppercase drop-shadow-md"
+                                title="Announce Deployments to Discord"
+                            >
+                                <Megaphone size={14} className="animate-pulse" />
+                                Announce
+                            </button>
+                        )}
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3">
@@ -219,12 +256,11 @@ export default function WarRoom() {
                                             )}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <h4 className="font-bold text-sm truncate text-white uppercase tracking-tight">{p.nickname}</h4>
+                                            <h4 className="font-bold text-sm truncate text-white tracking-tight">{p.nickname}</h4>
                                             <p className="text-[10px] text-gray-500 font-mono font-bold">{(p.power || 0).toLocaleString()} POWER</p>
                                         </div>
                                     </div>
                                     <div className="mt-3 flex flex-wrap gap-1.5">
-                                        {/* TROOP COLORS RESTORED */}
                                         <span className={`text-[9px] px-2 py-0.5 rounded-full border font-black uppercase tracking-tighter shadow-sm ${getTroopColor(p.troopType)}`}>
                                             {p.troopType || 'NONE'}
                                         </span>
@@ -284,7 +320,7 @@ export default function WarRoom() {
                                                         {p.stoveImg && <img src={p.stoveImg} className="absolute -bottom-1 -right-1 w-4 h-4" alt="" />}
                                                     </div>
                                                     <div className="flex-1 min-w-0">
-                                                        <div className="text-[11px] font-black text-white truncate uppercase">{p.nickname}</div>
+                                                        <div className="text-[11px] font-black text-white truncate">{p.nickname}</div>
                                                         <div className={`text-[8px] font-bold inline-block px-1 rounded-sm border ${getTroopColor(p.troopType)}`}>
                                                             {p.troopType}
                                                         </div>

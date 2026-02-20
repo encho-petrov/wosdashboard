@@ -27,6 +27,17 @@ type Config struct {
 	Game struct {
 		TargetState int `mapstructure:"TargetState"`
 	} `mapstructure:"Game"`
+
+	Discord struct {
+		WebhookURL      string `mapstructure:"WebhookUrl"`
+		ChannelId       string `mapstructure:"ChannelId"`
+		AnnounceTimeUTC string `mapstructure:"AnnounceTimeUTC"`
+		AnnounceDay     string `mapstructure:"AnnounceDay"`
+	} `mapstructure:"Discord"`
+
+	Rotation struct {
+		SeasonReferenceDate string `mapstructure:"SeasonReferenceDate"`
+	} `mapstructure:"Rotation"`
 }
 
 func LoadConfig() (*Config, error) {

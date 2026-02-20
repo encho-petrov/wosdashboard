@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"gift-redeemer/internal/auth"
+	"gift-redeemer/internal/config"
 	"gift-redeemer/internal/db"
 	"gift-redeemer/internal/models"
 	"gift-redeemer/internal/processor"
+	"gift-redeemer/internal/services"
 	"log"
 	"net/http"
 	"os"
@@ -903,6 +905,55 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 
 				logAction(c, store, "UPDATE_ROTATION", fmt.Sprintf("Updated rotation for Season %d", req.SeasonID))
 				c.JSON(http.StatusOK, gin.H{"message": "Rotation schedule updated successfully"})
+			})
+		}
+		// --- DISCORD ENDPOINTS ---
+		discord := authorized.Group("/discord")
+		{
+			discord.POST("/rotation/:seasonId/:week", func(c *gin.Context) {
+				seasonId, _ := strconv.Atoi(c.Param("seasonId"))
+				week, _ := strconv.Atoi(c.Param("week"))
+
+				entries, err := store.GetRotationForWeek(seasonId, week)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch rotation"})
+					return
+				}
+
+				cfg, _ := config.LoadConfig()
+				if err := services.SendDiscordRotation(cfg.Discord.WebhookURL, week, entries); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+
+				logAction(c, store, "DISCORD", fmt.Sprintf("Announced Rotation S%d W%d", seasonId, week))
+				c.JSON(http.StatusOK, gin.H{"message": "Rotation announced!"})
+			})
+
+			discord.POST("/announce", func(c *gin.Context) {
+				var req struct {
+					Title       string `json:"title"`
+					Description string `json:"description"`
+					Color       int    `json:"color"`
+				}
+				if err := c.ShouldBindJSON(&req); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+					return
+				}
+
+				cfg, _ := config.LoadConfig()
+				if cfg.Discord.WebhookURL == "" {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Webhook not configured"})
+					return
+				}
+
+				if err := services.SendCustomDiscordEmbed(cfg.Discord.WebhookURL, req.Title, req.Description, req.Color); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+
+				logAction(c, store, "DISCORD", "Announced: "+req.Title)
+				c.JSON(http.StatusOK, gin.H{"message": "Sent to Discord!"})
 			})
 		}
 	}

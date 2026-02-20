@@ -10,7 +10,6 @@ import (
 	"gift-redeemer/internal/client"
 	"gift-redeemer/internal/config"
 	"gift-redeemer/internal/db"
-	"gift-redeemer/internal/models"
 	"gift-redeemer/internal/processor"
 	"gift-redeemer/internal/services"
 	"log"
@@ -58,38 +57,25 @@ func runMigrations(baseDSN string) error {
 	return nil
 }
 
-func mapDayToCron(day string) string {
+func parseCronSchedule(day string, timeStr string) string {
 	days := map[string]string{
 		"Sunday": "0", "Monday": "1", "Tuesday": "2",
 		"Wednesday": "3", "Thursday": "4", "Friday": "5", "Saturday": "6",
 	}
-	if val, ok := days[day]; ok {
-		return val
+
+	dayNum, ok := days[day]
+	if !ok {
+		dayNum = "4"
 	}
-	return "4"
-}
 
-func startDiscordWorker(store *db.Store, cfg models.DiscordConfig, seasonReferenceDate string) {
-	c := cron.New()
+	parts := strings.Split(timeStr, ":")
+	hour, min := "12", "00"
+	if len(parts) == 2 {
+		hour = parts[0]
+		min = parts[1]
+	}
 
-	cronSpec := fmt.Sprintf("%s %s * * %s",
-		strings.Split(cfg.AnnounceTimeUTC, ":")[1],
-		strings.Split(cfg.AnnounceTimeUTC, ":")[0],
-		mapDayToCron(cfg.AnnounceDay))
-
-	c.AddFunc(cronSpec, func() {
-		targetSeason, upcomingWeek := services.CalculateUpcomingWeek(seasonReferenceDate)
-
-		entries, err := store.GetRotationForWeek(targetSeason, upcomingWeek)
-		if err != nil {
-			log.Printf("Error fetching rotation: %v", err)
-			return
-		}
-
-		services.SendDiscordRotation(cfg, upcomingWeek, entries)
-	})
-
-	c.Start()
+	return fmt.Sprintf("%s %s * * %s", min, hour, dayNum)
 }
 
 func main() {
@@ -138,6 +124,34 @@ func main() {
 
 	go engine.StartWorkers()
 	router := api.SetupRouter(engine, store, cfg.Game.TargetState, cfg.ApiSecrets.CaptchaApiKey)
+
+	if cfg.Discord.WebhookURL != "" {
+		c := cron.New()
+
+		cronExp := parseCronSchedule(cfg.Discord.AnnounceDay, cfg.Discord.AnnounceTimeUTC)
+
+		_, err := c.AddFunc(cronExp, func() {
+			log.Println("CRON: Triggering automated Discord rotation announcement...")
+			targetSeason, upcomingWeek := services.CalculateUpcomingWeek(cfg.Rotation.SeasonReferenceDate)
+
+			entries, err := store.GetRotationForWeek(targetSeason, upcomingWeek)
+			if err != nil {
+				log.Printf("CRON Error fetching rotation: %v", err)
+				return
+			}
+
+			if err := services.SendDiscordRotation(cfg.Discord.WebhookURL, upcomingWeek, entries); err != nil {
+				log.Printf("CRON Error sending to Discord: %v", err)
+			}
+		})
+
+		if err != nil {
+			log.Printf("Failed to schedule Discord cron: %v", err)
+		} else {
+			c.Start()
+			log.Printf("Discord Rotation Cron scheduled for %s at %s UTC", cfg.Discord.AnnounceDay, cfg.Discord.AnnounceTimeUTC)
+		}
+	}
 
 	log.Println("Server running on http://localhost:8080")
 	if err := router.Run(":8080"); err != nil {

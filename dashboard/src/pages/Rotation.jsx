@@ -3,8 +3,8 @@ import client from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
 import {
-    LayoutGrid, Calendar, Shield, Save,
-    Info, Lock, AlertTriangle, ArrowLeft, Activity
+    LayoutGrid, Shield, Save,
+    Info, Lock, AlertTriangle, ArrowLeft, Activity, Megaphone
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -28,6 +28,15 @@ export default function Rotation() {
     useEffect(() => {
         fetchInitialData();
     }, []);
+
+    const handleAnnounceRotation = async (week) => {
+        try {
+            await client.post(`/moderator/discord/rotation/1/${week}`);
+            toast.success(`Week ${week} schedule sent to Discord!`);
+        } catch (err) {
+            toast.error("Failed to announce rotation.");
+        }
+    };
 
     const fetchInitialData = async () => {
         try {
@@ -182,8 +191,19 @@ export default function Rotation() {
                             <tr className="bg-gray-700/30 border-b border-gray-700">
                                 <th className="p-4 w-48 sticky left-0 bg-gray-800 z-10 border-r border-gray-700 shadow-[1px_0_0_0_#374151]">Building ID</th>
                                 {weeks.map(w => (
-                                    <th key={w} className="p-4 text-center min-w-[140px] font-black text-xs uppercase tracking-tighter text-gray-400">
-                                        Week {w}
+                                    <th key={w} className="p-4 text-center min-w-[140px] font-black text-xs uppercase tracking-tighter text-gray-400 group relative">
+                                        <div className="flex items-center justify-center gap-2">
+                                            <span>Week {w}</span>
+                                            {isAdmin && (
+                                                <button
+                                                    onClick={() => handleAnnounceRotation(w)}
+                                                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-blue-900/40 hover:bg-blue-600 text-blue-400 hover:text-white rounded-md border border-blue-500/30 shadow-md"
+                                                    title={`Announce Week ${w} to Discord`}
+                                                >
+                                                    <Megaphone size={12} />
+                                                </button>
+                                            )}
+                                        </div>
                                     </th>
                                 ))}
                             </tr>

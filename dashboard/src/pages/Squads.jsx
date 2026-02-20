@@ -1,12 +1,15 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
 import client from '../api/client';
+import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
 import {
-    Users, Shield, Crown, Trash2, ArrowLeft, Search, Sword
+    Users, Crown, Trash2, ArrowLeft, Search, Sword, Megaphone
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function Squads() {
+    const { user } = useAuth();
+    const isAdmin = user?.role === 'admin';
     const [activeAlliance, setActiveAlliance] = useState(null);
     const [alliances, setAlliances] = useState([]);
     const [players, setPlayers] = useState([]);
@@ -77,43 +80,37 @@ export default function Squads() {
     // --- ACTIONS ---
 
     const handlePromote = async (fid) => {
+        if (!isAdmin) return;
         try {
             await client.post('/moderator/squads/promote', {
                 fid,
-                allianceId: parseInt(activeAlliance) // Ensure this is an Int
+                allianceId: parseInt(activeAlliance)
             });
             toast.success("Squad created!");
-
-            // 1. Optimistic Update: Immediately hide this player from the Infantry list
             setPlayers(prev => prev.map(p => p.fid === fid ? {...p, teamId: -1} : p));
-
-            // 2. Force Refresh after a delay to allow DB to update
             setTimeout(fetchData, 300);
-
         } catch (err) {
             toast.error("Promotion failed");
-            fetchData(); // Revert on error
+            fetchData();
         }
     };
 
     const handleDemote = async (teamId) => {
+        if (!isAdmin) return;
         if (!window.confirm("Disband this squad?")) return;
         try {
             await client.post('/moderator/squads/demote', { teamId });
             toast.info("Squad disbanded");
-
-            // Optimistic update
             setSquads(prev => prev.filter(s => s.id !== teamId));
-
             setTimeout(fetchData, 300);
         } catch (err) { toast.error("Demotion failed"); }
     };
 
     const handleDrop = async (e, teamId) => {
         e.preventDefault();
+        if (!isAdmin) return;
         if (!draggedPlayerId) return;
 
-        // Optimistic Update
         setPlayers(prev => prev.map(p =>
             p.fid === draggedPlayerId ? { ...p, teamId: teamId } : p
         ));
@@ -124,7 +121,7 @@ export default function Squads() {
                 fid: draggedPlayerId,
                 teamId: teamId
             });
-            setTimeout(fetchData, 200); // Sync to be safe
+            setTimeout(fetchData, 200);
         } catch (err) {
             toast.error("Move failed");
             await fetchData();
@@ -132,11 +129,49 @@ export default function Squads() {
     };
 
     const handleDragStart = (e, fid) => {
+        if (!isAdmin) return;
         setDraggedPlayerId(fid);
         e.dataTransfer.effectAllowed = "move";
     };
 
-    const handleDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; };
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        if (!isAdmin) return;
+        e.dataTransfer.dropEffect = "move";
+    };
+
+    const handleAnnounceSquads = async () => {
+        let description = "Current Squad formations for the event:\n\n";
+
+        squads.forEach(sq => {
+            const captain = players.find(p => p.fid === sq.captainFid);
+            const roster = players.filter(p => p.teamId === sq.id);
+
+            description += `**🛑 Squad ${sq.id}**\n`;
+            description += `👑 **Lead:** ${captain ? captain.nickname : 'No Captain Assigned'}\n`;
+
+            const joiners = roster.filter(p => p.fid !== sq.captainFid);
+            if (joiners.length > 0) {
+                joiners.forEach(j => {
+                    description += `  ↳ ${j.nickname}\n`;
+                });
+            } else {
+                description += `  ↳ *No joiners assigned yet*\n`;
+            }
+            description += `\n`;
+        });
+
+        try {
+            await client.post('/moderator/discord/announce', {
+                title: "🛡️ Squad Assignments Finalized",
+                description: description,
+                color: 3447003 // Blue
+            });
+            toast.success("Squads announced to Discord!");
+        } catch (err) {
+            toast.error("Failed to announce squads.");
+        }
+    };
 
     return (
         <div className="h-screen bg-gray-900 text-gray-100 flex flex-col font-sans overflow-hidden">
@@ -149,6 +184,16 @@ export default function Squads() {
                     <h1 className="text-xl font-bold flex items-center text-white">
                         <Sword className="mr-3 text-purple-500 w-6 h-6" /> Squad Management
                     </h1>
+
+                    {isAdmin && (
+                        <button
+                            onClick={handleAnnounceSquads}
+                            className="ml-4 flex items-center space-x-2 px-4 py-1.5 bg-blue-900/20 hover:bg-blue-900/40 text-blue-400 border border-blue-800/50 rounded-lg transition-colors text-xs font-bold uppercase drop-shadow-md"
+                        >
+                            <Megaphone size={14} />
+                            <span>Announce</span>
+                        </button>
+                    )}
                 </div>
 
                 {/* Alliance Tabs */}
@@ -197,22 +242,28 @@ export default function Squads() {
                         {infantry.map(p => (
                             <div
                                 key={p.fid}
-                                draggable
+                                draggable={isAdmin}
                                 onDragStart={(e) => handleDragStart(e, p.fid)}
-                                className="bg-gray-700/50 border border-gray-600 rounded p-2 flex items-center gap-2 cursor-grab hover:bg-gray-600 transition-colors"
+                                className={`bg-gray-700/50 border border-gray-600 rounded p-2 flex items-center gap-2 transition-colors ${
+                                    isAdmin ? 'cursor-grab hover:bg-gray-600' : 'cursor-default opacity-80'
+                                }`}
                             >
                                 <img alt="avatar" src={p.avatar} className="w-8 h-8 rounded-full bg-black" />
                                 <div className="flex-1 min-w-0">
                                     <div className="font-bold truncate text-gray-200">{p.nickname}</div>
                                     <div className="text-yellow-500 font-mono text-xs">{p.power?.toLocaleString()}</div>
                                 </div>
-                                <button
-                                    onClick={() => handlePromote(p.fid)}
-                                    className="p-1.5 bg-yellow-600/20 text-yellow-500 hover:bg-yellow-600/40 rounded transition-colors"
-                                    title="Promote to Captain"
-                                >
-                                    <Crown className="w-4 h-4" />
-                                </button>
+
+                                {/* Hide Promote button for Moderators */}
+                                {isAdmin && (
+                                    <button
+                                        onClick={() => handlePromote(p.fid)}
+                                        className="p-1.5 bg-yellow-600/20 text-yellow-500 hover:bg-yellow-600/40 rounded transition-colors"
+                                        title="Promote to Captain"
+                                    >
+                                        <Crown className="w-4 h-4" />
+                                    </button>
+                                )}
                             </div>
                         ))}
                     </div>
@@ -251,6 +302,7 @@ export default function Squads() {
                                                 <div className="text-yellow-500 font-mono text-xs">{sq.totalPower.toLocaleString()}</div>
                                             </div>
                                         </div>
+                                        {isAdmin && (
                                         <button
                                             onClick={() => handleDemote(sq.id)}
                                             className="text-gray-600 hover:text-red-500 transition-colors p-1"
@@ -258,6 +310,7 @@ export default function Squads() {
                                         >
                                             <Trash2 className="w-4 h-4" />
                                         </button>
+                                        )}
                                     </div>
 
                                     <div className="flex-1 overflow-y-auto p-2 space-y-1 bg-gray-800/50 scrollbar-thin scrollbar-thumb-gray-600">
