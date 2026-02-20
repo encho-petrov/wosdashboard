@@ -85,9 +85,9 @@ export default function Rotation() {
         }));
     };
 
-    // Conflict Detection: Returns true if alliance has >1 assignment of same type in that week
     const hasConflict = useMemo(() => {
         const conflicts = {};
+
         weeks.forEach(w => {
             const fortAssignments = {};
             const shAssignments = {};
@@ -96,14 +96,30 @@ export default function Rotation() {
                 const val = matrix[`${b.id}-${w}`];
                 if (!val) return;
 
-                const target = b.type === 'Fortress' ? fortAssignments : shAssignments;
-                target[val] = (target[val] || 0) + 1;
+                if (b.type === 'Fortress') {
+                    fortAssignments[val] = (fortAssignments[val] || 0) + 1;
+                } else if (b.type === 'Stronghold') {
+                    shAssignments[val] = (shAssignments[val] || 0) + 1;
+                }
+            });
 
-                if (target[val] > 1) {
+            let fortLimit = 3;
+            if (w === 1) fortLimit = 1;
+            if (w === 2) fortLimit = 2;
+            const shLimit = 1;
+
+            buildings.forEach(b => {
+                const val = matrix[`${b.id}-${w}`];
+                if (!val) return;
+
+                if (b.type === 'Fortress' && fortAssignments[val] > fortLimit) {
+                    conflicts[`${b.id}-${w}`] = true;
+                } else if (b.type === 'Stronghold' && shAssignments[val] > shLimit) {
                     conflicts[`${b.id}-${w}`] = true;
                 }
             });
         });
+
         return conflicts;
     }, [matrix, buildings]);
 
@@ -164,7 +180,7 @@ export default function Rotation() {
                             <LayoutGrid className="text-blue-400" /> Season 1 Rotation Matrix
                         </h2>
                         <p className="text-gray-500 text-sm mt-1">
-                            Manage 12 Fortresses and 4 Strongholds. One Fortress & One Stronghold per alliance limit enforced.
+                            Manage 12 Fortresses and 4 Strongholds. Rules: 1 Stronghold/week. Fortress limits scale from 1 (W1) to 3 (W3+).
                         </p>
                     </div>
 
@@ -298,8 +314,8 @@ export default function Rotation() {
                             <Info size={16} className="text-blue-400" /> Rotation Rules
                         </h4>
                         <ul className="text-xs text-gray-500 space-y-2 list-disc list-inside">
-                            <li>Weekly signup logic: 1 Fortress + 1 Stronghold max per alliance.</li>
-                            <li>Week 1-2: Typically handled by shells for auto-signup stacking.</li>
+                            <li>Strongholds: 1 max per alliance per week.</li>
+                            <li>Fortresses: Max 1 in Week 1, Max 2 in Week 2, Max 3 per week thereafter.</li>
                             <li>Red highlights indicate an alliance has exceeded their building limit for that week.</li>
                         </ul>
                     </div>
