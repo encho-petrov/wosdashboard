@@ -32,7 +32,7 @@ export default function MfaSetupModal({ onClose, isForced }) {
                 code: code
             });
 
-            localStorage.setItem('mfa_enabled', 'true');
+            sessionStorage.setItem('mfa_enabled', 'true');
             toast.success("Two-Factor Authentication Enabled!");
 
             if (isForced) {

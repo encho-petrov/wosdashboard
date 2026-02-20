@@ -48,7 +48,7 @@ export default function Dashboard() {
 
   // 2. Poll Real-time Status
   useEffect(() => {
-    if (localStorage.getItem('mfa_enabled') === 'false') {
+    if (sessionStorage.getItem('mfa_enabled') === 'false') {
       setShowMfaModal(true);
     }
     fetchHistory();
@@ -384,7 +384,7 @@ export default function Dashboard() {
         {showMfaModal && (
             <MfaSetupModal
                 onClose={() => setShowMfaModal(false)}
-                isForced={localStorage.getItem('mfa_enabled') === 'false'}
+                isForced={sessionStorage.getItem('mfa_enabled') === 'false'}
             />
         )}
       </div>

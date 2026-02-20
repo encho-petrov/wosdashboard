@@ -1,6 +1,5 @@
 import axios from 'axios';
 
-// Point to your Go Backend
 const API_URL = 'http://localhost:8080/api';
 
 const client = axios.create({
@@ -10,10 +9,9 @@ const client = axios.create({
   },
 });
 
-// Request Interceptor: Attach Token
 client.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -22,13 +20,11 @@ client.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response Interceptor: Handle 401 (Unauthorized)
 client.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      // Token expired or invalid -> Logout
-      localStorage.removeItem('token');
+      sessionStorage.removeItem('token');
       window.location.href = '/login';
     }
     return Promise.reject(error);

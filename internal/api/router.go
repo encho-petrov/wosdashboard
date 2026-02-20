@@ -7,6 +7,7 @@ import (
 	"gift-redeemer/internal/db"
 	"gift-redeemer/internal/models"
 	"gift-redeemer/internal/processor"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -35,6 +36,17 @@ func logAction(c *gin.Context, store *db.Store, action string, details string) {
 
 func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, apiKey string) *gin.Engine {
 	r := gin.Default()
+
+	r.ForwardedByClientIP = true
+	err := r.SetTrustedProxies([]string{
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+		"127.0.0.1/8",
+	})
+	if err != nil {
+		log.Printf("Warning: Failed to set trusted proxies: %v", err)
+	}
 
 	r.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")

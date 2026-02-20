@@ -9,12 +9,10 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for existing token on load
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     if (token) {
       try {
         const decoded = jwtDecode(token);
-        // Check expiry
         if (decoded.exp * 1000 < Date.now()) {
             logout();
         } else {
@@ -29,8 +27,8 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (token, role, username, mfaEnabled) => {
     try {
-      localStorage.setItem('token', token);
-      localStorage.setItem('mfa_enabled', mfaEnabled);
+      sessionStorage.setItem('token', token);
+      sessionStorage.setItem('mfa_enabled', mfaEnabled);
 
       setUser({ username, role });
       return true;
@@ -41,23 +39,21 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    localStorage.removeItem('token');
+    sessionStorage.removeItem('token');
     setUser(null);
   };
 
   const loginPlayer = async (fid) => {
     try {
-      // Use the new endpoint we created in Go
       const res = await client.post('/login/player', { fid: parseInt(fid) });
       const { token, role } = res.data;
       
-      localStorage.setItem('token', token);
-      // We decode to get expiration, but we trust the response role
+      sessionStorage.setItem('token', token);
       const decoded = jwtDecode(token);
       
       setUser({ 
-        username: decoded.username || fid, // FID is the username for players
-        role: role // "player"
+        username: decoded.username || fid,
+        role: role
       });
       return true;
     } catch (err) {
