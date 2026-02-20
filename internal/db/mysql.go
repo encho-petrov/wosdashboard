@@ -786,8 +786,20 @@ func (s *Store) SaveSeasonRotation(seasonID int, entries []RotationEntry) error 
 		}
 
 		limits[key][e.AllianceID]++
-		if limits[key][e.AllianceID] > 1 {
-			return fmt.Errorf("Conflict: Alliance %d assigned >1 %s in Week %d", e.AllianceID, bType, e.Week)
+
+		maxLimit := 1
+		if bType == "Fortress" {
+			maxLimit = 3
+			if e.Week == 1 {
+				maxLimit = 1
+			} else if e.Week == 2 {
+				maxLimit = 2
+			}
+		}
+
+		if limits[key][e.AllianceID] > maxLimit {
+			return fmt.Errorf("Conflict: Alliance %d assigned %d %ss in Week %d (Max %d)",
+				e.AllianceID, limits[key][e.AllianceID], bType, e.Week, maxLimit)
 		}
 	}
 
