@@ -14,6 +14,7 @@ import Squads from './pages/Squads';
 import Alliances from './pages/Alliances';
 import AuditLogs from "./pages/AuditLogs";
 import Rotation from './pages/Rotation';
+import TransferManager from "./pages/TransferManager.jsx";
 
 const Home = () => {
   const { user } = useAuth();
@@ -62,6 +63,12 @@ function App() {
             <Route path="/squads" element={
               <ProtectedRoute>
                 <Squads />
+              </ProtectedRoute>
+            } />
+
+            <Route path="/transfer-manager" element={
+              <ProtectedRoute>
+                <TransferManager />
               </ProtectedRoute>
             } />
 

@@ -123,7 +123,7 @@ func main() {
 	engine := processor.NewProcessor(pClient, gClient, store, solver, redisStore)
 
 	go engine.StartWorkers()
-	router := api.SetupRouter(engine, store, cfg.Game.TargetState, cfg.ApiSecrets.CaptchaApiKey)
+	router := api.SetupRouter(engine, store, cfg.Game.TargetState, cfg.ApiSecrets.CaptchaApiKey, pClient)
 
 	if cfg.Discord.WebhookURL != "" {
 		c := cron.New()

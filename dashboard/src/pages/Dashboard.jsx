@@ -5,7 +5,7 @@ import { toast } from 'react-toastify';
 import { Link } from 'react-router-dom';
 import {
   LogOut, Play, Download, Activity, FileText,
-  CheckCircle, Users as UsersIcon, List, Swords, Sword, Shield, KeyRound, Terminal, ShieldCheck, LayoutGrid
+  CheckCircle, Users as UsersIcon, List, Swords, Sword, Shield, KeyRound, Terminal, ShieldCheck, LayoutGrid, ArrowRightLeft
 } from 'lucide-react';
 
 import ChangePasswordModal from '../components/ChangePasswordModal';
@@ -130,6 +130,13 @@ export default function Dashboard() {
           {/* Right: Actions & User */}
           <div className="flex flex-wrap justify-center items-center gap-3">
 
+            <Link
+                to="/transfer-manager"
+                className="flex items-center space-x-2 px-3 py-1.5 bg-blue-600/10 text-green-400 hover:bg-blue-600/20 rounded-lg transition-colors text-sm font-medium border border-blue-500/20"
+            >
+              <ArrowRightLeft className="w-4 h-4 text-green-400" />
+              <span>Transfers</span>
+            </Link>
             <Link
                 to="/rotation"
                 className="flex items-center space-x-2 px-3 py-1.5 bg-blue-600/10 text-blue-400 hover:bg-blue-600/20 rounded-lg transition-colors text-sm font-medium border border-blue-500/20"

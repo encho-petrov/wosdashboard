@@ -4,14 +4,13 @@ import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
 import {
   Users, Edit2, Search, Save, X, RefreshCw, ArrowLeft,
-  Swords, Snowflake, Trash2, Plus, Activity
+  Swords, Snowflake, Trash2, Plus, Activity, Archive
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function Roster() {
   const { user } = useAuth();
 
-  // --- ORIGINAL DATA STATE ---
   const [players, setPlayers] = useState([]);
   const [filteredPlayers, setFilteredPlayers] = useState([]);
   const [options, setOptions] = useState({
@@ -25,7 +24,6 @@ export default function Roster() {
   });  const [loading, setLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // --- ORIGINAL UI STATE ---
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('all');
   const [editingId, setEditingId] = useState(null);
@@ -33,6 +31,9 @@ export default function Roster() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [bulkIds, setBulkIds] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+
+  const [activeSeason, setActiveSeason] = useState(null);
+  const [outboundModal, setOutboundModal] = useState({ isOpen: false, player: null, destState: '' });
 
   useEffect(() => {
     fetchData();
@@ -72,6 +73,11 @@ export default function Roster() {
     } finally {
       setLoading(false);
     }
+
+    try {
+      const tRes = await client.get('/moderator/transfers/active');
+      setActiveSeason(tRes.data.season);
+    } catch (e) { /* Ignore silently if no season */ }
   };
 
   const handleSync = async () => {
@@ -144,6 +150,22 @@ export default function Roster() {
       toast.error(err.response?.data?.error || "Failed to add players");
     } finally {
       setIsAdding(false);
+    }
+  };
+
+  const handleTransferOut = async () => {
+    if (!outboundModal.player || !activeSeason) return;
+    try {
+      await client.post(`/moderator/players/${outboundModal.player.fid}/transfer-out`, {
+        seasonId: activeSeason.id,
+        nickname: outboundModal.player.nickname,
+        destState: outboundModal.destState || 'Unknown'
+      });
+      toast.success(`${outboundModal.player.nickname} archived and transferred out!`);
+      setOutboundModal({ isOpen: false, player: null, destState: '' });
+      await fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Failed to transfer player out.");
     }
   };
 
@@ -338,17 +360,40 @@ export default function Roster() {
                             ) : p.teamName || '-'}
                           </td>
                           <td className="p-4 text-right">
-                            {editingId === p.fid ? (
-                                <div className="flex justify-end gap-2">
-                                  <button onClick={handleSave} className="p-1.5 bg-green-600 rounded hover:bg-green-500 text-white"><Save size={16}/></button>
-                                  <button onClick={() => setEditingId(null)} className="p-1.5 bg-gray-600 rounded hover:bg-gray-500 text-white"><X size={16}/></button>
-                                </div>
-                            ) : (
-                                <div className="flex justify-end gap-2">
-                                  <button onClick={() => handleEdit(p)} className="p-1.5 hover:bg-gray-700 text-blue-400 rounded transition-colors"><Edit2 size={16} /></button>
-                                  <button onClick={() => handleDelete(p.fid, p.nickname)} className="p-1.5 hover:bg-red-900/30 text-gray-500 hover:text-red-500 rounded transition-colors"><Trash2 size={16} /></button>
-                                </div>
-                            )}
+                            <div className="flex items-center justify-end gap-2">
+                              {editingId === p.fid ? (
+                                  // --- EDITING STATE (Save / Cancel) ---
+                                  <>
+                                    <button onClick={handleSave} className="p-1.5 bg-green-600 hover:bg-green-500 text-white rounded transition-colors shadow" title="Save">
+                                      <Save size={16} />
+                                    </button>
+                                    <button onClick={() => setEditingId(null)} className="p-1.5 bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors shadow" title="Cancel">
+                                      <X size={16} />
+                                    </button>
+                                  </>
+                              ) : (
+                                  // --- DEFAULT STATE (Edit / Delete / Transfer) ---
+                                  <>
+                                    <button onClick={() => handleEdit(p)} className="p-1.5 bg-blue-900/30 text-blue-400 hover:bg-blue-600 hover:text-white rounded transition-colors" title="Edit Player">
+                                      <Edit2 size={16} />
+                                    </button>
+                                    <button onClick={() => handleDelete(p.fid, p.nickname)} className="p-1.5 bg-gray-800 text-gray-400 hover:bg-red-600 hover:text-white rounded transition-colors" title="Delete Player">
+                                      <Trash2 size={16} />
+                                    </button>
+
+                                    {/* ONLY show Transfer Out if the window is ACTIVE */}
+                                    {activeSeason?.status === 'Active' && (
+                                        <button
+                                            onClick={() => setOutboundModal({ isOpen: true, player: p, destState: '' })}
+                                            className="p-1.5 bg-purple-900/30 text-purple-400 hover:bg-purple-600 hover:text-white border border-purple-800/50 rounded transition-all shadow"
+                                            title="Transfer Player Out"
+                                        >
+                                          <Archive size={16} />
+                                        </button>
+                                    )}
+                                  </>
+                              )}
+                            </div>
                           </td>
                         </tr>
                     ))
@@ -382,6 +427,30 @@ export default function Roster() {
                     </button>
                   </div>
                 </form>
+              </div>
+            </div>
+        )}
+        {/* Outbound Transfer Modal */}
+        {outboundModal.isOpen && (
+            <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+              <div className="bg-gray-800 p-6 rounded-lg w-96 border border-gray-700">
+                <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+                  <Archive className="text-red-500"/> Transfer Out: {outboundModal.player.nickname}
+                </h3>
+                <p className="text-xs text-gray-400 mb-4">This will archive the player from the active roster and wipe their Squad/War Room data. This action is logged in the Transfer Season history.</p>
+
+                <input
+                    type="text"
+                    placeholder="Destination State (Optional)"
+                    className="w-full mb-6 p-2 bg-gray-900 border border-gray-700 rounded text-white outline-none focus:border-red-500"
+                    value={outboundModal.destState}
+                    onChange={e => setOutboundModal({...outboundModal, destState: e.target.value})}
+                />
+
+                <div className="flex justify-end gap-2">
+                  <button onClick={() => setOutboundModal({ isOpen: false, player: null, destState: '' })} className="px-4 py-2 text-gray-400 hover:text-white">Cancel</button>
+                  <button onClick={handleTransferOut} className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded font-bold">Confirm Transfer</button>
+                </div>
               </div>
             </div>
         )}

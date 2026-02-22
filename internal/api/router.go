@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"gift-redeemer/internal/auth"
+	"gift-redeemer/internal/client"
 	"gift-redeemer/internal/config"
 	"gift-redeemer/internal/db"
 	"gift-redeemer/internal/models"
@@ -36,7 +37,7 @@ func logAction(c *gin.Context, store *db.Store, action string, details string) {
 	})
 }
 
-func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, apiKey string) *gin.Engine {
+func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, apiKey string, pClient *client.PlayerClient) *gin.Engine {
 	r := gin.Default()
 
 	r.ForwardedByClientIP = true
@@ -396,6 +397,39 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 				"added":   added,
 				"skipped": skipped,
 			})
+		})
+
+		authorized.POST("/players/:fid/transfer-out", func(c *gin.Context) {
+			fid, _ := strconv.ParseInt(c.Param("fid"), 10, 64)
+
+			var req struct {
+				SeasonID  int    `json:"seasonId"`
+				Nickname  string `json:"nickname"`
+				DestState string `json:"destState"`
+			}
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+				return
+			}
+
+			userRole := c.GetString("role")
+			if userRole != "admin" {
+				userAllianceID := c.GetInt("allianceId")
+				playerAllianceID, err := store.GetPlayerAllianceID(fid)
+
+				if err != nil || playerAllianceID != userAllianceID {
+					c.JSON(http.StatusForbidden, gin.H{"error": "You can only transfer out members of your own alliance."})
+					return
+				}
+			}
+
+			if err := store.ConfirmOutboundTransfer(fid, req.SeasonID, req.Nickname, req.DestState); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to archive player"})
+				return
+			}
+
+			logAction(c, store, "TRANSFERS", fmt.Sprintf("Transferred Out: %s to %s", req.Nickname, req.DestState))
+			c.JSON(http.StatusOK, gin.H{"message": "Player successfully archived and logged in transfer history."})
 		})
 
 		authorized.DELETE("/players/:fid", func(c *gin.Context) {
@@ -855,6 +889,182 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 			logAction(c, store, "DELETE_USER", fmt.Sprintf("Deleted user ID: %d", id))
 			c.JSON(200, gin.H{"message": "User deleted"})
 		})
+
+		transfers := authorized.Group("/transfers")
+		{
+			transfers.GET("/active", func(c *gin.Context) {
+				season, err := store.GetActiveTransferSeason()
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+					return
+				}
+				if season == nil {
+					c.JSON(http.StatusOK, gin.H{"season": nil, "records": []db.TransferRecord{}})
+					return
+				}
+
+				records, _ := store.GetTransferRecords(season.ID)
+				c.JSON(http.StatusOK, gin.H{"season": season, "records": records})
+			})
+
+			transfers.POST("/seasons", func(c *gin.Context) {
+				if c.GetString("role") != "admin" {
+					c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+					return
+				}
+
+				var req struct {
+					Name     string `json:"name"`
+					PowerCap int64  `json:"powerCap"`
+					Leading  bool   `json:"leading"`
+					Specials int    `json:"specials"`
+				}
+				if err := c.ShouldBindJSON(&req); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+					return
+				}
+
+				if err := store.CreateTransferSeason(req.Name, req.PowerCap, req.Leading, req.Specials); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create season"})
+					return
+				}
+				logAction(c, store, "TRANSFERS", "Created new transfer season: "+req.Name)
+				c.JSON(http.StatusOK, gin.H{"message": "Season created"})
+			})
+
+			// POST: Bulk Add Inbound Candidates (ADMIN ONLY)
+			transfers.POST("/bulk-add", func(c *gin.Context) {
+				if c.GetString("role") != "admin" {
+					c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+					return
+				}
+
+				var req struct {
+					SeasonID int    `json:"seasonId"`
+					FIDs     string `json:"fids"`
+				}
+				if err := c.ShouldBindJSON(&req); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
+					return
+				}
+
+				addedCount := 0
+				fidList := strings.Split(req.FIDs, ",")
+
+				for _, fidStr := range fidList {
+					fidStr = strings.TrimSpace(fidStr)
+					if fidStr == "" {
+						continue
+					}
+					fidNum, err := strconv.ParseInt(fidStr, 10, 64)
+					if err != nil {
+						continue
+					}
+
+					info, err := pClient.GetPlayerInfo(fidNum)
+					if err != nil || info == nil || info.Data.Nickname == "" {
+						continue
+					}
+
+					record := db.TransferRecord{
+						SeasonID:     req.SeasonID,
+						FID:          fidNum,
+						Nickname:     info.Data.Nickname,
+						FurnaceLevel: info.Data.StoveLv,
+						SourceState:  fmt.Sprintf("State %d", info.Data.KID),
+						Avatar:       info.Data.Avatar,
+						FurnaceImage: info.Data.StoveImg,
+					}
+
+					if err := store.AddTransferRecord(record); err == nil {
+						addedCount++
+					}
+				}
+
+				logAction(c, store, "TRANSFERS", fmt.Sprintf("Bulk added %d candidates", addedCount))
+				c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("Successfully added %d candidates", addedCount)})
+			})
+
+			transfers.PUT("/:id", func(c *gin.Context) {
+				if c.GetString("role") != "admin" {
+					c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+					return
+				}
+				id, _ := strconv.Atoi(c.Param("id"))
+
+				var req struct {
+					Power            int64  `json:"power"`
+					TargetAllianceID *int   `json:"targetAllianceId"`
+					InviteType       string `json:"inviteType"`
+					Status           string `json:"status"`
+				}
+
+				if err := c.ShouldBindJSON(&req); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid data format received"})
+					return
+				}
+
+				store.UpdateTransferRecord(id, req.Power, req.TargetAllianceID, req.InviteType, req.Status)
+				c.JSON(http.StatusOK, gin.H{"message": "Updated successfully"})
+			})
+
+			transfers.POST("/:id/confirm-inbound", func(c *gin.Context) {
+				if c.GetString("role") != "admin" {
+					c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+					return
+				}
+				id, _ := strconv.Atoi(c.Param("id"))
+
+				var req struct {
+					FID              int64  `json:"fid"`
+					Nickname         string `json:"nickname"`
+					TargetAllianceID int    `json:"targetAllianceId"`
+				}
+				_ = c.ShouldBindJSON(&req)
+
+				if err := store.ConfirmInboundTransfer(id, req.FID, req.Nickname, req.TargetAllianceID); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Transaction failed"})
+					return
+				}
+
+				logAction(c, store, "TRANSFERS", fmt.Sprintf("Confirmed Inbound: %s", req.Nickname))
+				c.JSON(http.StatusOK, gin.H{"message": "Player confirmed and added to Roster!"})
+			})
+
+			transfers.PUT("/seasons/:id/status", func(c *gin.Context) {
+				if c.GetString("role") != "admin" {
+					c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+					return
+				}
+				id, _ := strconv.Atoi(c.Param("id"))
+				var req struct {
+					Status string `json:"status"`
+				}
+				_ = c.ShouldBindJSON(&req)
+
+				store.UpdateSeasonStatus(id, req.Status)
+				c.JSON(http.StatusOK, gin.H{"message": "Status updated"})
+			})
+
+			transfers.GET("/history", func(c *gin.Context) {
+				seasons, err := store.GetClosedTransferSeasons()
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch history"})
+					return
+				}
+				c.JSON(http.StatusOK, seasons)
+			})
+
+			transfers.GET("/seasons/:id/records", func(c *gin.Context) {
+				id, _ := strconv.Atoi(c.Param("id"))
+				records, err := store.GetTransferRecords(id)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch records"})
+					return
+				}
+				c.JSON(http.StatusOK, records)
+			})
+		}
 
 		rotation := authorized.Group("/rotation")
 		{
