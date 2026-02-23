@@ -86,18 +86,15 @@ func (c *GiftClient) RedeemGift(fid, code, captcha string) (int, string, string,
 
 	responseStr := string(bodyBytes)
 
-	// 1. WAF Check
 	if strings.Contains(responseStr, "<html") || strings.Contains(responseStr, "<!DOCTYPE") {
 		return -1, "WAF_BLOCK", "", fmt.Errorf("WAF_BLOCK")
 	}
 
-	// 2. Parse into generic map
 	var rawMap map[string]interface{}
 	if err := json.Unmarshal(bodyBytes, &rawMap); err != nil {
 		return -1, "JSON Parse Error", "", fmt.Errorf("json error: %v | Body: %s", err, responseStr)
 	}
 
-	// 3. Determine Final Code (PRIORITIZE err_code)
 	finalCode := -999
 
 	toInt := func(val interface{}) (int, bool) {
@@ -113,14 +110,11 @@ func (c *GiftClient) RedeemGift(fid, code, captcha string) (int, string, string,
 		return 0, false
 	}
 
-	// Check 'code' first (Generic)
 	if val, ok := rawMap["code"]; ok {
 		if i, ok := toInt(val); ok {
 			finalCode = i
 		}
 	}
-	// Check 'err_code' second (Specific) - This overwrites generic code
-	// Example: code=1, err_code=40008 -> Final=40008
 	if val, ok := rawMap["err_code"]; ok {
 		if i, ok := toInt(val); ok {
 			finalCode = i
@@ -134,7 +128,6 @@ func (c *GiftClient) RedeemGift(fid, code, captcha string) (int, string, string,
 		}
 	}
 
-	// 4. Handle Success (0)
 	if finalCode == 0 || finalCode == 200 {
 		nickname := ""
 		if dataVal, ok := rawMap["data"]; ok {
@@ -149,8 +142,6 @@ func (c *GiftClient) RedeemGift(fid, code, captcha string) (int, string, string,
 		return 0, "SUCCESS", nickname, nil
 	}
 
-	// 5. DEBUG LOGGING (Only if unexpected error)
-	// If it's NOT a known permanent error, verify what we see
 	if finalCode != 40008 && finalCode != 40014 {
 		log.Printf("[GiftClient] API Response (Code: %d): %s", finalCode, responseStr)
 	}

@@ -76,3 +76,56 @@ func SendDiscordRotation(webhookURL string, week int, entries []db.RotationEntry
 
 	return nil
 }
+
+func CheckMinistrySchedule(store *db.Store, webhookURL string) {
+	event, err := store.GetActiveMinistryEvent()
+	if err != nil || event == nil || event.Status != "Active" || !event.AnnounceEnabled {
+		return
+	}
+
+	now := time.Now().UTC()
+	if now.Hour() == 23 && now.Minute() == 45 {
+		tomorrow := now.Add(24 * time.Hour).Format("2006-01-02")
+		day, _ := store.GetMinistryDayByDate(event.ID, tomorrow)
+
+		if day != nil {
+			slots, _ := store.GetMinistrySlots(day.ID)
+
+			desc := fmt.Sprintf("Here is the schedule for tomorrow's **%s** buff.\n\n", day.BuffName)
+			for _, s := range slots {
+				timeLabel := fmt.Sprintf("%02d:%02d UTC", s.SlotIndex/2, (s.SlotIndex%2)*30)
+				if s.PlayerFID != nil {
+					desc += fmt.Sprintf("`%s` - **%s** [%s]\n", timeLabel, *s.Nickname, *s.AllianceName)
+				} else {
+					desc += fmt.Sprintf("`%s` - *[ Open Slot ]*\n", timeLabel)
+				}
+			}
+
+			_ = SendCustomDiscordEmbed(webhookURL, "📅 Daily Ministry Manifest", desc, 3447003)
+		}
+	}
+
+	targetTime := now.Add(5 * time.Minute)
+
+	if targetTime.Minute() == 0 || targetTime.Minute() == 30 {
+		today := targetTime.Format("2006-01-02")
+		day, _ := store.GetMinistryDayByDate(event.ID, today)
+
+		if day != nil {
+			slotIndex := targetTime.Hour() * 2
+			if targetTime.Minute() == 30 {
+				slotIndex += 1
+			}
+
+			slot, _ := store.GetMinistrySlotByIndex(day.ID, slotIndex)
+
+			if slot != nil && slot.PlayerFID != nil {
+				title := fmt.Sprintf("🛠️ Ministry Buff Alert: %s", day.BuffName)
+				desc := fmt.Sprintf("Get ready! **%s** from [%s], your turn for the %s buff starts in exactly 5 minutes.",
+					*slot.Nickname, *slot.AllianceName, day.BuffName)
+
+				_ = SendCustomDiscordEmbed(webhookURL, title, desc, 15158332)
+			}
+		}
+	}
+}

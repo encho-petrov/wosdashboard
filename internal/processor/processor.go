@@ -15,13 +15,13 @@ import (
 	"time"
 )
 
-const WorkerCount = 2 // <--- THE STAGGERED DUO
+const WorkerCount = 2
 
 var (
 	isPaused   bool
 	pauseMutex sync.RWMutex
 	pauseUntil time.Time
-	apiMutex   sync.Mutex // <--- GLOBAL API LOCK
+	apiMutex   sync.Mutex
 )
 
 type Processor struct {
@@ -44,8 +44,6 @@ func NewProcessor(pClient *client.PlayerClient, gClient *client.GiftClient, stor
 	}
 }
 
-// --- ROUTER API WRAPPERS ---
-
 func (p *Processor) IsJobRunning() bool {
 	return !p.Redis.AcquireJobLock("check_only")
 }
@@ -67,13 +65,11 @@ func (p *Processor) StartJob(codes []string, targets []models.PlayerData, initia
 		Total:     len(targets),
 		Status:    "PENDING",
 		CreatedAt: time.Now(),
-		Targets:   targets, // The list of players to process
+		Targets:   targets,
 	}
 	p.JobQueue <- job
 	return jobID, nil
 }
-
-// --- CIRCUIT BREAKER (WAF PROTECTION) ---
 
 func triggerPause() {
 	pauseMutex.Lock()
@@ -97,7 +93,6 @@ func checkPause() {
 			log.Printf("Worker sleeping for %v to respect Global Pause...", sleepDur)
 			time.Sleep(sleepDur)
 		}
-		// Time's up, lift the pause
 		pauseMutex.Lock()
 		if isPaused && time.Now().After(pauseUntil) {
 			isPaused = false
@@ -107,24 +102,19 @@ func checkPause() {
 	}
 }
 
-// --- API LOCK & JITTER ---
-
 func (p *Processor) safeAPICall(call func() error) error {
-	checkPause() // Wait if globally paused
+	checkPause()
 
-	apiMutex.Lock() // Grab the global API lock
+	apiMutex.Lock()
 	defer apiMutex.Unlock()
 
 	err := call()
 
-	// JITTER: Wait randomly between 1.0 and 2.5 seconds before releasing lock
 	jitter := time.Duration(1000+rand.Intn(1500)) * time.Millisecond
 	time.Sleep(jitter)
 
 	return err
 }
-
-// --- WORKER ENGINE ---
 
 func (p *Processor) StartWorkers() {
 	for i := 1; i <= WorkerCount; i++ {
@@ -179,10 +169,8 @@ func (p *Processor) redeemForPlayer(fid int64, nickname, code string) (int, stri
 	for attempt <= maxAttempts {
 		checkPause()
 
-		// 1. Player Login (Uses API Lock)
 		var loginErr error
 		p.safeAPICall(func() error {
-			// WE CHANGE THIS LINE
 			_, loginErr = p.PlayerClient.GetPlayerInfo(fid)
 			return loginErr
 		})
@@ -190,14 +178,13 @@ func (p *Processor) redeemForPlayer(fid int64, nickname, code string) (int, stri
 		if loginErr != nil {
 			if strings.Contains(loginErr.Error(), "WAF_BLOCK") {
 				triggerPause()
-				continue // WAF Blocks do not consume an attempt
+				continue
 			}
 			log.Printf("[FID %d] Login Error (Attempt %d): %v", fid, attempt, loginErr)
 			attempt++
 			continue
 		}
 
-		// 2. Fetch Captcha (Uses API Lock)
 		var imgBase64 string
 		var fetchErr error
 		p.safeAPICall(func() error {
@@ -215,7 +202,6 @@ func (p *Processor) redeemForPlayer(fid int64, nickname, code string) (int, stri
 			continue
 		}
 
-		// 3. Solve Captcha (NO API Lock needed! Solves concurrently with 2Captcha)
 		solved, err := p.Solver.Solve(imgBase64)
 		if err != nil {
 			log.Printf("[FID %d] Solver Error: %v", fid, err)
@@ -223,7 +209,6 @@ func (p *Processor) redeemForPlayer(fid int64, nickname, code string) (int, stri
 			continue
 		}
 
-		// 4. Redeem Gift (Uses API Lock)
 		var errCode int
 		var msg, redeemNickname string
 		var redeemErr error
@@ -247,13 +232,11 @@ func (p *Processor) redeemForPlayer(fid int64, nickname, code string) (int, stri
 			continue
 		}
 
-		// 5. Handle Success
 		if errCode == 20000 || errCode == 0 || msg == "SUCCESS" {
 			p.Store.MarkAsRedeemed(fid, code)
 			return 1, "Success", nickname
 		}
 
-		// 6. Ghost Redemption Fix (Context-Aware Check)
 		isGhostSuccess := strings.Contains(msg, "USED") || strings.Contains(msg, "SAME TYPE EXCHANGE")
 		if isGhostSuccess && attempt > 1 {
 			log.Printf("[FID %d] 👻 Ghost Redemption Detected on Attempt %d. Marking as Success.", fid, attempt)
@@ -261,7 +244,6 @@ func (p *Processor) redeemForPlayer(fid int64, nickname, code string) (int, stri
 			return 1, "Success (Recovered)", nickname
 		}
 
-		// 7. Permanent Failures
 		if isGhostSuccess ||
 			strings.Contains(msg, "CDK NOT FOUND") ||
 			strings.Contains(msg, "TIME EXPIRED") ||

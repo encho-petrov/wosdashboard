@@ -15,6 +15,7 @@ import Alliances from './pages/Alliances';
 import AuditLogs from "./pages/AuditLogs";
 import Rotation from './pages/Rotation';
 import TransferManager from "./pages/TransferManager.jsx";
+import MinistryReservations from "./pages/MinistryReservations.jsx";
 
 const Home = () => {
   const { user } = useAuth();
@@ -100,6 +101,7 @@ function App() {
               </ProtectedRoute>
             }
             />
+            <Route path="/ministry" element={<MinistryReservations />} />
           </Routes>
           <ToastContainer position="top-right" theme="dark" />
         </AuthProvider>

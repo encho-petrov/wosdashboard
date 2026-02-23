@@ -94,12 +94,10 @@ func (c *PlayerClient) GetCaptcha(fid int64) (string, error) {
 
 	responseStr := string(bodyBytes)
 
-	// 1. WAF Check
 	if strings.Contains(responseStr, "<html") || strings.Contains(responseStr, "<!DOCTYPE") {
 		return "", fmt.Errorf("WAF_BLOCK")
 	}
 
-	// 2. Parse Outer JSON
 	var apiResponse struct {
 		Code int             `json:"code"`
 		Msg  string          `json:"msg"`
@@ -114,8 +112,6 @@ func (c *PlayerClient) GetCaptcha(fid int64) (string, error) {
 		return "", fmt.Errorf("api error %d: %s", apiResponse.Code, apiResponse.Msg)
 	}
 
-	// 3. FIX: Handle the Nested JSON Object {"img": "..."}
-	// The logs showed: {"img":"data:image\/jpeg;base64..."}
 	type CaptchaWrapper struct {
 		Img string `json:"img"`
 	}
@@ -125,7 +121,6 @@ func (c *PlayerClient) GetCaptcha(fid int64) (string, error) {
 		return wrapper.Img, nil
 	}
 
-	// Fallback: Maybe it's a direct string? (Unlikely now, but safe to keep)
 	var directString string
 	if err := json.Unmarshal(apiResponse.Data, &directString); err == nil && directString != "" {
 		return directString, nil

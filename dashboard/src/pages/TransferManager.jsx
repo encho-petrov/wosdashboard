@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
 import { Link } from 'react-router-dom';
 import {
-    Users, Plus, Archive, Check, X,
+    Plus, Archive, Check, X,
     AlertTriangle, Send, Shield, ArrowLeft, Play, History
 } from 'lucide-react';
 
@@ -145,7 +145,7 @@ export default function TransferManager() {
                 inviteType: field === 'inviteType' ? value : record.inviteType,
                 status: field === 'status' ? value : record.status
             });
-            if (field === 'status') fetchData();
+            if (field === 'status') await fetchData();
         } catch (err) {
             toast.error("Update failed");
             await fetchData();

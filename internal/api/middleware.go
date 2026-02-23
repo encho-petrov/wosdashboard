@@ -18,7 +18,6 @@ func AuthMiddleware(store *db.Store) gin.HandlerFunc {
 			return
 		}
 
-		// Header format: "Bearer <token>"
 		parts := strings.Split(authHeader, " ")
 		if len(parts) != 2 || parts[0] != "Bearer" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization format. Use 'Bearer <token>'"})

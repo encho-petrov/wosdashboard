@@ -91,7 +91,6 @@ func (r *RedisStore) ClearLoginAttempts(ip string) {
 }
 
 func (r *RedisStore) SetMfaSession(token, username string) {
-	// Store the temporary token for 5 minutes
 	r.Client.Set(ctx, "mfa_session:"+token, username, 5*time.Minute)
 }
 

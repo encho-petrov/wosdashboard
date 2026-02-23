@@ -17,7 +17,6 @@ type JsonNullString struct {
 	sql.NullString
 }
 
-// MarshalJSON for JsonNullString
 func (v JsonNullString) MarshalJSON() ([]byte, error) {
 	if v.Valid {
 		return json.Marshal(v.String)
@@ -38,7 +37,7 @@ func (v JsonNullTime) MarshalJSON() ([]byte, error) {
 
 type jobRecordDB struct {
 	JobID             string         `db:"job_id"`
-	InitiatedByUserID sql.NullInt64  `db:"initiated_by_user_id"` // ADDED THIS
+	InitiatedByUserID sql.NullInt64  `db:"initiated_by_user_id"`
 	GiftCodes         string         `db:"gift_codes"`
 	Status            string         `db:"status"`
 	TotalPlayers      int            `db:"total_players"`
@@ -50,7 +49,7 @@ type jobRecordDB struct {
 
 type JobResponse struct {
 	JobID            string     `json:"jobId"`
-	InitiatedBy      int64      `json:"initiatedBy"` // We will send 0 if null
+	InitiatedBy      int64      `json:"initiatedBy"`
 	GiftCodes        string     `json:"giftCodes"`
 	Status           string     `json:"status"`
 	TotalPlayers     int        `json:"totalPlayers"`
@@ -69,7 +68,6 @@ type PlayerProfile struct {
 	TroopType   string `db:"troop_type" json:"troopType"`
 	TundraPower int64  `db:"tundra_power" json:"tundraPower"`
 
-	// This ensures JSON receives "Name" or null, not {String: "Name", Valid: true}
 	AllianceName *string `db:"alliance_name" json:"allianceName"`
 	TeamName     *string `db:"team_name" json:"teamName"`
 	CaptainName  *string `db:"captain_name" json:"captainName"`
@@ -223,6 +221,31 @@ type TransferRecord struct {
 	FurnaceImage     string    `db:"furnace_image" json:"furnaceImage"`
 }
 
+type MinistryEvent struct {
+	ID              int          `db:"id" json:"id"`
+	Title           string       `db:"title" json:"title"`
+	Status          string       `db:"status" json:"status"`
+	AnnounceEnabled bool         `db:"announce_enabled" json:"announceEnabled"`
+	CreatedAt       time.Time    `db:"created_at" json:"createdAt"`
+	ClosedAt        sql.NullTime `db:"closed_at" json:"closedAt"`
+}
+
+type MinistryDay struct {
+	ID         int    `db:"id" json:"id"`
+	EventID    int    `db:"event_id" json:"eventId"`
+	BuffName   string `db:"buff_name" json:"buffName"`
+	ActiveDate string `db:"active_date" json:"activeDate"`
+}
+
+type MinistrySlot struct {
+	ID           int     `db:"id" json:"id"`
+	DayID        int     `db:"day_id" json:"dayId"`
+	SlotIndex    int     `db:"slot_index" json:"slotIndex"`
+	PlayerFID    *int64  `db:"player_fid" json:"playerFid"`
+	Nickname     *string `db:"nickname" json:"nickname"`
+	AllianceName *string `db:"alliance_name" json:"allianceName"`
+}
+
 type Store struct {
 	db *sqlx.DB
 }
@@ -254,7 +277,6 @@ func (s *Store) GetPendingPlayers(code string, limit int) ([]int64, error) {
 }
 
 func (s *Store) MarkAsRedeemed(fid int64, code string) error {
-	// 1. Ensure Player Exists
 	s.db.Exec("INSERT IGNORE INTO players (player_id) VALUES (?)", fid)
 
 	query := `
@@ -372,11 +394,10 @@ func (s *Store) GetRecentJobs() ([]JobResponse, error) {
 			CreatedAt:        raw.CreatedAt,
 		}
 
-		// Handle Nulls
 		if raw.InitiatedByUserID.Valid {
 			job.InitiatedBy = raw.InitiatedByUserID.Int64
 		} else {
-			job.InitiatedBy = 0 // "System" or "Legacy"
+			job.InitiatedBy = 0
 		}
 
 		if raw.CompletedAt.Valid {
@@ -397,7 +418,6 @@ func (s *Store) GetRecentJobs() ([]JobResponse, error) {
 
 func (s *Store) GetAllUsers() ([]UserSafe, error) {
 	var users []UserSafe
-	// Select only safe fields
 	query := `SELECT id, username, role FROM users ORDER BY id ASC`
 	err := s.db.Select(&users, query)
 	return users, err
@@ -539,7 +559,7 @@ func (s *Store) GetWarStats() ([]WarStats, error) {
         SELECT 
             a.id, 
             a.name, 
-            a.is_locked,  -- <--- CRITICAL FIX
+            a.is_locked,
             COUNT(p.player_id) as member_count,
             COALESCE(SUM(p.tundra_power), 0) as total_power
         FROM alliances a
@@ -631,25 +651,24 @@ func (s *Store) AssignToSquad(fid int64, teamID *int) error {
 }
 
 func (s *Store) GetPlayerDashboardData(fid int64) (*DashboardData, error) {
-	// 1. Get Player Details + General Alliance + Fighting Alliance + Team Name
 	query := `
         SELECT 
             p.player_id, 
             COALESCE(p.nickname, 'Unknown') AS nickname, 
             COALESCE(p.avatar_image, '') AS avatar_image, 
             p.stove_lv, 
-            p.stove_lv_content, -- The Furnace Icon URL
+            p.stove_lv_content,
             p.tundra_power, 
             COALESCE(p.troop_type, 'None') AS troop_type,
             
             p.alliance_id, 
-            ga.name AS alliance_name, -- General Alliance
+            ga.name AS alliance_name,
             
             p.fighting_alliance_id,
-            fa.name AS fighting_alliance_name, -- Fighting Alliance (391/UAO)
+            fa.name AS fighting_alliance_name,
             
             p.team_id, 
-            t.name AS team_name -- Squad Name
+            t.name AS team_name
         FROM players p
         LEFT JOIN alliances ga ON p.alliance_id = ga.id
         LEFT JOIN alliances fa ON p.fighting_alliance_id = fa.id
@@ -661,7 +680,6 @@ func (s *Store) GetPlayerDashboardData(fid int64) (*DashboardData, error) {
 		return nil, err
 	}
 
-	// 2. Get Teammates (if assigned to a squad)
 	var teammates []PlayerRow
 	if player.TeamID != nil {
 		tQuery := `
@@ -912,7 +930,6 @@ func (s *Store) CloseTransferSeason(seasonID int) error {
 
 func (s *Store) GetTransferRecords(seasonID int) ([]TransferRecord, error) {
 	var records []TransferRecord
-	// Sort so Pending is at the top, Confirmed/Declined at the bottom
 	query := `SELECT * FROM transfer_records WHERE season_id = ? 
               ORDER BY FIELD(status, 'Pending', 'Confirmed', 'Declined'), created_at DESC`
 	err := s.db.Select(&records, query, seasonID)
@@ -1004,4 +1021,121 @@ func (s *Store) GetClosedTransferSeasons() ([]TransferSeason, error) {
 		return nil, err
 	}
 	return seasons, nil
+}
+
+func (s *Store) CreateMinistryEvent(title string, announceEnabled bool, days []MinistryDay) error {
+	tx, err := s.db.Beginx()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	res, err := tx.Exec("INSERT INTO ministry_events (title, announce_enabled, status) VALUES (?, ?, 'Planning')", title, announceEnabled)
+	if err != nil {
+		return err
+	}
+	eventID, _ := res.LastInsertId()
+
+	for _, day := range days {
+		dayRes, err := tx.Exec("INSERT INTO ministry_days (event_id, buff_name, active_date) VALUES (?, ?, ?)",
+			eventID, day.BuffName, day.ActiveDate)
+		if err != nil {
+			return err
+		}
+		dayID, _ := dayRes.LastInsertId()
+
+		for i := 0; i < 48; i++ {
+			_, err := tx.Exec("INSERT INTO ministry_slots (day_id, slot_index) VALUES (?, ?)", dayID, i)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (s *Store) GetActiveMinistryEvent() (*MinistryEvent, error) {
+	var event MinistryEvent
+	err := s.db.Get(&event, "SELECT * FROM ministry_events WHERE status IN ('Planning', 'Active') ORDER BY created_at DESC LIMIT 1")
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return &event, err
+}
+
+func (s *Store) GetMinistryDays(eventID int) ([]MinistryDay, error) {
+	var days []MinistryDay
+	err := s.db.Select(&days, "SELECT * FROM ministry_days WHERE event_id = ? ORDER BY active_date ASC", eventID)
+	return days, err
+}
+
+func (s *Store) GetMinistrySlots(dayID int) ([]MinistrySlot, error) {
+	var slots []MinistrySlot
+	query := `
+		SELECT s.id, s.day_id, s.slot_index, s.player_fid,
+		       p.nickname, a.name AS alliance_name
+		FROM ministry_slots s
+		LEFT JOIN players p ON s.player_fid = p.player_id
+		LEFT JOIN alliances a ON p.alliance_id = a.id
+		WHERE s.day_id = ?
+		ORDER BY s.slot_index ASC`
+	err := s.db.Select(&slots, query, dayID)
+	return slots, err
+}
+
+func (s *Store) UpdateMinistrySlot(slotID int, playerFID *int64) error {
+	_, err := s.db.Exec("UPDATE ministry_slots SET player_fid = ? WHERE id = ?", playerFID, slotID)
+	return err
+}
+
+func (s *Store) UpdateMinistryStatus(eventID int, status string) error {
+	var query string
+	if status == "Closed" {
+		query = "UPDATE ministry_events SET status = ?, closed_at = NOW() WHERE id = ?"
+	} else {
+		query = "UPDATE ministry_events SET status = ? WHERE id = ?"
+	}
+	_, err := s.db.Exec(query, status, eventID)
+	return err
+}
+
+func (s *Store) UpdateMinistryAnnounce(eventID int, enabled bool) error {
+	_, err := s.db.Exec("UPDATE ministry_events SET announce_enabled = ? WHERE id = ?", enabled, eventID)
+	return err
+}
+
+func (s *Store) GetMinistryDayByDate(eventID int, dateStr string) (*MinistryDay, error) {
+	var day MinistryDay
+	err := s.db.Get(&day, "SELECT * FROM ministry_days WHERE event_id = ? AND active_date = ?", eventID, dateStr)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	return &day, err
+}
+
+func (s *Store) GetMinistrySlotByIndex(dayID int, slotIndex int) (*MinistrySlot, error) {
+	var slot MinistrySlot
+	query := `
+		SELECT s.id, s.day_id, s.slot_index, s.player_fid, p.nickname, a.name AS alliance_name
+		FROM ministry_slots s
+		JOIN players p ON s.player_fid = p.player_id
+		LEFT JOIN alliances a ON p.alliance_id = a.id
+		WHERE s.day_id = ? AND s.slot_index = ?`
+	err := s.db.Get(&slot, query, dayID, slotIndex)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	return &slot, err
+}
+
+func (s *Store) GetClosedMinistryEvents() ([]MinistryEvent, error) {
+	var events []MinistryEvent
+	err := s.db.Select(&events, "SELECT * FROM ministry_events WHERE status = 'Closed' ORDER BY closed_at DESC")
+	return events, err
+}
+
+func (s *Store) CloseMinistryEvent(eventID int) error {
+	_, err := s.db.Exec("UPDATE ministry_events SET status = 'Closed', closed_at = NOW() WHERE id = ?", eventID)
+	return err
 }

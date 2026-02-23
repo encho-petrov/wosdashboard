@@ -66,11 +66,9 @@ func (s *Solver) Solve(base64Image string) (string, error) {
 	captchaID := submitResp.Request
 	log.Printf("[Solver] Job ID: %s. Waiting...", captchaID)
 
-	// Poll for result
-	// Wait 5s first to be faster (some captchas are solved quickly)
 	time.Sleep(5 * time.Second)
 
-	for i := 0; i < 30; i++ { // Increase attempts to 30 (60 seconds max)
+	for i := 0; i < 30; i++ {
 		solveUrl := fmt.Sprintf("http://2captcha.com/res.php?key=%s&action=get&id=%s&json=1", s.ApiKey, captchaID)
 		resp, err := s.Client.Get(solveUrl)
 		if err != nil {
@@ -94,7 +92,6 @@ func (s *Solver) Solve(base64Image string) (string, error) {
 		}
 
 		if solveResp.Request == "CAPCHA_NOT_READY" {
-			// Don't log this every time, it spams the console
 			time.Sleep(2 * time.Second)
 			continue
 		}
@@ -106,5 +103,6 @@ func (s *Solver) Solve(base64Image string) (string, error) {
 	return "", fmt.Errorf("timeout waiting for solution")
 }
 
-func (s *Solver) Close()                                                   {}
-func (s *Solver) SaveDebugImage(base64Image string, filename string) error { return nil }
+func (s *Solver) Close() {}
+
+//func (s *Solver) SaveDebugImage(base64Image string, filename string) error { return nil }

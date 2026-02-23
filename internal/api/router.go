@@ -128,7 +128,6 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 
 		user, _ := store.GetUserByUsername(username)
 		if !totp.Validate(input.Code, user.MFASecret) {
-			// Optional: you could add rate limiting here too!
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authenticator code"})
 			return
 		}
@@ -236,7 +235,6 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 			c.JSON(200, list)
 		})
 
-		// 2. Create New Alliance
 		authorized.POST("/admin/alliances", func(c *gin.Context) {
 			var input struct {
 				Name string `json:"name" binding:"required"`
@@ -253,7 +251,6 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 			c.JSON(200, gin.H{"message": "Alliance created successfully"})
 		})
 
-		// 3. Update Alliance
 		authorized.PUT("/admin/alliances/:id", func(c *gin.Context) {
 			id, _ := strconv.Atoi(c.Param("id"))
 			var input struct {
@@ -271,11 +268,9 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 			c.JSON(200, gin.H{"message": "Alliance updated"})
 		})
 
-		// 4. Delete Alliance
 		authorized.DELETE("/admin/alliances/:id", func(c *gin.Context) {
 			id, _ := strconv.Atoi(c.Param("id"))
 			if err := store.DeleteAlliance(id); err != nil {
-				// Note: This usually fails if players are still assigned (Foreign Key)
 				c.JSON(400, gin.H{"error": "Cannot delete: Ensure no players are assigned to this alliance first."})
 				return
 			}
@@ -546,7 +541,7 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 		})
 
 		authorized.GET("/jobs", func(c *gin.Context) {
-			jobs, err := store.GetRecentJobs() // returns []JobResponse
+			jobs, err := store.GetRecentJobs()
 			if err != nil {
 				fmt.Printf("DB Error: %v\n", err)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch jobs"})
@@ -609,7 +604,7 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 		authorized.POST("/war-room/deploy", func(c *gin.Context) {
 			var input struct {
 				PlayerIDs  []int64 `json:"playerIds" binding:"required"`
-				AllianceID *int    `json:"allianceId"` // Null = Return to Reserve
+				AllianceID *int    `json:"allianceId"`
 			}
 			if err := c.ShouldBindJSON(&input); err != nil {
 				c.JSON(400, gin.H{"error": err.Error()})
@@ -642,7 +637,6 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 		})
 
 		authorized.POST("/war-room/reset", func(c *gin.Context) {
-			// Extra Security: Check if user is Admin
 			if c.GetString("role") != "admin" {
 				c.JSON(403, gin.H{"error": "Only Admins can reset the event"})
 				return
@@ -691,7 +685,7 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 		authorized.POST("/squads/assign", func(c *gin.Context) {
 			var input struct {
 				FID    int64 `json:"fid"`
-				TeamID *int  `json:"teamId"` // Null = Unassign
+				TeamID *int  `json:"teamId"`
 			}
 			if err := c.ShouldBindJSON(&input); err != nil {
 				return
@@ -730,15 +724,14 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 		authorized.PUT("/players/:fid", func(c *gin.Context) {
 			fid, _ := strconv.ParseInt(c.Param("fid"), 10, 64)
 
-			// Define the struct exactly as the Frontend sends it
 			var input struct {
 				Power              int64  `json:"power"`
 				TroopType          string `json:"troopType"`
 				BattleAvailability string `json:"battleAvailability"`
 				TundraAvailability string `json:"tundraAvailability"`
-				AllianceID         *int   `json:"allianceId"`         // Pointer allows nulls
-				FightingAllianceID *int   `json:"fightingAllianceId"` // Pointer allows nulls
-				TeamID             *int   `json:"teamId"`             // Pointer allows nulls
+				AllianceID         *int   `json:"allianceId"`
+				FightingAllianceID *int   `json:"fightingAllianceId"`
+				TeamID             *int   `json:"teamId"`
 			}
 
 			if err := c.ShouldBindJSON(&input); err != nil {
@@ -746,7 +739,6 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 				return
 			}
 
-			// Call the DB function with arguments in the correct order (matching mysql.go)
 			err := store.UpdatePlayerDetails(
 				fid,
 				input.Power,
@@ -780,6 +772,156 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 			rosterstats, _ := store.GetRosterStats()
 			c.JSON(200, gin.H{"alliances": alliances, "teams": teams, "rosterstats": rosterstats})
 		})
+
+		ministry := authorized.Group("/ministry")
+		{
+			ministry.GET("/active", func(c *gin.Context) {
+				event, err := store.GetActiveMinistryEvent()
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+					return
+				}
+				if event == nil {
+					c.JSON(http.StatusOK, gin.H{"event": nil})
+					return
+				}
+
+				days, _ := store.GetMinistryDays(event.ID)
+
+				type DayWithSlots struct {
+					db.MinistryDay
+					Slots []db.MinistrySlot `json:"slots"`
+				}
+
+				var schedule []DayWithSlots
+				for _, d := range days {
+					slots, _ := store.GetMinistrySlots(d.ID)
+					schedule = append(schedule, DayWithSlots{MinistryDay: d, Slots: slots})
+				}
+
+				c.JSON(http.StatusOK, gin.H{"event": event, "schedule": schedule})
+			})
+
+			ministry.POST("/events", func(c *gin.Context) {
+				if c.GetString("role") != "admin" {
+					c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+					return
+				}
+
+				var req struct {
+					Title           string           `json:"title"`
+					AnnounceEnabled bool             `json:"announceEnabled"`
+					Days            []db.MinistryDay `json:"days"`
+				}
+				if err := c.ShouldBindJSON(&req); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+					return
+				}
+
+				if err := store.CreateMinistryEvent(req.Title, req.AnnounceEnabled, req.Days); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate schedule"})
+					return
+				}
+
+				logAction(c, store, "MINISTRY", "Created new Ministry Event: "+req.Title)
+				c.JSON(http.StatusOK, gin.H{"message": "Event created and slots generated!"})
+			})
+
+			ministry.PUT("/events/:id/status", func(c *gin.Context) {
+				if c.GetString("role") != "admin" {
+					c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+					return
+				}
+				id, _ := strconv.Atoi(c.Param("id"))
+				var req struct {
+					Status string `json:"status"`
+				}
+				_ = c.ShouldBindJSON(&req)
+
+				store.UpdateMinistryStatus(id, req.Status)
+				actionDetail := fmt.Sprintf("Changed Ministry Event %d status to %s", id, req.Status)
+				if req.Status == "Closed" {
+					actionDetail = "Archived Ministry Event #" + strconv.Itoa(id)
+				}
+				logAction(c, store, "MINISTRY", actionDetail)
+
+				c.JSON(http.StatusOK, gin.H{"message": "Status updated"})
+			})
+
+			ministry.PUT("/slots/:id", func(c *gin.Context) {
+				id, _ := strconv.Atoi(c.Param("id"))
+
+				var req struct {
+					PlayerFID *int64 `json:"playerFid"`
+					Nickname  string `json:"nickname"`
+				}
+				if err := c.ShouldBindJSON(&req); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
+					return
+				}
+
+				if err := store.UpdateMinistrySlot(id, req.PlayerFID); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update slot"})
+					return
+				}
+
+				actionMsg := "Cleared a ministry slot"
+				if req.PlayerFID != nil {
+					actionMsg = fmt.Sprintf("Assigned %s to a ministry slot", req.Nickname)
+				}
+				logAction(c, store, "MINISTRY", actionMsg)
+
+				c.JSON(http.StatusOK, gin.H{"message": "Slot updated"})
+			})
+
+			ministry.PUT("/events/:id/announce", func(c *gin.Context) {
+				if c.GetString("role") != "admin" {
+					c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+					return
+				}
+				id, _ := strconv.Atoi(c.Param("id"))
+				var req struct {
+					AnnounceEnabled bool `json:"announceEnabled"`
+				}
+				_ = c.ShouldBindJSON(&req)
+
+				store.UpdateMinistryAnnounce(id, req.AnnounceEnabled)
+				logAction(c, store, "MINISTRY", fmt.Sprintf("Toggled Discord Pings to %v", req.AnnounceEnabled))
+				c.JSON(http.StatusOK, gin.H{"message": "Announcements toggled"})
+			})
+
+			ministry.GET("/history", func(c *gin.Context) {
+				events, err := store.GetClosedMinistryEvents()
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch history"})
+					return
+				}
+				c.JSON(http.StatusOK, events)
+			})
+
+			ministry.GET("/history/:id", func(c *gin.Context) {
+				id, _ := strconv.Atoi(c.Param("id"))
+
+				days, err := store.GetMinistryDays(id)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch history days"})
+					return
+				}
+
+				type DayWithSlots struct {
+					db.MinistryDay
+					Slots []db.MinistrySlot `json:"slots"`
+				}
+
+				var schedule []DayWithSlots
+				for _, d := range days {
+					slots, _ := store.GetMinistrySlots(d.ID)
+					schedule = append(schedule, DayWithSlots{MinistryDay: d, Slots: slots})
+				}
+
+				c.JSON(http.StatusOK, schedule)
+			})
+		}
 	}
 
 	admin := r.Group("/api/admin")
@@ -932,7 +1074,6 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 				c.JSON(http.StatusOK, gin.H{"message": "Season created"})
 			})
 
-			// POST: Bulk Add Inbound Candidates (ADMIN ONLY)
 			transfers.POST("/bulk-add", func(c *gin.Context) {
 				if c.GetString("role") != "admin" {
 					c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
@@ -1117,7 +1258,6 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 				c.JSON(http.StatusOK, gin.H{"message": "Rotation schedule updated successfully"})
 			})
 		}
-		// --- DISCORD ENDPOINTS ---
 		discord := authorized.Group("/discord")
 		{
 			discord.POST("/rotation/:seasonId/:week", func(c *gin.Context) {

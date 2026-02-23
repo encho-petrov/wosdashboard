@@ -5,7 +5,8 @@ import { toast } from 'react-toastify';
 import { Link } from 'react-router-dom';
 import {
   LogOut, Play, Download, Activity, FileText,
-  CheckCircle, Users as UsersIcon, List, Swords, Sword, Shield, KeyRound, Terminal, ShieldCheck, LayoutGrid, ArrowRightLeft
+  CheckCircle, Users as UsersIcon, List, Swords, Sword, Clock,
+  Shield, KeyRound, Terminal, ShieldCheck, LayoutGrid, ArrowRightLeft
 } from 'lucide-react';
 
 import ChangePasswordModal from '../components/ChangePasswordModal';
@@ -129,6 +130,14 @@ export default function Dashboard() {
 
           {/* Right: Actions & User */}
           <div className="flex flex-wrap justify-center items-center gap-3">
+
+            <Link
+                to="/ministry"
+                className="flex items-center space-x-2 px-3 py-1.5 bg-blue-600/10 text-yellow-400 hover:bg-blue-600/20 rounded-lg transition-colors text-sm font-medium border border-blue-500/20"
+            >
+              <Clock className="w-4 h-4 text-yellow-400" />
+              <span>Ministry Reservations</span>
+            </Link>
 
             <Link
                 to="/transfer-manager"

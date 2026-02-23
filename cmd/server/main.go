@@ -69,13 +69,13 @@ func parseCronSchedule(day string, timeStr string) string {
 	}
 
 	parts := strings.Split(timeStr, ":")
-	hour, min := "12", "00"
+	hour, m := "12", "00"
 	if len(parts) == 2 {
 		hour = parts[0]
-		min = parts[1]
+		m = parts[1]
 	}
 
-	return fmt.Sprintf("%s %s * * %s", min, hour, dayNum)
+	return fmt.Sprintf("%s %s * * %s", m, hour, dayNum)
 }
 
 func main() {
@@ -130,6 +130,7 @@ func main() {
 
 		cronExp := parseCronSchedule(cfg.Discord.AnnounceDay, cfg.Discord.AnnounceTimeUTC)
 
+		// Fortress rotation cron
 		_, err := c.AddFunc(cronExp, func() {
 			log.Println("CRON: Triggering automated Discord rotation announcement...")
 			targetSeason, upcomingWeek := services.CalculateUpcomingWeek(cfg.Rotation.SeasonReferenceDate)
@@ -145,12 +146,18 @@ func main() {
 			}
 		})
 
+		// Ministry reservations cron
+		_, err = c.AddFunc("* * * * *", func() {
+			services.CheckMinistrySchedule(store, cfg.Discord.WebhookURL)
+		})
+
 		if err != nil {
 			log.Printf("Failed to schedule Discord cron: %v", err)
 		} else {
 			c.Start()
 			log.Printf("Discord Rotation Cron scheduled for %s at %s UTC", cfg.Discord.AnnounceDay, cfg.Discord.AnnounceTimeUTC)
 		}
+		defer c.Stop()
 	}
 
 	log.Println("Server running on http://localhost:8080")
