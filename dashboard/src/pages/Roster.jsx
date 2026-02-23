@@ -3,10 +3,10 @@ import client from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
 import {
-  Users, Edit2, Search, Save, X, RefreshCw, ArrowLeft,
-  Swords, Snowflake, Trash2, Plus, Activity, Archive
+  Users, Edit2, Search, Save, X, RefreshCw,
+  Swords, Snowflake, Trash2, Plus, Archive
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import AdminLayout from '../components/layout/AdminLayout';
 
 export default function Roster() {
   const { user } = useAuth();
@@ -36,7 +36,7 @@ export default function Roster() {
   const [outboundModal, setOutboundModal] = useState({ isOpen: false, player: null, destState: '' });
 
   useEffect(() => {
-    fetchData();
+    void fetchData();
   }, []);
 
   // --- ORIGINAL FILTER LOGIC ---
@@ -183,22 +183,8 @@ export default function Roster() {
   };
 
   return (
+      <AdminLayout title="State Roster">
       <div className="min-h-screen bg-gray-900 text-gray-100 font-sans">
-
-        {/* --- STANDARDIZED NAVBAR --- */}
-        <nav className="bg-gray-800 border-b border-gray-700 px-6 py-4 flex justify-between items-center shadow-md">
-          <div className="flex items-center space-x-3">
-            <Activity className="text-blue-500 w-6 h-6" />
-            <h1 className="text-xl font-bold tracking-wide">State Roster</h1>
-          </div>
-          <Link
-              to="/"
-              className="flex items-center space-x-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors text-sm font-medium border border-gray-600"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back to Dashboard</span>
-          </Link>
-        </nav>
 
         <main className="container mx-auto px-4 py-8 max-w-[1800px] space-y-6">
 
@@ -455,5 +441,6 @@ export default function Roster() {
             </div>
         )}
       </div>
+      </AdminLayout>
   );
 }

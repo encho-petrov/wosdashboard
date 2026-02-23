@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
 import client from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useApp } from '../context/AppContext';
 import { toast } from 'react-toastify';
 import {
     Swords, Shield, Search,
@@ -12,7 +13,7 @@ export default function WarRoom() {
     const { user } = useAuth();
     const isAdmin = user?.role === 'admin';
 
-    const [players, setPlayers] = useState([]);
+    const { roster: players, globalLoading, refreshGlobalData } = useApp();
     const [stats, setStats] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -28,22 +29,22 @@ export default function WarRoom() {
     const [filterTundra, setFilterTundra] = useState('All');
     const [sortBy, setSortBy] = useState('Power');
 
-    useEffect(() => { fetchData(); }, []);
+    useEffect(() => { void fetchData(); }, []);
 
-    const fetchData = async () => {
+    const fetchData = async (silent = false) => {
         try {
-            const [pRes, sRes, fRes] = await Promise.all([
-                client.get('/moderator/players'),
+            if (!silent) setLoading(true);
+
+            const [sRes, fRes] = await Promise.all([
                 client.get('/moderator/war-room/stats'),
                 client.get('/moderator/war-room/filters')
             ]);
-            setPlayers(pRes.data);
             setStats(sRes.data);
             setFilterOptions(fRes.data);
         } catch (err) {
             toast.error("Failed to load war room data");
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     };
 
@@ -55,7 +56,7 @@ export default function WarRoom() {
         try {
             await client.post('/moderator/war-room/reset');
             toast.success("Event data has been reset successfully.");
-            fetchData(); // Refresh the page data
+            void fetchData(true);
         } catch (err) {
             toast.error("Failed to reset event data.");
         }
@@ -124,7 +125,8 @@ export default function WarRoom() {
                 playerIds: [parseInt(fid)],
                 allianceId: allianceId
             });
-            fetchData();
+            await refreshGlobalData(true)
+            await fetchData(true);
         } catch (err) { toast.error("Deployment failed"); }
     };
 
@@ -134,11 +136,11 @@ export default function WarRoom() {
                 allianceId,
                 isLocked: !currentLock
             });
-            fetchData();
+            await fetchData(true);
         } catch (err) { toast.error("Failed to update lock"); }
     };
 
-    if (loading) return <div className="p-10 text-white font-mono">LOADING WAR ROOM...</div>;
+    if (loading || globalLoading) return <div className="p-10 text-white font-mono">LOADING WAR ROOM...</div>;
 
     return (
         <div className="min-h-screen bg-gray-950 text-gray-100 font-sans p-4 md:p-6">
@@ -233,7 +235,7 @@ export default function WarRoom() {
                             <h2 className="font-black text-sm uppercase tracking-widest text-gray-400">Available ({filteredPlayers.length})</h2>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-800">
+                        <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-800" onDragOver={(e) => e.preventDefault()}>
                             {filteredPlayers.map(p => (
                                 <div
                                     key={p.fid}
@@ -244,13 +246,11 @@ export default function WarRoom() {
                                     <div className="flex items-center gap-3">
                                         <div className="relative">
                                             <img src={p.avatar} className="w-12 h-12 rounded-lg object-cover border-2 border-gray-700 shadow-inner" alt="" />
-                                            {/* ALLIANCE BADGE RESTORED */}
                                             {p.allianceName && (
                                                 <div className="absolute -top-2 -left-2 bg-gray-900 text-[8px] font-black border border-gray-700 px-1 rounded shadow-md text-blue-400">
                                                     {p.allianceName}
                                                 </div>
                                             )}
-                                            {/* FURNACE IMAGE RESTORED */}
                                             {p.stoveImg && (
                                                 <img src={p.stoveImg} className="absolute -bottom-2 -right-2 w-7 h-7 drop-shadow-md" title={`Furnace Lv ${p.stoveLv}`} alt="" />
                                             )}
@@ -274,7 +274,7 @@ export default function WarRoom() {
                     </div>
 
                     {/* Deployment Boards */}
-                    <div className="lg:col-span-9 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-800">
+                    <div className="lg:col-span-9 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-800" onDragOver={(e) => e.preventDefault()}>
                         {stats.map(alliance => {
                             const roster = players.filter(p => p.fightingAllianceId === alliance.id);
                             const isLocked = alliance.isLocked;

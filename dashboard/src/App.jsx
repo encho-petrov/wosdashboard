@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { AppProvider } from './context/AppContext';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -40,6 +41,7 @@ function App() {
   return (
       <BrowserRouter>
         <AuthProvider>
+          <AppProvider>
           <Routes>
             <Route path="/login" element={<Login />} />
 
@@ -97,12 +99,18 @@ function App() {
 
             <Route path="/audit-logs" element={
               <ProtectedRoute allowedRoles={['admin']}>
-              <AuditLogs />
+                <AuditLogs />
               </ProtectedRoute>
             }
             />
-            <Route path="/ministry" element={<MinistryReservations />} />
+            <Route path="/ministry" element={
+              <ProtectedRoute>
+                <MinistryReservations />
+              </ProtectedRoute>
+            }
+            />
           </Routes>
+          </AppProvider>
           <ToastContainer position="top-right" theme="dark" />
         </AuthProvider>
       </BrowserRouter>
