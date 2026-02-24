@@ -9,7 +9,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = sessionStorage.getItem('token');
+    const token = localStorage.getItem('token');
     if (token) {
       try {
         const decoded = jwtDecode(token);
@@ -27,8 +27,8 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (token, role, username, mfaEnabled) => {
     try {
-      sessionStorage.setItem('token', token);
-      sessionStorage.setItem('mfa_enabled', mfaEnabled);
+      localStorage.setItem('token', token);
+      localStorage.setItem('mfa_enabled', mfaEnabled);
 
       setUser({ username, role });
       return true;
@@ -39,7 +39,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    sessionStorage.removeItem('token');
+    localStorage.removeItem('token');
     setUser(null);
   };
 
@@ -48,7 +48,7 @@ export const AuthProvider = ({ children }) => {
       const res = await client.post('/login/player', { fid: parseInt(fid) });
       const { token, role } = res.data;
       
-      sessionStorage.setItem('token', token);
+      localStorage.setItem('token', token);
       const decoded = jwtDecode(token);
       
       setUser({ 

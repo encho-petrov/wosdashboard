@@ -35,7 +35,7 @@ func CheckPassword(password, hash string) bool {
 }
 
 func GenerateToken(username, role string) (string, error) {
-	expirationTime := time.Now().Add(24 * time.Hour)
+	expirationTime := time.Now().Add(2 * time.Hour)
 	claims := &Claims{
 		Username: username,
 		Role:     role,
