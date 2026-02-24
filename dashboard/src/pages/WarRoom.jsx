@@ -31,6 +31,9 @@ export default function WarRoom() {
     const [sortBy, setSortBy] = useState('Power');
     const [selectedPlayer, setSelectedPlayer] = useState(null);
 
+    // --- MOBILE SPECIFIC STATE ---
+    const [mobileTab, setMobileTab] = useState('bench'); // 'bench' | 'alliances'
+
     useEffect(() => {
         void fetchData();
     }, []);
@@ -83,6 +86,8 @@ export default function WarRoom() {
             await refreshGlobalData(true);
             await fetchData(true);
             setSelectedPlayer(null);
+            // Mobile UX: Optional - switch back to bench after deploying
+            // setMobileTab('bench');
         } catch (err) { toast.error("Deployment failed"); }
     };
 
@@ -141,16 +146,26 @@ export default function WarRoom() {
         void handleDeploy(fid, allianceId);
     };
 
+    // Mobile specific interaction handler
+    const handleMobileSelect = (p) => {
+        if (isMod) return;
+        setSelectedPlayer(p);
+        // Automatically switch to deployments view on mobile
+        if (window.innerWidth < 1024) {
+            setMobileTab('alliances');
+        }
+    };
+
     const headerActions = (
         <div className="flex gap-2">
             {isAdmin && (
-                <button onClick={handleReset} className="flex items-center gap-2 px-3 py-1.5 bg-red-900/20 text-red-400 border border-red-800/50 rounded-lg text-[10px] font-black">
-                    <RotateCcw size={14} /> Reset
+                <button onClick={handleReset} className="flex items-center gap-2 px-3 py-1.5 bg-red-900/20 text-red-400 border border-red-800/50 rounded-lg text-[10px] font-black uppercase">
+                    <RotateCcw size={14} /> <span className="hidden sm:inline">Reset</span>
                 </button>
             )}
             {isAdmin && stats.some(a => a.isLocked) && (
-                <button onClick={handleAnnounceWarRoom} className="flex items-center gap-2 px-3 py-1.5 bg-blue-900/20 text-blue-400 border border-blue-800/50 rounded-lg text-[10px] font-black">
-                    <Megaphone size={14} className="animate-pulse" /> Announce
+                <button onClick={handleAnnounceWarRoom} className="flex items-center gap-2 px-3 py-1.5 bg-blue-900/20 text-blue-400 border border-blue-800/50 rounded-lg text-[10px] font-black uppercase">
+                    <Megaphone size={14} className="animate-pulse" /> <span className="hidden sm:inline">Announce</span>
                 </button>
             )}
         </div>
@@ -162,13 +177,32 @@ export default function WarRoom() {
         <AdminLayout title="War Room" actions={headerActions}>
             <div className="flex flex-col lg:flex-row h-full overflow-hidden bg-gray-950">
 
-                {/* 1. BENCH SIDEBAR */}
-                <aside className="w-full lg:w-80 bg-gray-900 border-b lg:border-r border-gray-800 flex flex-col shrink-0 overflow-hidden">
+                {/* --- MOBILE TOGGLE BAR (Hidden on Desktop) --- */}
+                <div className="lg:hidden flex bg-gray-900 p-2 border-b border-gray-800 shrink-0 gap-2">
+                    <button
+                        onClick={() => setMobileTab('bench')}
+                        className={`flex-1 py-2.5 text-xs font-black uppercase rounded-lg transition-colors ${mobileTab === 'bench' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 bg-gray-800 hover:text-white'}`}
+                    >
+                        Bench ({filteredPlayers.length})
+                    </button>
+                    <button
+                        onClick={() => setMobileTab('alliances')}
+                        className={`flex-1 py-2.5 text-xs font-black uppercase rounded-lg transition-colors ${mobileTab === 'alliances' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 bg-gray-800 hover:text-white'}`}
+                    >
+                        Deployments
+                    </button>
+                </div>
+
+                {/* 1. BENCH SIDEBAR (Hidden on mobile if 'alliances' tab is active) */}
+                <aside className={`w-full lg:w-80 bg-gray-900 border-b lg:border-r border-gray-800 shrink-0 overflow-hidden ${mobileTab === 'bench' ? 'flex flex-col' : 'hidden lg:flex lg:flex-col'}`}>
                     <div className="p-4 space-y-3 bg-gray-900/50 border-b border-gray-800">
+                        <div className="flex justify-between items-center lg:hidden mb-2">
+                            <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Available Players</span>
+                        </div>
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                             <input
-                                type="text" placeholder="Filter Units..."
+                                type="text" placeholder="Filter Players..."
                                 className="w-full bg-black border border-gray-800 rounded-xl pl-10 pr-4 py-2 text-xs text-white focus:border-blue-500 outline-none"
                                 value={filterText} onChange={e => setFilterText(e.target.value)}
                             />
@@ -191,7 +225,7 @@ export default function WarRoom() {
                                 key={p.fid}
                                 draggable={!isMod}
                                 onDragStart={(e) => onDragStart(e, p.fid)}
-                                onClick={() => !isMod && setSelectedPlayer(p)}
+                                onClick={() => handleMobileSelect(p)}
                                 className={`p-3 rounded-2xl border transition-all select-none ${isMod ? 'cursor-default border-gray-800' : 'cursor-pointer'} ${selectedPlayer?.fid === p.fid ? 'bg-blue-600 border-blue-400 scale-95 shadow-lg' : 'bg-gray-950 border-gray-800 hover:border-gray-700'}`}
                             >
                                 <div className="flex items-center gap-3">
@@ -209,8 +243,8 @@ export default function WarRoom() {
                     </div>
                 </aside>
 
-                {/* 2. DEPLOYMENT GRID */}
-                <main className="flex-1 overflow-y-auto p-4 lg:p-6 custom-scrollbar bg-gray-950">
+                {/* 2. DEPLOYMENT GRID (Hidden on mobile if 'bench' tab is active) */}
+                <main className={`flex-1 overflow-y-auto p-4 lg:p-6 custom-scrollbar bg-gray-950 pb-24 lg:pb-6 ${mobileTab === 'alliances' ? 'block' : 'hidden lg:block'}`}>
                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                         {(stats || []).map(alliance => {
                             const roster = (players || []).filter(p => p.fightingAllianceId === alliance.id);
@@ -228,8 +262,8 @@ export default function WarRoom() {
                                         <div className="flex items-center gap-3">
                                             <Shield size={20} className={isLocked ? 'text-red-500' : 'text-blue-500'} />
                                             <div>
-                                                <h4 className="text-sm font-black text-white tracking-tighter">{alliance.name}</h4>
-                                                <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest">{alliance.memberCount} UNITS • {(alliance.totalPower / 1000000).toFixed(0)}M</p>
+                                                <h4 className="text-sm font-black text-white uppercase tracking-tighter">{alliance.name}</h4>
+                                                <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest">{alliance.memberCount} PLAYERS • {(alliance.totalPower / 1000000).toFixed(0)}M</p>
                                             </div>
                                         </div>
                                         {isAdmin && (
@@ -252,7 +286,7 @@ export default function WarRoom() {
                                                 {isAdmin && !isLocked && (
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); void handleDeploy(m.fid, null); }}
-                                                        className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+                                                        className="opacity-0 lg:group-hover:opacity-100 p-1 text-red-500 lg:hover:bg-red-500/10 rounded-lg transition-all"
                                                     >
                                                         <X size={14} />
                                                     </button>
@@ -262,7 +296,7 @@ export default function WarRoom() {
                                         {roster.length === 0 && (
                                             <div className="col-span-full h-40 border-2 border-dashed border-gray-800 rounded-2xl flex flex-col items-center justify-center text-gray-700">
                                                 <UserPlus size={24} className="mb-2 opacity-20" />
-                                                <p className="text-[10px] font-black tracking-widest">{isLocked ? 'Locked' : 'Drop Units'}</p>
+                                                <p className="text-[10px] font-black uppercase tracking-widest">{isLocked ? 'Locked' : 'Drop Players'}</p>
                                             </div>
                                         )}
                                     </div>
@@ -271,10 +305,20 @@ export default function WarRoom() {
                         })}
                     </div>
                 </main>
+
+                {/* Mobile Selected Player Floating Action Bar */}
                 {selectedPlayer && (
-                    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] lg:hidden animate-bounce">
-                        <div className="bg-blue-600 text-white px-6 py-3 rounded-full font-black text-xs uppercase tracking-widest shadow-2xl flex items-center gap-3 border border-blue-400">
-                            <ChevronRight size={16} /> Deploy to Alliance
+                    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] lg:hidden animate-in slide-in-from-bottom-5">
+                        <div className="bg-blue-600 text-white pl-6 pr-2 py-2 rounded-full font-black text-xs tracking-widest shadow-2xl flex items-center gap-4 border border-blue-400">
+                            <span className="flex items-center gap-2">
+                                <ChevronRight size={16} /> Deploy {selectedPlayer.nickname.substring(0, 10)}
+                            </span>
+                            <button
+                                onClick={() => setSelectedPlayer(null)}
+                                className="p-2 bg-blue-800 rounded-full hover:bg-blue-900 transition-colors"
+                            >
+                                <X size={14} />
+                            </button>
                         </div>
                     </div>
                 )}

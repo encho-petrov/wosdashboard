@@ -153,7 +153,7 @@ export default function Dashboard() {
           <div className="bg-gray-900 border border-gray-800 rounded-3xl overflow-hidden shadow-2xl">
             <div className="p-6 border-b border-gray-800 bg-gray-900/50 flex justify-between items-center">
               <h2 className="text-sm font-black uppercase tracking-widest text-white flex items-center gap-2">
-                <FileText size={16} className="text-yellow-500" /> Mission Logs
+                <FileText size={16} className="text-yellow-500" /> Redemption Logs
               </h2>
               <button onClick={() => setShowPasswordModal(true)} className="p-2 text-gray-500 hover:text-white transition-colors"><KeyRound size={18}/></button>
             </div>
