@@ -1,21 +1,23 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
 import client from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useApp } from '../context/AppContext';
 import { toast } from 'react-toastify';
 import {
-    Swords, Shield, Search,
-    ArrowLeft, Trophy, Lock, Unlock, ArrowDownWideNarrow, X, RotateCcw, Megaphone
+    Shield, Lock, Unlock,
+    Megaphone, RotateCcw, Search, UserPlus, X, ChevronRight
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import AdminLayout from '../components/layout/AdminLayout';
 
 export default function WarRoom() {
     const { user } = useAuth();
     const isAdmin = user?.role === 'admin';
+    const isMod = user?.role === 'moderator';
 
-    const [players, setPlayers] = useState([]);
+    const { roster: players, globalLoading, refreshGlobalData } = useApp();
+
     const [stats, setStats] = useState([]);
     const [loading, setLoading] = useState(true);
-
     const [filterOptions, setFilterOptions] = useState({
         troopTypes: [],
         battleAvailability: [],
@@ -27,50 +29,76 @@ export default function WarRoom() {
     const [filterAvail, setFilterAvail] = useState('All');
     const [filterTundra, setFilterTundra] = useState('All');
     const [sortBy, setSortBy] = useState('Power');
+    const [selectedPlayer, setSelectedPlayer] = useState(null);
 
-    useEffect(() => { fetchData(); }, []);
+    // --- MOBILE SPECIFIC STATE ---
+    const [mobileTab, setMobileTab] = useState('bench'); // 'bench' | 'alliances'
 
-    const fetchData = async () => {
+    useEffect(() => {
+        void fetchData();
+    }, []);
+
+    const fetchData = async (silent = false) => {
         try {
-            const [pRes, sRes, fRes] = await Promise.all([
-                client.get('/moderator/players'),
+            if (!silent) setLoading(true);
+            const [sRes, fRes] = await Promise.all([
                 client.get('/moderator/war-room/stats'),
                 client.get('/moderator/war-room/filters')
             ]);
-            setPlayers(pRes.data);
             setStats(sRes.data);
             setFilterOptions(fRes.data);
         } catch (err) {
             toast.error("Failed to load war room data");
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     };
 
     const handleReset = async () => {
-        if (!window.confirm("Are you sure you want to reset the event? This will clear all War Room and Squad assignments and cannot be undone.")) {
-            return;
-        }
-
+        if (!isAdmin) return;
+        if (!window.confirm("Are you sure you want to reset the event? This will clear all War Room and Squad assignments.")) return;
         try {
             await client.post('/moderator/war-room/reset');
-            toast.success("Event data has been reset successfully.");
-            fetchData(); // Refresh the page data
-        } catch (err) {
-            toast.error("Failed to reset event data.");
-        }
+            toast.success("Event data reset successfully.");
+            void fetchData(true);
+            await refreshGlobalData(true);
+        } catch (err) { toast.error("Failed to reset event data."); }
+    };
+
+    const toggleLock = async (allianceId, currentLock) => {
+        if (!isAdmin) return;
+        try {
+            await client.post('/moderator/war-room/lock', {
+                allianceId,
+                isLocked: !currentLock
+            });
+            await fetchData(true);
+        } catch (err) { toast.error("Failed to update lock"); }
+    };
+
+    const handleDeploy = async (fid, allianceId) => {
+        if (isMod) return toast.warning("Moderators have read-only access.");
+        try {
+            await client.post('/moderator/war-room/deploy', {
+                playerIds: [parseInt(fid)],
+                allianceId: allianceId
+            });
+            await refreshGlobalData(true);
+            await fetchData(true);
+            setSelectedPlayer(null);
+            // Mobile UX: Optional - switch back to bench after deploying
+            // setMobileTab('bench');
+        } catch (err) { toast.error("Deployment failed"); }
     };
 
     const handleAnnounceWarRoom = async () => {
+        if (!isAdmin) return;
         let description = "Here are the confirmed deployments for the upcoming battle:\n\n";
-
         stats.forEach(alliance => {
-            const members = players.filter(p => p.fightingAllianceId === alliance.id);
+            const members = (players || []).filter(p => p.fightingAllianceId === alliance.id);
             if (members.length > 0) {
                 description += `**🛡️ ${alliance.name} (${members.length} Members)**\n`;
-                members.forEach(m => {
-                    description += `• ${m.nickname} - *${m.troopType}*\n`;
-                });
+                members.forEach(m => { description += `• ${m.nickname} - *${m.troopType}*\n`; });
                 description += `\n`;
             }
         });
@@ -82,20 +110,16 @@ export default function WarRoom() {
                 color: 15158332
             });
             toast.success("War Room deployed to Discord!");
-        } catch (err) {
-            toast.error("Failed to announce deployments.");
-        }
+        } catch (err) { toast.error("Failed to announce deployments."); }
     };
 
     const filteredPlayers = useMemo(() => {
-        return players.filter(p => {
+        return (players || []).filter(p => {
             const matchesText = (p.nickname || '').toLowerCase().includes(filterText.toLowerCase()) ||
                 (p.fid || '').toString().includes(filterText);
-
             const matchesTroops = filterTroops === 'All' || p.troopType === filterTroops;
             const matchesAvail = filterAvail === 'All' || p.battleAvailability === filterAvail;
             const matchesTundra = filterTundra === 'All' || p.tundraAvailability === filterTundra;
-
             return matchesText && matchesTroops && matchesAvail && matchesTundra && !p.fightingAllianceId;
         }).sort((a, b) => {
             if (sortBy === 'Power') return (b.power || 0) - (a.power || 0);
@@ -103,246 +127,202 @@ export default function WarRoom() {
         });
     }, [players, filterText, filterTroops, filterAvail, filterTundra, sortBy]);
 
-    // --- Helper for Troop Colors ---
     const getTroopColor = (type) => {
         const t = (type || '').toLowerCase();
-        if (t.includes('helios')) return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
-        if (t.includes('brilliant')) return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
-        if (t.includes('apex')) return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
-        if (t.includes('mixed')) return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
-        return 'bg-gray-900 text-gray-500 border-gray-700';
+        if (t.includes('helios')) return 'text-orange-400 border-orange-500/30 bg-orange-500/10';
+        if (t.includes('brilliant')) return 'text-blue-400 border-blue-500/30 bg-blue-500/10';
+        if (t.includes('apex')) return 'text-purple-400 border-purple-500/30 bg-purple-500/10';
+        return 'text-gray-400 border-gray-700 bg-gray-800/40';
     };
 
     const onDragStart = (e, fid) => {
+        if (isMod) return e.preventDefault();
         e.dataTransfer.setData("playerFid", fid);
     };
 
-    const onDrop = async (e, allianceId) => {
+    const onDrop = (e, allianceId) => {
+        if (isMod) return;
         const fid = e.dataTransfer.getData("playerFid");
-        try {
-            await client.post('/moderator/war-room/deploy', {
-                playerIds: [parseInt(fid)],
-                allianceId: allianceId
-            });
-            fetchData();
-        } catch (err) { toast.error("Deployment failed"); }
+        void handleDeploy(fid, allianceId);
     };
 
-    const toggleLock = async (allianceId, currentLock) => {
-        try {
-            await client.post('/moderator/war-room/lock', {
-                allianceId,
-                isLocked: !currentLock
-            });
-            fetchData();
-        } catch (err) { toast.error("Failed to update lock"); }
+    // Mobile specific interaction handler
+    const handleMobileSelect = (p) => {
+        if (isMod) return;
+        setSelectedPlayer(p);
+        // Automatically switch to deployments view on mobile
+        if (window.innerWidth < 1024) {
+            setMobileTab('alliances');
+        }
     };
 
-    if (loading) return <div className="p-10 text-white font-mono">LOADING WAR ROOM...</div>;
+    const headerActions = (
+        <div className="flex gap-2">
+            {isAdmin && (
+                <button onClick={handleReset} className="flex items-center gap-2 px-3 py-1.5 bg-red-900/20 text-red-400 border border-red-800/50 rounded-lg text-[10px] font-black uppercase">
+                    <RotateCcw size={14} /> <span className="hidden sm:inline">Reset</span>
+                </button>
+            )}
+            {isAdmin && stats.some(a => a.isLocked) && (
+                <button onClick={handleAnnounceWarRoom} className="flex items-center gap-2 px-3 py-1.5 bg-blue-900/20 text-blue-400 border border-blue-800/50 rounded-lg text-[10px] font-black uppercase">
+                    <Megaphone size={14} className="animate-pulse" /> <span className="hidden sm:inline">Announce</span>
+                </button>
+            )}
+        </div>
+    );
+
+    if (loading || globalLoading) return <div className="p-10 text-white font-mono bg-gray-950 min-h-screen">LOADING STRATEGIC ASSETS...</div>;
 
     return (
-        <div className="min-h-screen bg-gray-950 text-gray-100 font-sans p-4 md:p-6">
-            <div className="max-w-[1600px] mx-auto space-y-6">
+        <AdminLayout title="War Room" actions={headerActions}>
+            <div className="flex flex-col lg:flex-row h-full overflow-hidden bg-gray-950">
 
-                {/* Header Section */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-900/50 p-4 rounded-2xl border border-gray-800">
-                    <div className="flex items-center gap-4">
-                        <Link to="/" className="p-2 bg-gray-800 rounded-xl text-gray-400 hover:text-white border border-gray-700 transition-all">
-                            <ArrowLeft size={20} />
-                        </Link>
-                        <div>
-                            <h1 className="text-2xl font-black tracking-tighter flex items-center gap-2">
-                                <Trophy className="text-yellow-500 w-6 h-6" /> WAR ROOM
-                            </h1>
-                            <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest">State Event Deployment</p>
+                {/* --- MOBILE TOGGLE BAR (Hidden on Desktop) --- */}
+                <div className="lg:hidden flex bg-gray-900 p-2 border-b border-gray-800 shrink-0 gap-2">
+                    <button
+                        onClick={() => setMobileTab('bench')}
+                        className={`flex-1 py-2.5 text-xs font-black uppercase rounded-lg transition-colors ${mobileTab === 'bench' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 bg-gray-800 hover:text-white'}`}
+                    >
+                        Bench ({filteredPlayers.length})
+                    </button>
+                    <button
+                        onClick={() => setMobileTab('alliances')}
+                        className={`flex-1 py-2.5 text-xs font-black uppercase rounded-lg transition-colors ${mobileTab === 'alliances' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 bg-gray-800 hover:text-white'}`}
+                    >
+                        Deployments
+                    </button>
+                </div>
+
+                {/* 1. BENCH SIDEBAR (Hidden on mobile if 'alliances' tab is active) */}
+                <aside className={`w-full lg:w-80 bg-gray-900 border-b lg:border-r border-gray-800 shrink-0 overflow-hidden ${mobileTab === 'bench' ? 'flex flex-col' : 'hidden lg:flex lg:flex-col'}`}>
+                    <div className="p-4 space-y-3 bg-gray-900/50 border-b border-gray-800">
+                        <div className="flex justify-between items-center lg:hidden mb-2">
+                            <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Available Players</span>
                         </div>
-                        {isAdmin && (
-                            <button
-                                onClick={handleReset}
-                                className="ml-2 flex items-center gap-2 px-3 py-1.5 bg-red-900/20 hover:bg-red-900/40 text-red-400 border border-red-800/50 rounded-lg transition-all text-xs font-bold uppercase"
-                                title="Wipe all deployments"
-                            >
-                                <RotateCcw size={14} />
-                                Reset
-                            </button>
-                        )}
-
-                        {isAdmin && stats.some(a => a.isLocked) && (
-                            <button
-                                onClick={handleAnnounceWarRoom}
-                                className="ml-2 flex items-center gap-2 px-3 py-1.5 bg-blue-900/20 hover:bg-blue-900/40 text-blue-400 border border-blue-800/50 rounded-lg transition-all text-xs font-bold uppercase drop-shadow-md"
-                                title="Announce Deployments to Discord"
-                            >
-                                <Megaphone size={14} className="animate-pulse" />
-                                Announce
-                            </button>
-                        )}
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-3">
-                        <div className="relative group">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 group-focus-within:text-blue-500 transition-colors" />
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                             <input
-                                type="text"
-                                placeholder="Search..."
-                                className="bg-gray-900 border border-gray-700 rounded-xl py-2 pl-10 pr-4 text-sm focus:border-blue-500 outline-none w-64 transition-all"
-                                value={filterText}
-                                onChange={(e) => setFilterText(e.target.value)}
+                                type="text" placeholder="Filter Players..."
+                                className="w-full bg-black border border-gray-800 rounded-xl pl-10 pr-4 py-2 text-xs text-white focus:border-blue-500 outline-none"
+                                value={filterText} onChange={e => setFilterText(e.target.value)}
                             />
                         </div>
-
-                        {[
-                            { id: 'troops', icon: <Swords size={16}/>, val: filterTroops, set: setFilterTroops, opts: filterOptions.troopTypes, label: 'All Types' },
-                            { id: 'battle', icon: <Shield size={16}/>, val: filterAvail, set: setFilterAvail, opts: filterOptions.battleAvailability, label: 'All Battle' },
-                            { id: 'tundra', icon: <Trophy size={16}/>, val: filterTundra, set: setFilterTundra, opts: filterOptions.tundraAvailability, label: 'All Tundra' }
-                        ].map(f => (
-                            <div key={f.id} className="flex items-center gap-2 bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 focus-within:border-blue-500 transition-all">
-                                <span className="text-gray-500">{f.icon}</span>
-                                <select
-                                    className="bg-transparent text-xs font-bold outline-none border-none text-gray-300 cursor-pointer"
-                                    value={f.val}
-                                    onChange={(e) => f.set(e.target.value)}
-                                >
-                                    <option value="All" className="bg-gray-900">{f.label}</option>
-                                    {f.opts?.map(opt => (
-                                        <option key={opt} value={opt} className="bg-gray-900">{opt}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        ))}
-
-                        <div className="flex items-center gap-2 bg-gray-900 border border-gray-700 rounded-xl px-3 py-2">
-                            <ArrowDownWideNarrow size={16} className="text-gray-500" />
-                            <select
-                                className="bg-transparent text-xs font-bold outline-none border-none text-gray-300"
-                                value={sortBy}
-                                onChange={(e) => setSortBy(e.target.value)}
-                            >
-                                <option value="Power" className="bg-gray-900">Power</option>
-                                <option value="Name" className="bg-gray-900">Name</option>
+                        <div className="grid grid-cols-2 gap-2">
+                            <select value={filterTroops} onChange={e => setFilterTroops(e.target.value)} className="bg-black border border-gray-800 text-[10px] rounded-lg p-1 text-gray-400 outline-none">
+                                <option value="All">All Troops</option>
+                                {(filterOptions.troopTypes || []).map(o => <option key={o} value={o}>{o}</option>)}
+                            </select>
+                            <select value={filterAvail} onChange={e => setFilterAvail(e.target.value)} className="bg-black border border-gray-800 text-[10px] rounded-lg p-1 text-gray-400 outline-none">
+                                <option value="All">All Battle</option>
+                                {(filterOptions.battleAvailability || []).map(o => <option key={o} value={o}>{o}</option>)}
                             </select>
                         </div>
                     </div>
-                </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-180px)]">
-
-                    {/* Available Sidebar */}
-                    <div className="lg:col-span-3 bg-gray-900/30 border border-gray-800 rounded-2xl flex flex-col overflow-hidden">
-                        <div className="p-4 border-b border-gray-800 bg-gray-900/50 flex justify-between items-center">
-                            <h2 className="font-black text-sm uppercase tracking-widest text-gray-400">Available ({filteredPlayers.length})</h2>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-800">
-                            {filteredPlayers.map(p => (
-                                <div
-                                    key={p.fid}
-                                    draggable
-                                    onDragStart={(e) => onDragStart(e, p.fid)}
-                                    className="bg-gray-800/40 border border-gray-700 p-3 rounded-xl hover:border-blue-500 transition-all cursor-grab active:cursor-grabbing group shadow-lg"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="relative">
-                                            <img src={p.avatar} className="w-12 h-12 rounded-lg object-cover border-2 border-gray-700 shadow-inner" alt="" />
-                                            {/* ALLIANCE BADGE RESTORED */}
-                                            {p.allianceName && (
-                                                <div className="absolute -top-2 -left-2 bg-gray-900 text-[8px] font-black border border-gray-700 px-1 rounded shadow-md text-blue-400">
-                                                    {p.allianceName}
-                                                </div>
-                                            )}
-                                            {/* FURNACE IMAGE RESTORED */}
-                                            {p.stoveImg && (
-                                                <img src={p.stoveImg} className="absolute -bottom-2 -right-2 w-7 h-7 drop-shadow-md" title={`Furnace Lv ${p.stoveLv}`} alt="" />
-                                            )}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <h4 className="font-bold text-sm truncate text-white tracking-tight">{p.nickname}</h4>
-                                            <p className="text-[10px] text-gray-500 font-mono font-bold">{(p.power || 0).toLocaleString()} POWER</p>
-                                        </div>
+                    <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
+                        {filteredPlayers.map(p => (
+                            <div
+                                key={p.fid}
+                                draggable={!isMod}
+                                onDragStart={(e) => onDragStart(e, p.fid)}
+                                onClick={() => handleMobileSelect(p)}
+                                className={`p-3 rounded-2xl border transition-all select-none ${isMod ? 'cursor-default border-gray-800' : 'cursor-pointer'} ${selectedPlayer?.fid === p.fid ? 'bg-blue-600 border-blue-400 scale-95 shadow-lg' : 'bg-gray-950 border-gray-800 hover:border-gray-700'}`}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className="relative">
+                                        <img src={p.avatar} className="w-10 h-10 rounded-xl object-cover" alt="" />
+                                        {p.stoveImg && <img src={p.stoveImg} className="absolute -bottom-1 -right-1 w-5 h-5" alt="" />}
                                     </div>
-                                    <div className="mt-3 flex flex-wrap gap-1.5">
-                                        <span className={`text-[9px] px-2 py-0.5 rounded-full border font-black uppercase tracking-tighter shadow-sm ${getTroopColor(p.troopType)}`}>
-                                            {p.troopType || 'NONE'}
-                                        </span>
-                                        <span className={`text-[9px] px-2 py-0.5 rounded-full border border-gray-700 bg-gray-900/50 font-black uppercase tracking-tighter ${p.battleAvailability === 'Available' ? 'text-green-400' : 'text-red-400'}`}>
-                                            {p.battleAvailability}
-                                        </span>
+                                    <div className="min-w-0 flex-1">
+                                        <p className={`text-[11px] font-black ${selectedPlayer?.fid === p.fid ? 'text-white' : 'text-gray-200'}`}>{p.nickname}</p>
+                                        <div className={`mt-1 inline-block text-[8px] px-1.5 rounded-sm border font-black uppercase tracking-tighter ${getTroopColor(p.troopType)}`}>{p.troopType || 'NONE'}</div>
                                     </div>
                                 </div>
-                            ))}
-                        </div>
+                            </div>
+                        ))}
                     </div>
+                </aside>
 
-                    {/* Deployment Boards */}
-                    <div className="lg:col-span-9 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-800">
-                        {stats.map(alliance => {
-                            const roster = players.filter(p => p.fightingAllianceId === alliance.id);
+                {/* 2. DEPLOYMENT GRID (Hidden on mobile if 'bench' tab is active) */}
+                <main className={`flex-1 overflow-y-auto p-4 lg:p-6 custom-scrollbar bg-gray-950 pb-24 lg:pb-6 ${mobileTab === 'alliances' ? 'block' : 'hidden lg:block'}`}>
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                        {(stats || []).map(alliance => {
+                            const roster = (players || []).filter(p => p.fightingAllianceId === alliance.id);
                             const isLocked = alliance.isLocked;
 
                             return (
                                 <div
                                     key={alliance.id}
-                                    onDragOver={(e) => !isLocked && e.preventDefault()}
-                                    onDrop={(e) => !isLocked && onDrop(e, alliance.id)}
-                                    className={`flex flex-col h-[520px] rounded-2xl border-2 transition-all overflow-hidden shadow-2xl ${
-                                        isLocked ? 'border-red-900/50 bg-red-950/5' : 'border-gray-800 bg-gray-900/20 hover:border-blue-500/30'
-                                    }`}
+                                    onDragOver={(e) => !isLocked && !isMod && e.preventDefault()}
+                                    onDrop={(e) => !isLocked && !isMod && onDrop(e, alliance.id)}
+                                    onClick={() => !isLocked && !isMod && selectedPlayer && handleDeploy(selectedPlayer.fid, alliance.id)}
+                                    className={`bg-gray-900 rounded-3xl border transition-all flex flex-col overflow-hidden min-h-[400px] ${selectedPlayer && !isLocked && !isMod ? 'border-blue-500 ring-2 ring-blue-500/10 cursor-crosshair' : 'border-gray-800 shadow-2xl'} ${isLocked ? 'bg-red-950/5' : ''}`}
                                 >
-                                    <div className={`p-4 border-b ${isLocked ? 'border-red-900/50 bg-red-900/10' : 'border-gray-800 bg-gray-900/50'}`}>
-                                        <div className="flex justify-between items-center mb-2">
-                                            <h3 className="font-black text-lg tracking-tighter text-white uppercase">{alliance.name}</h3>
+                                    <div className={`p-4 flex justify-between items-center border-b ${isLocked ? 'bg-red-900/10 border-red-900/20' : 'bg-gray-900/50 border-gray-800'}`}>
+                                        <div className="flex items-center gap-3">
+                                            <Shield size={20} className={isLocked ? 'text-red-500' : 'text-blue-500'} />
+                                            <div>
+                                                <h4 className="text-sm font-black text-white uppercase tracking-tighter">{alliance.name}</h4>
+                                                <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest">{alliance.memberCount} PLAYERS • {(alliance.totalPower / 1000000).toFixed(0)}M</p>
+                                            </div>
+                                        </div>
+                                        {isAdmin && (
                                             <button
-                                                onClick={() => toggleLock(alliance.id, isLocked)}
-                                                className={`p-1.5 rounded-lg transition-colors ${isLocked ? 'text-red-500 bg-red-500/10' : 'text-gray-500 hover:bg-green-500/10 hover:text-green-500'}`}
+                                                onClick={(e) => { e.stopPropagation(); void toggleLock(alliance.id, isLocked); }}
+                                                className={`p-2 rounded-xl border transition-all ${isLocked ? 'bg-red-500 text-white border-red-400' : 'bg-gray-800 text-gray-500 border-gray-700 hover:text-white'}`}
                                             >
-                                                {isLocked ? <Lock size={18} /> : <Unlock size={18} />}
+                                                {isLocked ? <Lock size={16} /> : <Unlock size={16} />}
                                             </button>
-                                        </div>
-                                        <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-gray-500">
-                                            <span>{alliance.memberCount} MEMBERS</span>
-                                            <span>{(alliance.totalPower || 0).toLocaleString()} POWER</span>
-                                        </div>
+                                        )}
                                     </div>
 
-                                    <div className="flex-1 overflow-y-auto p-3 space-y-2 bg-black/20 scrollbar-thin scrollbar-thumb-gray-800">
-                                        {roster.length === 0 ? (
-                                            <div className="h-full flex items-center justify-center text-gray-700 border-2 border-dashed border-gray-800 rounded-xl uppercase text-[10px] font-bold">
-                                                {isLocked ? 'DEPLOYMENTS LOCKED' : 'DROP TROOPS HERE'}
-                                            </div>
-                                        ) : (
-                                            roster.map(p => (
-                                                <div
-                                                    key={p.fid}
-                                                    className={`flex items-center gap-3 p-2 rounded-xl border bg-gray-900/80 group ${isLocked ? 'border-red-900/20' : 'border-gray-800 hover:border-blue-500/50'}`}
-                                                >
-                                                    <div className="relative">
-                                                        <img src={p.avatar} className="w-8 h-8 rounded-md object-cover border border-gray-700" alt="" />
-                                                        {p.stoveImg && <img src={p.stoveImg} className="absolute -bottom-1 -right-1 w-4 h-4" alt="" />}
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="text-[11px] font-black text-white truncate">{p.nickname}</div>
-                                                        <div className={`text-[8px] font-bold inline-block px-1 rounded-sm border ${getTroopColor(p.troopType)}`}>
-                                                            {p.troopType}
-                                                        </div>
-                                                    </div>
-                                                    {!isLocked && (
-                                                        <button
-                                                            onClick={() => onDrop({ dataTransfer: { getData: () => p.fid } }, null)}
-                                                            className="opacity-0 group-hover:opacity-100 p-1 text-gray-500 hover:text-red-500"
-                                                        >
-                                                            <X size={14} />
-                                                        </button>
-                                                    )}
+                                    <div className="flex-1 p-4 grid grid-cols-1 md:grid-cols-2 gap-2 content-start">
+                                        {roster.map(m => (
+                                            <div key={m.fid} className="flex items-center justify-between p-2 bg-black/40 border border-gray-800 rounded-xl group transition-all hover:border-gray-600">
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                    <img src={m.avatar} className="w-7 h-7 rounded-lg grayscale group-hover:grayscale-0 transition-all" alt="" />
+                                                    <span className="text-[11px] font-bold text-gray-300 truncate tracking-tighter group-hover:text-white">{m.nickname}</span>
                                                 </div>
-                                            ))
+                                                {isAdmin && !isLocked && (
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); void handleDeploy(m.fid, null); }}
+                                                        className="opacity-0 lg:group-hover:opacity-100 p-1 text-red-500 lg:hover:bg-red-500/10 rounded-lg transition-all"
+                                                    >
+                                                        <X size={14} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
+                                        {roster.length === 0 && (
+                                            <div className="col-span-full h-40 border-2 border-dashed border-gray-800 rounded-2xl flex flex-col items-center justify-center text-gray-700">
+                                                <UserPlus size={24} className="mb-2 opacity-20" />
+                                                <p className="text-[10px] font-black uppercase tracking-widest">{isLocked ? 'Locked' : 'Drop Players'}</p>
+                                            </div>
                                         )}
                                     </div>
                                 </div>
                             );
                         })}
                     </div>
-                </div>
+                </main>
+
+                {/* Mobile Selected Player Floating Action Bar */}
+                {selectedPlayer && (
+                    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] lg:hidden animate-in slide-in-from-bottom-5">
+                        <div className="bg-blue-600 text-white pl-6 pr-2 py-2 rounded-full font-black text-xs tracking-widest shadow-2xl flex items-center gap-4 border border-blue-400">
+                            <span className="flex items-center gap-2">
+                                <ChevronRight size={16} /> Deploy {selectedPlayer.nickname.substring(0, 10)}
+                            </span>
+                            <button
+                                onClick={() => setSelectedPlayer(null)}
+                                className="p-2 bg-blue-800 rounded-full hover:bg-blue-900 transition-colors"
+                            >
+                                <X size={14} />
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
-        </div>
+        </AdminLayout>
     );
 }

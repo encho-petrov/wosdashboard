@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/go-webauthn/webauthn/webauthn"
 )
 
 var ctx = context.Background()
@@ -101,4 +102,26 @@ func (r *RedisStore) GetMfaSession(token string) string {
 
 func (r *RedisStore) DeleteMfaSession(token string) {
 	r.Client.Del(ctx, "mfa_session:"+token)
+}
+
+func (r *RedisStore) SetWebAuthnSession(token string, sessionData *webauthn.SessionData) error {
+	data, err := json.Marshal(sessionData)
+	if err != nil {
+		return err
+	}
+	return r.Client.Set(ctx, "wa_session:"+token, data, 5*time.Minute).Err()
+}
+
+func (r *RedisStore) GetWebAuthnSession(token string) (*webauthn.SessionData, error) {
+	data, err := r.Client.Get(ctx, "wa_session:"+token).Bytes()
+	if err != nil {
+		return nil, err
+	}
+	var sessionData webauthn.SessionData
+	err = json.Unmarshal(data, &sessionData)
+	return &sessionData, err
+}
+
+func (r *RedisStore) DeleteWebAuthnSession(token string) {
+	r.Client.Del(ctx, "wa_session:"+token)
 }

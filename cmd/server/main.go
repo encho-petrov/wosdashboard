@@ -85,6 +85,12 @@ func main() {
 	}
 
 	auth.Init(cfg.ApiSecrets.JwtSecret)
+
+	err = auth.InitWebAuthn(cfg.BioID.ApplicationName, cfg.BioID.ApplicationDomain, cfg.BioID.ApplicationURL)
+	if err != nil {
+		log.Fatalf("Could not init web authn: %v", err)
+	}
+
 	dsn := fmt.Sprintf("%s:%s@tcp(%s)/%s?parseTime=true",
 		cfg.Database.User, cfg.Database.Password, cfg.Database.Host, cfg.Database.DBName)
 
@@ -105,7 +111,7 @@ func main() {
 
 	_, err = store.GetUserByUsername("admin")
 	if err != nil {
-		hash, _ := auth.HashPassword("admin123") // Change this!
+		hash, _ := auth.HashPassword("admin123")
 		err := store.CreateUser("admin", hash, "admin", 0)
 		if err != nil {
 			log.Fatalf("FATAL: Failed to create default admin user: %v", err)

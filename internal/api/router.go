@@ -99,16 +99,22 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 			tempToken := fmt.Sprintf("%d", time.Now().UnixNano())
 
 			engine.Redis.SetMfaSession(tempToken, user.Username)
+			hasWebAuthn := store.HasWebAuthn(user.ID)
 
 			c.JSON(http.StatusOK, gin.H{
 				"mfa_required": true,
+				"has_webauthn": hasWebAuthn,
 				"temp_token":   tempToken,
 			})
 			return
 		}
 
 		token, _ := auth.GenerateToken(user.Username, user.Role)
-		c.JSON(http.StatusOK, gin.H{"token": token, "role": user.Role, "mfa_enabled": user.MFAEnabled})
+		if user.AllianceID != nil {
+			c.JSON(http.StatusOK, gin.H{"token": token, "role": user.Role, "mfa_enabled": user.MFAEnabled, "allianceId": user.AllianceID})
+		} else {
+			c.JSON(http.StatusOK, gin.H{"token": token, "role": user.Role, "mfa_enabled": user.MFAEnabled})
+		}
 	})
 
 	r.POST("/api/login/mfa", func(c *gin.Context) {
@@ -135,7 +141,11 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 		engine.Redis.DeleteMfaSession(input.TempToken)
 		token, _ := auth.GenerateToken(user.Username, user.Role)
 
-		c.JSON(http.StatusOK, gin.H{"token": token, "role": user.Role})
+		if user.AllianceID != nil {
+			c.JSON(http.StatusOK, gin.H{"token": token, "role": user.Role})
+		} else {
+			c.JSON(http.StatusOK, gin.H{"token": token, "role": user.Role, "allianceId": user.AllianceID})
+		}
 	})
 
 	r.POST("/api/login/player", func(c *gin.Context) {
@@ -181,6 +191,118 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 		token, _ := auth.GenerateToken(fidStr, "player")
 
 		c.JSON(200, gin.H{"token": token, "role": "player", "nickname": info.Data.Nickname})
+	})
+
+	r.GET("/api/webauthn/register/begin", func(c *gin.Context) {
+		username := c.GetString("username")
+		user, err := store.GetUserByUsername(username)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+			return
+		}
+
+		store.LoadWebAuthnCredentials(user)
+
+		options, sessionData, err := auth.WA.BeginRegistration(user)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to begin registration"})
+			return
+		}
+
+		err = engine.Redis.SetWebAuthnSession(username, sessionData)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save session"})
+			return
+		}
+
+		c.JSON(http.StatusOK, options)
+	})
+
+	r.POST("/api/webauthn/register/finish", func(c *gin.Context) {
+		username := c.GetString("username")
+		user, _ := store.GetUserByUsername(username)
+		store.LoadWebAuthnCredentials(user)
+
+		sessionData, err := engine.Redis.GetWebAuthnSession(username)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Session expired or invalid"})
+			return
+		}
+
+		credential, err := auth.WA.FinishRegistration(user, *sessionData, c.Request)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Registration verification failed"})
+			return
+		}
+
+		if err := store.SaveWebAuthnCredential(user.ID, credential); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save credential"})
+			return
+		}
+
+		engine.Redis.DeleteWebAuthnSession(username)
+		c.JSON(http.StatusOK, gin.H{"message": "Biometric login enabled successfully!"})
+	})
+
+	r.GET("/api/webauthn/login/begin", func(c *gin.Context) {
+		tempToken := c.Query("temp_token")
+		if tempToken == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Missing token"})
+			return
+		}
+
+		username := engine.Redis.GetMfaSession(tempToken)
+		if username == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Session expired. Please log in again."})
+			return
+		}
+
+		user, _ := store.GetUserByUsername(username)
+		store.LoadWebAuthnCredentials(user)
+
+		options, sessionData, err := auth.WA.BeginLogin(user)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to begin login"})
+			return
+		}
+
+		engine.Redis.SetWebAuthnSession(tempToken, sessionData)
+		c.JSON(http.StatusOK, options)
+	})
+
+	r.POST("/api/webauthn/login/finish", func(c *gin.Context) {
+		tempToken := c.Query("temp_token")
+		username := engine.Redis.GetMfaSession(tempToken)
+		if username == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Session expired. Please log in again."})
+			return
+		}
+
+		user, _ := store.GetUserByUsername(username)
+		store.LoadWebAuthnCredentials(user)
+
+		sessionData, err := engine.Redis.GetWebAuthnSession(tempToken)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Session expired"})
+			return
+		}
+
+		_, err = auth.WA.FinishLogin(user, *sessionData, c.Request)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Biometric verification failed"})
+			return
+		}
+
+		engine.Redis.DeleteMfaSession(tempToken)
+		engine.Redis.DeleteWebAuthnSession(tempToken)
+
+		token, _ := auth.GenerateToken(user.Username, user.Role)
+
+		if user.AllianceID != nil {
+			c.JSON(http.StatusOK, gin.H{"token": token, "role": user.Role, "allianceId": user.AllianceID})
+		} else {
+			c.JSON(http.StatusOK, gin.H{"token": token, "role": user.Role})
+		}
 	})
 
 	playerGroup := r.Group("/api/player")
@@ -440,6 +562,24 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 			}
 
 			c.JSON(200, gin.H{"message": "Player removed from roster"})
+		})
+
+		authorized.GET("/profile", func(c *gin.Context) {
+			username := c.GetString("username")
+			user, err := store.GetUserByUsername(username)
+			if err != nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+				return
+			}
+
+			hasWebAuthn := store.HasWebAuthn(user.ID)
+
+			c.JSON(http.StatusOK, gin.H{
+				"username":     user.Username,
+				"role":         user.Role,
+				"mfa_enabled":  user.MFAEnabled,
+				"has_webauthn": hasWebAuthn,
+			})
 		})
 
 		authorized.POST("/change-password", func(c *gin.Context) {
@@ -1304,6 +1444,22 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 
 				logAction(c, store, "DISCORD", "Announced: "+req.Title)
 				c.JSON(http.StatusOK, gin.H{"message": "Sent to Discord!"})
+			})
+
+			admin.POST("/users/:id/reset-mfa", func(c *gin.Context) {
+				userIDStr := c.Param("id")
+				userID, err := strconv.Atoi(userIDStr)
+				if err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+					return
+				}
+
+				if err := store.ResetUserMFA(userID); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reset MFA"})
+					return
+				}
+
+				c.JSON(http.StatusOK, gin.H{"message": "User security settings have been reset"})
 			})
 		}
 	}

@@ -4,11 +4,9 @@ import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
 import {
     LayoutGrid, Shield, Save,
-    Info, Lock, AlertTriangle, ArrowLeft, Activity, Megaphone
+    Info, Lock, AlertTriangle, Megaphone
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
-
-// Import your icon mapping utility
+import AdminLayout from '../components/layout/AdminLayout';
 import { getRewardIcon } from '../assets/rewards/index';
 
 export default function Rotation() {
@@ -26,7 +24,7 @@ export default function Rotation() {
     const weeks = [1, 2, 3, 4, 5, 6, 7, 8];
 
     useEffect(() => {
-        fetchInitialData();
+        void fetchInitialData();
     }, []);
 
     const handleAnnounceRotation = async (week) => {
@@ -157,20 +155,8 @@ export default function Rotation() {
     );
 
     return (
+        <AdminLayout title="Fortress Rotation">
         <div className="min-h-screen bg-gray-900 text-gray-100 font-sans">
-
-            {/* --- STANDARDIZED NAVBAR --- */}
-            <nav className="bg-gray-800 border-b border-gray-700 px-6 py-4 flex justify-between items-center shadow-md">
-                <div className="flex items-center space-x-3">
-                    <Activity className="text-blue-500 w-6 h-6" />
-                    <h1 className="text-xl font-bold tracking-wide uppercase">Rotation Control</h1>
-                </div>
-                <Link to="/" className="flex items-center space-x-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors text-sm font-medium border border-gray-600">
-                    <ArrowLeft className="w-4 h-4" />
-                    <span>Back to Dashboard</span>
-                </Link>
-            </nav>
-
             <main className="container mx-auto px-4 py-8 max-w-[1600px] space-y-6">
 
                 {/* Header Section */}
@@ -329,5 +315,6 @@ export default function Rotation() {
                 </div>
             </main>
         </div>
+        </AdminLayout>
     );
 }

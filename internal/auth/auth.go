@@ -2,9 +2,11 @@ package auth
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"time"
 
+	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -63,4 +65,21 @@ func ValidateToken(tokenString string) (*Claims, error) {
 	}
 
 	return claims, nil
+}
+
+var WA *webauthn.WebAuthn
+
+func InitWebAuthn(rpDisplayName, rpID, rpOrigin string) error {
+	wconfig := &webauthn.Config{
+		RPDisplayName: rpDisplayName,
+		RPID:          rpID,
+		RPOrigins:     []string{rpOrigin},
+	}
+
+	var err error
+	WA, err = webauthn.New(wconfig)
+	if err != nil {
+		return fmt.Errorf("failed to create WebAuthn instance: %v", err)
+	}
+	return nil
 }
