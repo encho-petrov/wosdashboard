@@ -17,6 +17,8 @@ import AuditLogs from "./pages/AuditLogs";
 import Rotation from './pages/Rotation';
 import TransferManager from "./pages/TransferManager.jsx";
 import MinistryReservations from "./pages/MinistryReservations.jsx";
+import Profile from './pages/Profile.jsx';
+import NotFound from './pages/NotFound';
 
 const Home = () => {
   const { user } = useAuth();
@@ -90,6 +92,15 @@ function App() {
                 }
             />
 
+            <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <Profile />
+                  </ProtectedRoute>
+                }
+            />
+
             <Route path="/alliances" element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <Alliances />
@@ -109,6 +120,7 @@ function App() {
               </ProtectedRoute>
             }
             />
+            <Route path="*" element={<NotFound />} />
           </Routes>
           </AppProvider>
           <ToastContainer position="top-right" theme="dark" />

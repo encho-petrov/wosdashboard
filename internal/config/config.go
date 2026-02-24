@@ -38,6 +38,12 @@ type Config struct {
 	Rotation struct {
 		SeasonReferenceDate string `mapstructure:"SeasonReferenceDate"`
 	} `mapstructure:"Rotation"`
+
+	BioID struct {
+		ApplicationName   string `mapstructure:"ApplicationName"`
+		ApplicationDomain string `mapstructure:"ApplicationDomain"`
+		ApplicationURL    string `mapstructure:"ApplicationUrl"`
+	} `mapstructure:"BioID"`
 }
 
 func LoadConfig() (*Config, error) {
