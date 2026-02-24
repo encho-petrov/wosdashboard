@@ -108,7 +108,11 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 		}
 
 		token, _ := auth.GenerateToken(user.Username, user.Role)
-		c.JSON(http.StatusOK, gin.H{"token": token, "role": user.Role, "mfa_enabled": user.MFAEnabled})
+		if user.AllianceID != nil {
+			c.JSON(http.StatusOK, gin.H{"token": token, "role": user.Role, "mfa_enabled": user.MFAEnabled, "allianceId": user.AllianceID})
+		} else {
+			c.JSON(http.StatusOK, gin.H{"token": token, "role": user.Role, "mfa_enabled": user.MFAEnabled})
+		}
 	})
 
 	r.POST("/api/login/mfa", func(c *gin.Context) {
@@ -135,7 +139,11 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 		engine.Redis.DeleteMfaSession(input.TempToken)
 		token, _ := auth.GenerateToken(user.Username, user.Role)
 
-		c.JSON(http.StatusOK, gin.H{"token": token, "role": user.Role})
+		if user.AllianceID != nil {
+			c.JSON(http.StatusOK, gin.H{"token": token, "role": user.Role})
+		} else {
+			c.JSON(http.StatusOK, gin.H{"token": token, "role": user.Role, "allianceId": user.AllianceID})
+		}
 	})
 
 	r.POST("/api/login/player", func(c *gin.Context) {

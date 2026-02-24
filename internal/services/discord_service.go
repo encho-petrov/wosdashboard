@@ -65,7 +65,7 @@ func SendMinistryManifest(webhookURL string, day *db.MinistryDay, slots []db.Min
 			desc += fmt.Sprintf("`%s` - *[ Open Slot ]*\n", timeLabel)
 		}
 	}
-	return SendCustomDiscordEmbed(webhookURL, "📅 Daily Ministry Manifest", desc, 10181046)
+	return SendCustomDiscordEmbed(webhookURL, "📅 Daily Ministry Schedule", desc, 10181046)
 }
 
 func SendMinistryPing(webhookURL string, buffName, nickname, alliance string) error {
