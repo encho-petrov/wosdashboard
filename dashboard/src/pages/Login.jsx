@@ -84,11 +84,13 @@ export default function Login() {
           const tToken = res.data.temp_token;
           setTempToken(tToken);
           setHasWebAuthn(res.data.has_webauthn);
-          setStep(2); // Move to MFA screen
+
+          setLoading(false);
+          setStep(2);
 
           if (res.data.has_webauthn) {
-            setLoading(false);
-            await triggerBiometricLogin(tToken);
+            // do not await this
+            triggerBiometricLogin(tToken);
           }
         } else {
           await login(res.data.token, res.data.role, formData.username, res.data.mfa_enabled);
