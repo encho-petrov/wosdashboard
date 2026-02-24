@@ -1,9 +1,10 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
 import client from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useApp } from '../context/AppContext'; // <-- Global State
 import { toast } from 'react-toastify';
 import {
-    Users, Crown, Trash2, ArrowLeft, Search, Sword, Megaphone
+    Users, Crown, Trash2, ArrowLeft, Search, Sword, Megaphone, X
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -12,13 +13,13 @@ export default function Squads() {
     const isAdmin = user?.role === 'admin';
     const [activeAlliance, setActiveAlliance] = useState(null);
     const [alliances, setAlliances] = useState([]);
-    const [players, setPlayers] = useState([]);
     const [squads, setSquads] = useState([]);
     const [loading, setLoading] = useState(true);
     const [draggedPlayerId, setDraggedPlayerId] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
 
-    // 1. Initial Load
+    const { roster: players, globalLoading, refreshGlobalData } = useApp();
+
     useEffect(() => {
         const init = async () => {
             try {
@@ -27,44 +28,42 @@ export default function Squads() {
                 if (res.data.length > 0) setActiveAlliance(res.data[0].id);
             } catch (err) { toast.error("Failed to load alliances"); }
         };
-        init();
+        void init();
     }, []);
 
-    // 2. Load Data on Tab Change
     useEffect(() => {
-        if (activeAlliance) fetchData();
+        if (activeAlliance) void fetchData();
     }, [activeAlliance]);
 
-    const fetchData = async () => {
-        setLoading(true);
+    const fetchData = async (silent = false) => {
+        if (!silent) setLoading(true);
         try {
-            // Ensure we are passing the ID correctly
             const aid = parseInt(activeAlliance);
-
-            const [pRes, sRes] = await Promise.all([
-                client.get('/moderator/players'),
-                client.get(`/moderator/squads/${aid}`)
-            ]);
-
-            // Filter players for this alliance on the client side to be safe
-            const alliancePlayers = pRes.data.filter(p => p.fightingAllianceId === aid);
-
-            setPlayers(alliancePlayers);
+            const sRes = await client.get(`/moderator/squads/${aid}`);
             setSquads(sRes.data || []);
         } catch (err) {
             console.error(err);
-            toast.error("Failed to refresh data");
+            toast.error("Failed to refresh squad data");
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     };
 
-    // --- DERIVED LISTS ---
 
     const infantry = useMemo(() => {
-        // Only show players with NO Team ID
-        return players.filter(p => !p.teamId && p.nickname.toLowerCase().includes(searchTerm.toLowerCase()));
-    }, [players, searchTerm]);
+        const aid = parseInt(activeAlliance);
+        if (!aid || !players) return [];
+
+        return players.filter(p => {
+            const inAlliance = Number(p.fightingAllianceId) === Number(aid);
+
+            const noTeam = !p.teamId;
+
+            const matchesSearch = p.nickname.toLowerCase().includes(searchTerm.toLowerCase());
+
+            return inAlliance && noTeam && matchesSearch;
+        });
+    }, [players, searchTerm, activeAlliance]);
 
     const squadRosters = useMemo(() => {
         const map = {};
@@ -77,7 +76,6 @@ export default function Squads() {
         return map;
     }, [players, squads]);
 
-    // --- ACTIONS ---
 
     const handlePromote = async (fid) => {
         if (!isAdmin) return;
@@ -87,11 +85,12 @@ export default function Squads() {
                 allianceId: parseInt(activeAlliance)
             });
             toast.success("Squad created!");
-            setPlayers(prev => prev.map(p => p.fid === fid ? {...p, teamId: -1} : p));
-            setTimeout(fetchData, 300);
+
+            await refreshGlobalData(true);
+            await fetchData(true);
         } catch (err) {
             toast.error("Promotion failed");
-            fetchData();
+            await fetchData();
         }
     };
 
@@ -101,30 +100,29 @@ export default function Squads() {
         try {
             await client.post('/moderator/squads/demote', { teamId });
             toast.info("Squad disbanded");
-            setSquads(prev => prev.filter(s => s.id !== teamId));
-            setTimeout(fetchData, 300);
+
+            await refreshGlobalData(true);
+            await fetchData(true);
         } catch (err) { toast.error("Demotion failed"); }
     };
 
     const handleDrop = async (e, teamId) => {
         e.preventDefault();
-        if (!isAdmin) return;
-        if (!draggedPlayerId) return;
-
-        setPlayers(prev => prev.map(p =>
-            p.fid === draggedPlayerId ? { ...p, teamId: teamId } : p
-        ));
-        setDraggedPlayerId(null);
+        if (!isAdmin || !draggedPlayerId) return;
 
         try {
             await client.post('/moderator/squads/assign', {
                 fid: draggedPlayerId,
                 teamId: teamId
             });
-            setTimeout(fetchData, 200);
+
+            await refreshGlobalData(true);
+            await fetchData(true);
         } catch (err) {
             toast.error("Move failed");
             await fetchData();
+        } finally {
+            setDraggedPlayerId(null);
         }
     };
 
@@ -140,21 +138,32 @@ export default function Squads() {
         e.dataTransfer.dropEffect = "move";
     };
 
+    const handleRemoveMember = async (fid) => {
+        if (!isAdmin) return;
+        try {
+            await client.post('/moderator/squads/assign', {
+                fid: fid,
+                teamId: null
+            });
+
+            await refreshGlobalData(true);
+            await fetchData(true);
+            toast.info("Member removed from squad");
+        } catch (err) {
+            toast.error("Failed to remove member");
+        }
+    };
+
     const handleAnnounceSquads = async () => {
         let description = "Current Squad formations for the event:\n\n";
-
         squads.forEach(sq => {
             const captain = players.find(p => p.fid === sq.captainFid);
             const roster = players.filter(p => p.teamId === sq.id);
-
             description += `**🛑 Squad ${sq.id}**\n`;
             description += `👑 **Lead:** ${captain ? captain.nickname : 'No Captain Assigned'}\n`;
-
             const joiners = roster.filter(p => p.fid !== sq.captainFid);
             if (joiners.length > 0) {
-                joiners.forEach(j => {
-                    description += `  ↳ ${j.nickname}\n`;
-                });
+                joiners.forEach(j => { description += `  ↳ ${j.nickname}\n`; });
             } else {
                 description += `  ↳ *No joiners assigned yet*\n`;
             }
@@ -165,13 +174,15 @@ export default function Squads() {
             await client.post('/moderator/discord/announce', {
                 title: "🛡️ Squad Assignments Finalized",
                 description: description,
-                color: 3447003 // Blue
+                color: 3447003
             });
             toast.success("Squads announced to Discord!");
-        } catch (err) {
-            toast.error("Failed to announce squads.");
-        }
+        } catch (err) { toast.error("Failed to announce squads."); }
     };
+
+    if (loading || globalLoading) {
+        return <div className="h-screen bg-gray-900 flex items-center justify-center text-white font-mono">LOADING SQUAD COMMAND...</div>;
+    }
 
     return (
         <div className="h-screen bg-gray-900 text-gray-100 flex flex-col font-sans overflow-hidden">
@@ -215,8 +226,7 @@ export default function Squads() {
             </div>
 
             <div className="flex-1 flex overflow-hidden">
-
-                {/* LEFT: INFANTRY POOL */}
+                {/* LEFT: INFANTRY POOL (Sidebar) */}
                 <div className="w-[350px] flex flex-col border-r border-gray-700 bg-gray-800/30">
                     <div className="p-4 border-b border-gray-700 bg-gray-800">
                         <div className="flex justify-between items-center mb-2">
@@ -238,7 +248,7 @@ export default function Squads() {
                         onDragOver={handleDragOver}
                         onDrop={(e) => handleDrop(e, null)}
                     >
-                        {infantry.length === 0 && <div className="text-center text-gray-500 text-sm mt-10">No unassigned troops</div>}
+                        {infantry.length === 0 && <div className="text-center text-gray-500 text-sm mt-10">No unassigned troops in this alliance</div>}
                         {infantry.map(p => (
                             <div
                                 key={p.fid}
@@ -253,8 +263,6 @@ export default function Squads() {
                                     <div className="font-bold truncate text-gray-200">{p.nickname}</div>
                                     <div className="text-yellow-500 font-mono text-xs">{p.power?.toLocaleString()}</div>
                                 </div>
-
-                                {/* Hide Promote button for Moderators */}
                                 {isAdmin && (
                                     <button
                                         onClick={() => handlePromote(p.fid)}
@@ -270,7 +278,7 @@ export default function Squads() {
                 </div>
 
                 {/* RIGHT: SQUADS GRID */}
-                <div className="flex-1 bg-gray-900 p-6 overflow-y-auto">
+                <div className="flex-1 bg-gray-900 p-6 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-800">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                         {squads.length === 0 && (
                             <div className="col-span-full flex flex-col items-center justify-center py-20 text-gray-600">
@@ -279,11 +287,9 @@ export default function Squads() {
                                 <p className="text-sm">Promote a player from the left to create a squad.</p>
                             </div>
                         )}
-
                         {squads.map(sq => {
                             const roster = squadRosters[sq.id] || [];
                             const captain = roster.find(p => p.fid === sq.captainFid) || { nickname: sq.name, avatar: 'https://via.placeholder.com/40' };
-
                             return (
                                 <div
                                     key={sq.id}
@@ -298,32 +304,35 @@ export default function Squads() {
                                                 <Crown className="w-4 h-4 text-yellow-500 absolute -top-2 -right-1 fill-current" />
                                             </div>
                                             <div className="min-w-0">
-                                                <div className="font-bold text-white text-sm truncate w-24" title={captain.nickname}>{captain.nickname}</div>
+                                                <div className="font-bold text-white text-sm w-24" title={captain.nickname}>{captain.nickname}</div>
                                                 <div className="text-yellow-500 font-mono text-xs">{sq.totalPower.toLocaleString()}</div>
                                             </div>
                                         </div>
                                         {isAdmin && (
-                                        <button
-                                            onClick={() => handleDemote(sq.id)}
-                                            className="text-gray-600 hover:text-red-500 transition-colors p-1"
-                                            title="Disband Squad"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
+                                            <button onClick={() => handleDemote(sq.id)} className="text-gray-600 hover:text-red-500 transition-colors p-1">
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
                                         )}
                                     </div>
-
                                     <div className="flex-1 overflow-y-auto p-2 space-y-1 bg-gray-800/50 scrollbar-thin scrollbar-thumb-gray-600">
                                         {roster.filter(p => p.fid !== sq.captainFid).map(p => (
-                                            <div key={p.fid} className="bg-gray-700/30 rounded p-1.5 flex items-center gap-2 text-xs">
+                                            <div key={p.fid} className="bg-gray-700/30 rounded p-1.5 flex items-center gap-2 text-xs group transition-colors hover:bg-gray-700/60">
                                                 <img alt="avatar" src={p.avatar} className="w-6 h-6 rounded-full" />
                                                 <span className="text-gray-300 truncate flex-1">{p.nickname}</span>
                                                 <span className="text-yellow-600 font-mono">{p.power?.toLocaleString()}</span>
+                                                {isAdmin && (
+                                                    <button
+                                                        onClick={() => handleRemoveMember(p.fid)}
+                                                        className="opacity-0 group-hover:opacity-100 p-1 text-gray-500 hover:text-red-500 transition-opacity"
+                                                        title="Remove from squad"
+                                                    >
+                                                        <X size={14} />
+                                                    </button>
+                                                )}
                                             </div>
                                         ))}
                                         {roster.length <= 1 && <div className="text-center text-xs text-gray-600 italic py-4">Drag infantry here</div>}
                                     </div>
-
                                     <div className="p-2 bg-gray-800 border-t border-gray-700 text-center">
                                         <span className="text-xs text-blue-400 font-bold">{roster.length} Members</span>
                                     </div>

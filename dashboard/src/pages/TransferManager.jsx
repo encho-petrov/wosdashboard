@@ -1,70 +1,58 @@
 import { useState, useEffect, useMemo } from 'react';
 import client from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useApp } from '../context/AppContext';
+import AdminLayout from '../components/layout/AdminLayout';
 import { toast } from 'react-toastify';
-import { Link } from 'react-router-dom';
 import {
     Plus, Archive, Check, X,
-    AlertTriangle, Send, Shield, ArrowLeft, Play, History
+    AlertTriangle, Send, Shield, Play, History, Activity
 } from 'lucide-react';
 
 export default function TransferManager() {
     const { user } = useAuth();
     const isAdmin = user?.role === 'admin';
 
-    // --- STATE: Active Season ---
+    const { alliances, refreshGlobalData } = useApp();
+
     const [season, setSeason] = useState(null);
     const [records, setRecords] = useState([]);
-    const [alliances, setAlliances] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
 
-    // --- STATE: History View ---
     const [viewingHistory, setViewingHistory] = useState(false);
     const [historySeasons, setHistorySeasons] = useState([]);
     const [historyRecords, setHistoryRecords] = useState([]);
     const [selectedPastSeason, setSelectedPastSeason] = useState(null);
 
-    // --- STATE: Modals & Forms ---
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
     const [bulkFids, setBulkFids] = useState('');
     const [newSeason, setNewSeason] = useState({ name: '', powerCap: 200000000, leading: false, specials: 3 });
 
-    useEffect(() => { fetchData(); }, []);
+    useEffect(() => { void fetchData(); }, []);
 
-    const fetchData = async () => {
-        setLoading(true);
+    const fetchData = async (silent = false) => {
+        if (!silent && records.length === 0) setLoading(true);
         try {
-            const [transRes, allyRes] = await Promise.all([
-                client.get('/moderator/transfers/active'),
-                // FIX: Pointing to general alliances instead of war room stats
-                client.get('/moderator/admin/alliances')
-            ]);
-            setSeason(transRes.data.season);
-            setRecords(transRes.data.records || []);
-            setAlliances(allyRes.data || []);
+            const res = await client.get('/moderator/transfers/active');
+            setSeason(res.data.season);
+            setRecords(res.data.records || []);
         } catch (err) {
             toast.error("Failed to load transfer data.");
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     };
 
-    // --- HISTORY HANDLERS ---
     const handleViewHistory = async () => {
         setViewingHistory(true);
-        setLoading(true);
         try {
             const res = await client.get('/moderator/transfers/history');
             setHistorySeasons(res.data || []);
             if (res.data && res.data.length > 0) {
                 await handleSelectPastSeason(res.data[0]);
             }
-        } catch (err) {
-            toast.error("Failed to load history.");
-        } finally {
-            setLoading(false);
-        }
+        } catch (err) { toast.error("Failed to load history."); }
     };
 
     const handleSelectPastSeason = async (pastSeason) => {
@@ -93,7 +81,7 @@ export default function TransferManager() {
             await client.post('/moderator/transfers/seasons', newSeason);
             toast.success("Season created in Planning phase!");
             setShowCreateModal(false);
-            fetchData();
+            await fetchData();
         } catch (err) { toast.error("Failed to create season"); }
     };
 
@@ -110,10 +98,8 @@ export default function TransferManager() {
             if (newStatus === 'Closed') {
                 setSeason(null);
                 setRecords([]);
-                // Optionally jump straight to history view
-                // handleViewHistory();
             } else {
-                fetchData();
+                await fetchData();
             }
         } catch (err) { toast.error(`Failed to change status to ${newStatus}`); }
     };
@@ -126,7 +112,7 @@ export default function TransferManager() {
             toast.success("Candidates added!");
             setShowAddModal(false);
             setBulkFids('');
-            fetchData();
+            await fetchData();
         } catch (err) { toast.error("Failed to add candidates"); }
     };
 
@@ -135,9 +121,6 @@ export default function TransferManager() {
         const record = records.find(r => r.id === id);
         if (!record) return;
 
-        const updatedRecords = records.map(r => r.id === id ? { ...r, [field]: value } : r);
-        setRecords(updatedRecords);
-
         try {
             await client.put(`/moderator/transfers/${id}`, {
                 power: field === 'power' ? parseInt(value) : record.power,
@@ -145,7 +128,11 @@ export default function TransferManager() {
                 inviteType: field === 'inviteType' ? value : record.inviteType,
                 status: field === 'status' ? value : record.status
             });
-            if (field === 'status') await fetchData();
+            // Use silent refresh to keep the UI from flashing white
+            await fetchData(true);
+            if (field === 'status' && value === 'Confirmed') {
+                await refreshGlobalData(true);
+            }
         } catch (err) {
             toast.error("Update failed");
             await fetchData();
@@ -157,7 +144,7 @@ export default function TransferManager() {
         if (currentType === requestedType) requestedType = 'None';
         if (requestedType === 'Normal' && stats.normalUsed >= stats.normalMax) return toast.warning("Normal invite limit reached!");
         if (requestedType === 'Special' && stats.specialUsed >= stats.specialMax) return toast.warning("Special invite limit reached!");
-        handleUpdateRecord(id, 'inviteType', requestedType);
+        void handleUpdateRecord(id, 'inviteType', requestedType);
     };
 
     const handleConfirmInbound = async (record) => {
@@ -172,116 +159,155 @@ export default function TransferManager() {
                 targetAllianceId: record.targetAllianceId
             });
             toast.success("Player Confirmed and added to Roster!");
-            fetchData();
+
+            await refreshGlobalData(true);
+            await fetchData(true);
         } catch (err) { toast.error("Failed to confirm player"); }
     };
 
-    if (loading) return <div className="p-10 text-white">Loading Transfer Manager...</div>;
+    //if (loading || globalLoading) return <div className="p-10 text-white font-mono uppercase tracking-widest">Loading Transfer Data...</div>;
+
+    const transferActions = (
+        <div className="flex gap-3">
+            {viewingHistory ? (
+                <button onClick={() => setViewingHistory(false)} className="flex items-center gap-2 px-4 py-1.5 bg-blue-600 text-white rounded font-bold shadow hover:bg-blue-500 transition-colors">
+                    <Activity size={16} /> Active Season
+                </button>
+            ) : (
+                <>
+                    <button onClick={handleViewHistory} className="flex items-center gap-2 px-4 py-1.5 bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700 hover:text-white rounded font-bold transition-colors shadow">
+                        <History size={16} /> History
+                    </button>
+
+                    {isAdmin && season && (
+                        <>
+                            <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 px-4 py-1.5 bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700 hover:text-white rounded font-bold transition-colors shadow">
+                                <Plus size={16} /> Add
+                            </button>
+
+                            {season.status === 'Planning' && (
+                                <button onClick={() => handleUpdateSeasonStatus('Active')} className="flex items-center gap-2 px-4 py-1.5 bg-blue-600/20 text-blue-400 border border-blue-800/50 hover:bg-blue-600/40 rounded font-bold shadow transition-colors">
+                                    <Play size={16} /> Open
+                                </button>
+                            )}
+
+                            {(season.status === 'Planning' || season.status === 'Active') && (
+                                <button onClick={() => handleUpdateSeasonStatus('Closed')} className="flex items-center gap-2 px-4 py-1.5 bg-red-600/20 text-red-400 border border-red-800/50 hover:bg-red-600/40 rounded font-bold shadow transition-colors">
+                                    <Archive size={16} /> Close
+                                </button>
+                            )}
+                        </>
+                    )}
+                </>
+            )}
+        </div>
+    );
+
+    const pageTitle = viewingHistory ? "Transfer History" : (season ? `Transfer Window: ${season.name}` : "Transfer Manager");
 
     // ==========================================
     // RENDER: HISTORY VIEW
     // ==========================================
     if (viewingHistory) {
         return (
-            <div className="min-h-screen bg-gray-900 text-gray-200 p-6 font-sans flex gap-6">
-                {/* Sidebar */}
-                <div className="w-1/4 bg-gray-800 p-4 rounded-lg border border-gray-700 h-fit">
-                    <button onClick={() => setViewingHistory(false)} className="mb-6 flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
-                        <ArrowLeft size={16} /> Back to Active Season
-                    </button>
+            <AdminLayout title={pageTitle} actions={transferActions}>
+                <div className="p-6 flex gap-6 h-full bg-gray-950 overflow-hidden">
+                    {loading ? (
+                        <div className="flex-1 flex items-center justify-center text-gray-500 font-black uppercase tracking-widest animate-pulse">
+                            Synchronizing Ledger...
+                        </div>
+                    ) : (
+                    <div className="w-1/4 bg-gray-900 p-4 rounded-xl border border-gray-800 h-full overflow-y-auto custom-scrollbar shadow-lg">
+                        <h2 className="text-xs font-black text-gray-500 mb-4 uppercase tracking-widest px-2 flex items-center gap-2">
+                            <History size={14} /> Season Archive
+                        </h2>
+                        {historySeasons.length === 0 && <p className="text-gray-600 text-xs px-2 italic">No closed seasons found.</p>}
+                        <div className="space-y-2">
+                            {historySeasons.map(s => (
+                                <button
+                                    key={s.id}
+                                    onClick={() => handleSelectPastSeason(s)}
+                                    className={`w-full text-left p-3 rounded-xl border transition-all ${selectedPastSeason?.id === s.id ? 'bg-blue-900/20 border-blue-500 text-blue-100' : 'bg-gray-800/50 border-gray-800 text-gray-400 hover:bg-gray-800'}`}
+                                >
+                                    <div className="font-bold text-sm">{s.name}</div>
+                                    <div className="text-[10px] opacity-60 font-mono tracking-tighter">Cap: {s.powerCap.toLocaleString()}</div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    )}
 
-                    <h2 className="text-xl font-bold text-white mb-4 border-b border-gray-700 pb-2 flex items-center gap-2">
-                        <History className="text-blue-500" /> Season History
-                    </h2>
+                    <div className="w-3/4 bg-gray-900 rounded-xl border border-gray-800 shadow-2xl overflow-hidden flex flex-col">
+                        {selectedPastSeason ? (
+                            <>
+                                <div className="p-4 border-b border-gray-800 bg-gray-900 flex justify-between items-center">
+                                    <div>
+                                        <h3 className="text-sm font-black text-white uppercase tracking-tighter">Final Ledger: {selectedPastSeason.name}</h3>
 
-                    {historySeasons.length === 0 && <p className="text-gray-500 text-sm">No closed seasons found.</p>}
-
-                    <div className="space-y-2">
-                        {historySeasons.map(s => (
-                            <button
-                                key={s.id}
-                                onClick={() => handleSelectPastSeason(s)}
-                                className={`w-full text-left p-3 rounded border transition-colors ${selectedPastSeason?.id === s.id ? 'bg-blue-900/40 border-blue-500 text-blue-100' : 'bg-gray-900 border-gray-700 hover:bg-gray-700'}`}
-                            >
-                                <div className="font-bold">{s.name}</div>
-                                <div className="text-xs text-gray-400">Cap: {s.powerCap.toLocaleString()}</div>
-                            </button>
-                        ))}
+                                        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Closed on {new Date(selectedPastSeason.closedAt).toLocaleDateString()}</p>
+                                    </div>
+                                    <span className="px-3 py-1 bg-gray-800 text-gray-500 border border-gray-700 text-[10px] font-black uppercase tracking-widest rounded-lg">Archived</span>
+                                </div>
+                                <div className="flex-1 overflow-y-auto custom-scrollbar">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                        <tr className="bg-gray-950 sticky top-0 border-b border-gray-800 text-gray-500 text-[10px] font-black uppercase tracking-widest">
+                                            <th className="p-4 pl-6">Candidate</th>
+                                            <th className="p-4">Source</th>
+                                            <th className="p-4">Power</th>
+                                            <th className="p-4">Type</th>
+                                            <th className="p-4 text-right pr-6">Status</th>
+                                        </tr>
+                                        </thead>
+                                        <tbody className="text-xs">
+                                        {historyRecords.length === 0 && (
+                                            <tr><td colSpan="5" className="p-20 text-center text-gray-600 italic">No records for this season.</td></tr>
+                                        )}
+                                        {historyRecords.map(r => {
+                                            const isConfirmed = r.status === 'Confirmed';
+                                            const isDeclined = r.status === 'Declined';
+                                            return (
+                                                <tr key={r.id} className={`border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors ${isConfirmed ? 'bg-green-900/5 opacity-80' : isDeclined ? 'bg-red-900/5 opacity-60 grayscale' : ''}`}>
+                                                    <td className="p-4 pl-6 flex items-center gap-4">
+                                                        <div className="relative">
+                                                            <img src={r.avatar || 'https://via.placeholder.com/40'} alt="av" className="w-10 h-10 rounded-full border border-gray-700 shadow-inner" />
+                                                            {r.furnaceImage && <img src={r.furnaceImage} alt="f" className="w-4 h-4 absolute -bottom-1 -right-1 drop-shadow-md" />}
+                                                        </div>
+                                                        <div>
+                                                            <div className="font-bold text-gray-200">{r.nickname}</div>
+                                                            <div className="text-[10px] text-gray-500 font-mono tracking-tighter">{r.fid}</div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-4 text-gray-400 font-bold">{r.sourceState}</td>
+                                                    <td className="p-4 text-yellow-600 font-mono text-[11px] font-bold">{r.power.toLocaleString()}</td>
+                                                    <td className="p-4">
+                                                        {r.inviteType !== 'None' ? (
+                                                            <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter border ${r.inviteType === 'Normal' ? 'bg-blue-900/20 border-blue-800 text-blue-400' : 'bg-purple-900/20 border-purple-800 text-purple-400'}`}>
+                                                                    {r.inviteType}
+                                                                </span>
+                                                        ) : <span className="text-gray-700 text-[10px] font-black">-</span>}
+                                                    </td>
+                                                    <td className="p-4 text-right font-black pr-6 text-[10px] uppercase">
+                                                        {isConfirmed && <span className="text-green-500 flex justify-end items-center gap-1.5"><Shield size={12}/> Confirmed</span>}
+                                                        {isDeclined && <span className="text-red-500">Declined</span>}
+                                                        {r.status === 'Pending' && <span className="text-gray-600">Abandoned</span>}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-full text-gray-600 space-y-4">
+                                <Archive size={48} className="opacity-10" />
+                                <p className="text-xs font-black uppercase tracking-widest">Select a season archive</p>
+                            </div>
+                        )}
                     </div>
                 </div>
-
-                {/* Main Content (Read-Only Ledger) */}
-                <div className="w-3/4 bg-gray-800 rounded-lg border border-gray-700 shadow-xl overflow-hidden">
-                    {selectedPastSeason ? (
-                        <>
-                            <div className="p-4 border-b border-gray-700 bg-gray-900/50 flex justify-between items-center">
-                                <div>
-                                    <h3 className="text-lg font-bold text-white">{selectedPastSeason.name} - Final Ledger</h3>
-                                    <p className="text-xs text-gray-400">Closed on {new Date(selectedPastSeason.closedAt).toLocaleDateString()}</p>
-                                </div>
-                                <span className="px-3 py-1 bg-gray-800 text-gray-400 border border-gray-700 text-xs font-bold uppercase rounded-full">Archived</span>
-                            </div>
-
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                <tr className="bg-gray-900 border-b border-gray-700 text-gray-400 text-xs uppercase tracking-wider">
-                                    <th className="p-3 pl-4">Candidate</th>
-                                    <th className="p-3">Source State</th>
-                                    <th className="p-3">Power</th>
-                                    <th className="p-3">Invite Sent</th>
-                                    <th className="p-3 text-right pr-4">Final Status</th>
-                                </tr>
-                                </thead>
-                                <tbody className="text-sm">
-                                {historyRecords.length === 0 && (
-                                    <tr><td colSpan="5" className="p-8 text-center text-gray-500">No records found for this season.</td></tr>
-                                )}
-                                {historyRecords.map(r => {
-                                    const isConfirmed = r.status === 'Confirmed';
-                                    const isDeclined = r.status === 'Declined';
-
-                                    let rowClass = "border-b border-gray-700/50 hover:bg-gray-700/20 ";
-                                    if (isConfirmed) rowClass += "bg-green-900/10 opacity-70";
-                                    if (isDeclined) rowClass += "bg-red-900/10 opacity-50 grayscale";
-
-                                    return (
-                                        <tr key={r.id} className={rowClass}>
-                                            <td className="p-3 pl-4 flex items-center gap-3">
-                                                <div className="relative">
-                                                    <img src={r.avatar || 'https://via.placeholder.com/40'} alt="avatar" className="w-10 h-10 rounded-full border border-gray-600" />
-                                                    {r.furnaceImage && <img src={r.furnaceImage} alt="furnace" className="w-4 h-4 absolute -bottom-1 -right-1" />}
-                                                </div>
-                                                <div>
-                                                    <div className="font-bold text-gray-100">{r.nickname}</div>
-                                                    <div className="text-xs text-gray-500 font-mono">{r.fid}</div>
-                                                </div>
-                                                {r.direction === 'Outbound' && <span className="ml-2 px-2 py-0.5 bg-red-900/30 text-red-400 text-[10px] rounded uppercase font-bold border border-red-800/50">Left State</span>}
-                                            </td>
-                                            <td className="p-3 text-gray-400">{r.sourceState}</td>
-                                            <td className="p-3 text-yellow-500 font-mono text-xs">{r.power.toLocaleString()}</td>
-                                            <td className="p-3">
-                                                {r.inviteType !== 'None' ? (
-                                                    <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${
-                                                        r.inviteType === 'Normal' ? 'bg-blue-600/30 text-blue-400 border border-blue-800' : 'bg-purple-600/30 text-purple-400 border border-purple-800'
-                                                    }`}>{r.inviteType}</span>
-                                                ) : <span className="text-gray-600 text-xs">-</span>}
-                                            </td>
-                                            <td className="p-3 text-right font-bold pr-4">
-                                                {isConfirmed && <span className="text-green-500 flex justify-end items-center gap-1"><Shield size={14}/> Transferred</span>}
-                                                {isDeclined && <span className="text-red-500">Declined</span>}
-                                                {r.status === 'Pending' && <span className="text-gray-500">Abandoned</span>}
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                                </tbody>
-                            </table>
-                        </>
-                    ) : (
-                        <div className="flex items-center justify-center h-full text-gray-500">Select a season from the sidebar to view its ledger.</div>
-                    )}
-                </div>
-            </div>
+            </AdminLayout>
         );
     }
 
@@ -290,48 +316,62 @@ export default function TransferManager() {
     // ==========================================
     if (!season) {
         return (
-            <div className="p-10 flex flex-col items-center justify-center h-screen bg-gray-900 text-gray-300 relative">
-                <Link to="/" className="absolute top-6 left-6 p-2 bg-gray-800 rounded-lg text-gray-400 hover:text-white border border-gray-700 transition-colors shadow">
-                    <ArrowLeft className="w-5 h-5" />
-                </Link>
-                <Archive className="w-16 h-16 text-gray-600 mb-4" />
-                <h2 className="text-2xl font-bold text-white mb-2">No Active Transfer Season</h2>
-                <p className="mb-6">Start a new season to begin planning transfers, or review history.</p>
+            <AdminLayout title="Transfer Manager" actions={transferActions}>
+                <div className="p-10 flex flex-col items-center justify-center h-full bg-gray-900 text-gray-300">
+                    <Archive className="w-16 h-16 text-gray-700 mb-6 opacity-50" />
+                    <h2 className="text-2xl font-black text-white mb-2 uppercase tracking-tighter">No Active Season</h2>
+                    <p className="mb-8 text-gray-500 text-sm font-bold uppercase tracking-widest text-center max-w-sm">Draft a new window to begin onboarding candidates or check history archives.</p>
 
-                <div className="flex gap-4">
-                    {isAdmin && (
-                        <button onClick={() => setShowCreateModal(true)} className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold shadow-lg">
-                            Open New Season
+                    <div className="flex gap-4">
+                        {isAdmin && (
+                            <button onClick={() => setShowCreateModal(true)} className="px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black uppercase tracking-widest shadow-xl transition-all hover:scale-105">
+                                Open New Season
+                            </button>
+                        )}
+                        <button onClick={handleViewHistory} className="px-8 py-3 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-white rounded-xl font-black uppercase tracking-widest shadow-xl transition-all">
+                            View History
                         </button>
-                    )}
-                    <button onClick={handleViewHistory} className="px-6 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white rounded font-bold shadow-lg flex items-center gap-2">
-                        <History size={18} /> View History
-                    </button>
-                </div>
+                    </div>
 
-                {/* Create Season Modal */}
-                {showCreateModal && (
-                    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-                        <div className="bg-gray-800 p-6 rounded-lg w-96 border border-gray-700">
-                            <h3 className="text-lg font-bold text-white mb-4">New Transfer Season</h3>
-                            <input type="text" placeholder="Season Name (e.g. March 2026)" className="w-full mb-3 p-2 bg-gray-900 border border-gray-700 rounded text-white"
-                                   value={newSeason.name} onChange={e => setNewSeason({...newSeason, name: e.target.value})} />
-                            <input type="number" placeholder="Power Cap" className="w-full mb-3 p-2 bg-gray-900 border border-gray-700 rounded text-white"
-                                   value={newSeason.powerCap} onChange={e => setNewSeason({...newSeason, powerCap: parseInt(e.target.value)})} />
-                            <input type="number" placeholder="Special Invites Available" className="w-full mb-3 p-2 bg-gray-900 border border-gray-700 rounded text-white"
-                                   value={newSeason.specials} onChange={e => setNewSeason({...newSeason, specials: parseInt(e.target.value)})} />
-                            <label className="flex items-center text-gray-300 mb-6 cursor-pointer">
-                                <input type="checkbox" className="mr-2" checked={newSeason.leading} onChange={e => setNewSeason({...newSeason, leading: e.target.checked})} />
-                                Is Leading State? (Limits to 20 Normal Invites)
-                            </label>
-                            <div className="flex justify-end gap-2">
-                                <button onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-gray-400 hover:text-white">Cancel</button>
-                                <button onClick={handleCreateSeason} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded">Create</button>
+                    {showCreateModal && (
+                        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
+                            <div className="bg-gray-800 p-8 rounded-2xl w-full max-w-md border border-gray-700 shadow-2xl">
+                                <h3 className="text-xl font-black text-white mb-6 uppercase tracking-tighter">Draft Season</h3>
+                                <div className="space-y-4 mb-8">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Season Name</label>
+                                        <input type="text" placeholder="e.g. March 2026 Window" className="w-full p-3 bg-gray-900 border border-gray-700 rounded-xl text-white outline-none focus:border-blue-500 transition-all shadow-inner"
+                                               value={newSeason.name} onChange={e => setNewSeason({...newSeason, name: e.target.value})} />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Power Cap</label>
+                                            <input type="number" className="w-full p-3 bg-gray-900 border border-gray-700 rounded-xl text-white outline-none font-mono"
+                                                   value={newSeason.powerCap} onChange={e => setNewSeason({...newSeason, powerCap: parseInt(e.target.value)})} />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Specials Available</label>
+                                            <input type="number" className="w-full p-3 bg-gray-900 border border-gray-700 rounded-xl text-white outline-none font-mono"
+                                                   value={newSeason.specials} onChange={e => setNewSeason({...newSeason, specials: parseInt(e.target.value)})} />
+                                        </div>
+                                    </div>
+                                    <label className="flex items-center gap-3 p-4 bg-gray-900 rounded-xl border border-gray-700 cursor-pointer group hover:border-blue-500 transition-all">
+                                        <input type="checkbox" className="w-5 h-5 rounded border-gray-700 bg-gray-800" checked={newSeason.leading} onChange={e => setNewSeason({...newSeason, leading: e.target.checked})} />
+                                        <div>
+                                            <p className="text-xs font-black uppercase tracking-widest text-white">Leading State Status</p>
+                                            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter">Enforces strict 20-invite limit</p>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div className="flex justify-end gap-3">
+                                    <button onClick={() => setShowCreateModal(false)} className="px-5 py-2.5 text-gray-400 hover:text-white font-black uppercase tracking-widest text-xs">Cancel</button>
+                                    <button onClick={handleCreateSeason} className="px-8 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black uppercase tracking-widest shadow-lg transition-all">Confirm</button>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                )}
-            </div>
+                    )}
+                </div>
+            </AdminLayout>
         );
     }
 
@@ -339,201 +379,194 @@ export default function TransferManager() {
     // RENDER: ACTIVE DASHBOARD
     // ==========================================
     return (
-        <div className="min-h-screen bg-gray-900 text-gray-200 p-6 font-sans">
-            <div className="flex justify-between items-end mb-6 border-b border-gray-700 pb-4">
-                <div>
-                    <div className="flex items-center gap-4 mb-2">
-                        <Link to="/" className="p-2 bg-gray-800 rounded-lg text-gray-400 hover:text-white border border-gray-700 transition-colors shadow">
-                            <ArrowLeft className="w-5 h-5" />
-                        </Link>
-                        <h1 className="text-2xl font-black text-white flex items-center gap-3">
-                            <Send className="text-blue-500" /> Transfer Manager: {season.name}
-                        </h1>
+        <AdminLayout title={pageTitle} actions={transferActions}>
+            <div className="p-6 flex flex-col h-full bg-gray-950 overflow-hidden">
 
-                        <span className={`px-3 py-1 text-xs font-bold uppercase rounded-full border ${
-                            season.status === 'Planning' ? 'bg-yellow-900/30 text-yellow-500 border-yellow-700/50' :
-                                'bg-green-900/30 text-green-500 border-green-700/50'
-                        }`}>
-                            {season.status} Phase
-                        </span>
+                {/* Status Bar */}
+                <div className="flex flex-wrap items-center gap-6 mb-6 px-4 py-3 bg-gray-900 border border-gray-800 rounded-2xl shadow-xl shrink-0">
+                    <div className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-full border ${
+                        season.status === 'Planning' ? 'bg-yellow-900/20 text-yellow-500 border-yellow-700/50' : 'bg-green-900/20 text-green-500 border-green-700/50'
+                    }`}>
+                        {season.status} Mode
                     </div>
 
-                    <div className="flex gap-6 mt-2 ml-14 text-sm font-bold">
-                        <span className="text-gray-400">Power Cap: <span className="text-yellow-500">{season.powerCap.toLocaleString()}</span></span>
-                        <span className={`${stats.normalUsed >= stats.normalMax ? 'text-red-500' : 'text-blue-400'}`}>
-                            Normal Invites: {stats.normalUsed} / {stats.normalMax}
-                        </span>
-                        <span className={`${stats.specialUsed >= stats.specialMax ? 'text-red-500' : 'text-purple-400'}`}>
-                            Special Invites: {stats.specialUsed} / {stats.specialMax}
-                        </span>
-                    </div>
-                </div>
-
-                <div className="flex gap-3">
-                    <button onClick={handleViewHistory} className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700 hover:text-white rounded font-bold shadow transition-colors">
-                        <History size={16} /> History
-                    </button>
-
-                    {isAdmin && (
-                        <>
-                            <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 px-4 py-2 bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700 hover:text-white rounded font-bold shadow transition-colors">
-                                <Plus size={16} /> Add Candidates
-                            </button>
-
-                            {season.status === 'Planning' && (
-                                <button onClick={() => handleUpdateSeasonStatus('Active')} className="flex items-center gap-2 px-4 py-2 bg-blue-600/20 text-blue-400 border border-blue-800/50 hover:bg-blue-600/40 rounded font-bold shadow transition-colors">
-                                    <Play size={16} /> Open Window
-                                </button>
-                            )}
-
-                            {(season.status === 'Planning' || season.status === 'Active') && (
-                                <button onClick={() => handleUpdateSeasonStatus('Closed')} className="flex items-center gap-2 px-4 py-2 bg-red-600/20 text-red-400 border border-red-800/50 hover:bg-red-600/40 rounded font-bold shadow transition-colors">
-                                    <Archive size={16} /> Close Season
-                                </button>
-                            )}
-                        </>
-                    )}
-                </div>
-            </div>
-
-            <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden shadow-xl">
-                <table className="w-full text-left border-collapse">
-                    <thead>
-                    <tr className="bg-gray-900 border-b border-gray-700 text-gray-400 text-xs uppercase tracking-wider">
-                        <th className="p-3 pl-4">Candidate</th>
-                        <th className="p-3">Source State</th>
-                        <th className="p-3">Target Alliance</th>
-                        <th className="p-3">Power</th>
-                        <th className="p-3 text-center">Invite Sent</th>
-                        <th className="p-3 text-right pr-4">Actions</th>
-                    </tr>
-                    </thead>
-                    <tbody className="text-sm">
-                    {records.length === 0 && (
-                        <tr><td colSpan="6" className="p-8 text-center text-gray-500">No candidates added yet.</td></tr>
-                    )}
-                    {records.map(r => {
-                        const isConfirmed = r.status === 'Confirmed';
-                        const isDeclined = r.status === 'Declined';
-                        const isOverPower = r.power > season.powerCap && !isConfirmed && !isDeclined;
-
-                        let rowClass = "border-b border-gray-700/50 hover:bg-gray-700/20 transition-colors ";
-                        if (isConfirmed) rowClass += "bg-green-900/10 opacity-70";
-                        if (isDeclined) rowClass += "bg-red-900/10 opacity-50 grayscale";
-
-                        return (
-                            <tr key={r.id} className={rowClass}>
-                                <td className="p-3 pl-4 flex items-center gap-3">
-                                    <div className="relative">
-                                        <img src={r.avatar || 'https://via.placeholder.com/40'} alt="avatar" className="w-10 h-10 rounded-full border border-gray-600" />
-                                        {r.furnaceImage && <img src={r.furnaceImage} alt="furnace" className="w-4 h-4 absolute -bottom-1 -right-1" />}
-                                    </div>
-                                    <div>
-                                        <div className="font-bold text-gray-100">{r.nickname}</div>
-                                        <div className="text-xs text-gray-500 font-mono">{r.fid}</div>
-                                    </div>
-                                    {r.direction === 'Outbound' && <span className="ml-2 px-2 py-0.5 bg-red-900/30 text-red-400 text-[10px] rounded uppercase font-bold border border-red-800/50">Leaving</span>}
-                                </td>
-
-                                <td className="p-3 text-gray-400">{r.sourceState}</td>
-
-                                <td className="p-3">
-                                    <select
-                                        disabled={!isAdmin || isConfirmed || isDeclined || r.direction === 'Outbound'}
-                                        value={r.targetAllianceId || ''}
-                                        onChange={(e) => handleUpdateRecord(r.id, 'targetAllianceId', e.target.value)}
-                                        className="bg-gray-900 border border-gray-600 rounded p-1.5 text-xs text-gray-300 outline-none w-32 disabled:opacity-50"
-                                    >
-                                        <option value="">-- Select --</option>
-                                        {alliances.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                                    </select>
-                                </td>
-
-                                <td className="p-3">
-                                    <div className="flex items-center gap-2">
-                                        <input
-                                            type="number"
-                                            disabled={!isAdmin || isConfirmed || isDeclined}
-                                            defaultValue={r.power}
-                                            onBlur={(e) => handleUpdateRecord(r.id, 'power', e.target.value)}
-                                            className={`bg-gray-900 border rounded p-1.5 text-xs font-mono w-28 outline-none disabled:opacity-50 ${
-                                                isOverPower ? 'border-red-500 text-red-400 shadow-[0_0_8px_rgba(239,68,68,0.4)]' : 'border-gray-600 text-yellow-500'
-                                            }`}
-                                        />
-                                        {isOverPower && <AlertTriangle size={14} className="text-red-500" title="Exceeds Power Cap!" />}
-                                    </div>
-                                </td>
-
-                                <td className="p-3 text-center">
-                                    <div className="flex justify-center gap-1">
-                                        <button
-                                            disabled={!isAdmin || isConfirmed || isDeclined || r.direction === 'Outbound'}
-                                            onClick={() => handleToggleInvite(r.id, r.inviteType, 'Normal')}
-                                            className={`px-2 py-1 rounded text-[10px] font-bold uppercase transition-colors disabled:cursor-not-allowed ${
-                                                r.inviteType === 'Normal' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-gray-700'
-                                            }`}
-                                        >Norm</button>
-                                        <button
-                                            disabled={!isAdmin || isConfirmed || isDeclined || r.direction === 'Outbound'}
-                                            onClick={() => handleToggleInvite(r.id, r.inviteType, 'Special')}
-                                            className={`px-2 py-1 rounded text-[10px] font-bold uppercase transition-colors disabled:cursor-not-allowed ${
-                                                r.inviteType === 'Special' ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-gray-700'
-                                            }`}
-                                        >Spec</button>
-                                    </div>
-                                </td>
-
-                                <td className="p-3 text-right flex justify-end gap-2 items-center h-full mt-2">
-                                    {r.status === 'Pending' && isAdmin && r.direction === 'Inbound' && (
-                                        <>
-                                            <button
-                                                onClick={() => handleConfirmInbound(r)}
-                                                disabled={season.status !== 'Active'}
-                                                className={`p-1.5 rounded border transition-colors ${
-                                                    season.status === 'Active'
-                                                        ? 'bg-green-900/40 text-green-400 hover:bg-green-600 hover:text-white border-green-800/50'
-                                                        : 'bg-gray-800 text-gray-600 border-gray-700 cursor-not-allowed'
-                                                }`}
-                                                title={season.status === 'Active' ? "Confirm Transfer & Add to Roster" : "Cannot confirm during Planning Phase"}
-                                            >
-                                                <Check size={16} />
-                                            </button>
-                                            <button onClick={() => handleUpdateRecord(r.id, 'status', 'Declined')} className="p-1.5 bg-red-900/40 text-red-400 hover:bg-red-600 hover:text-white rounded border border-red-800/50 transition-colors" title="Decline Candidate">
-                                                <X size={16} />
-                                            </button>
-                                        </>
-                                    )}
-                                    {isConfirmed && <span className="text-green-500 text-xs font-bold uppercase flex items-center gap-1"><Shield size={12}/> Locked</span>}
-                                    {isDeclined && <span className="text-red-500 text-xs font-bold uppercase">Declined</span>}
-                                </td>
-                            </tr>
-                        );
-                    })}
-                    </tbody>
-                </table>
-            </div>
-
-            {/* Bulk Add Modal */}
-            {showAddModal && (
-                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-                    <div className="bg-gray-800 p-6 rounded-lg w-[500px] border border-gray-700">
-                        <h3 className="text-lg font-bold text-white mb-2">Bulk Add Candidates</h3>
-                        <p className="text-xs text-gray-400 mb-4">Paste a comma-separated list of FIDs. The system will poll the game API for their names and states.</p>
-                        <textarea
-                            className="w-full h-32 p-3 bg-gray-900 border border-gray-700 rounded text-gray-300 font-mono text-sm outline-none mb-4"
-                            placeholder="e.g. 12345678, 87654321, 11223344"
-                            value={bulkFids}
-                            onChange={(e) => setBulkFids(e.target.value)}
-                        />
-                        <div className="flex justify-end gap-2">
-                            <button onClick={() => setShowAddModal(false)} className="px-4 py-2 text-gray-400 hover:text-white">Cancel</button>
-                            <button onClick={handleBulkAdd} className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded font-bold flex items-center gap-2">
-                                <Send size={16} /> Start Sync
-                            </button>
+                    <div className="flex gap-8 text-[11px] font-black uppercase tracking-widest divide-x divide-gray-800">
+                        <div className="flex gap-3 items-center">
+                            <span className="text-gray-500">Power Limit:</span>
+                            <span className="text-yellow-500 font-mono tracking-tighter">{season.powerCap.toLocaleString()}</span>
+                        </div>
+                        <div className="flex gap-3 items-center pl-8">
+                            <span className="text-gray-500">Normal Slots:</span>
+                            <span className={`${stats.normalUsed >= stats.normalMax ? 'text-red-500' : 'text-blue-400'} font-mono`}>{stats.normalUsed} / {stats.normalMax}</span>
+                        </div>
+                        <div className="flex gap-3 items-center pl-8">
+                            <span className="text-gray-500">Special Invitations:</span>
+                            <span className={`${stats.specialUsed >= stats.specialMax ? 'text-red-500' : 'text-purple-400'} font-mono`}>{stats.specialUsed} / {stats.specialMax}</span>
                         </div>
                     </div>
                 </div>
-            )}
-        </div>
+
+                {/* Ledger Table */}
+                <div className="flex-1 bg-gray-900 rounded-2xl border border-gray-800 shadow-2xl overflow-hidden flex flex-col">
+                    <div className="flex-1 overflow-y-auto custom-scrollbar">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                            <tr className="bg-gray-950 sticky top-0 border-b border-gray-800 text-gray-500 text-[10px] font-black uppercase tracking-widest z-10">
+                                <th className="p-4 pl-6">Candidate</th>
+                                <th className="p-4">Source</th>
+                                <th className="p-4">Destination</th>
+                                <th className="p-4">Power Record</th>
+                                <th className="p-4 text-center">Invite Type</th>
+                                <th className="p-4 text-right pr-6">Management</th>
+                            </tr>
+                            </thead>
+                            <tbody className="text-xs">
+                            {records.length === 0 && (
+                                <tr><td colSpan="6" className="p-20 text-center text-gray-600 font-black uppercase tracking-widest">No candidates drafted</td></tr>
+                            )}
+                            {records.map(r => {
+                                const isConfirmed = r.status === 'Confirmed';
+                                const isDeclined = r.status === 'Declined';
+                                const isOverPower = r.power > season.powerCap && !isConfirmed && !isDeclined;
+
+                                return (
+                                    <tr key={r.id} className={`border-b border-gray-800/50 hover:bg-gray-800 transition-colors ${isConfirmed ? 'bg-green-900/10 opacity-80' : isDeclined ? 'bg-red-900/10 opacity-50 grayscale' : ''}`}>
+                                        <td className="p-4 pl-6 flex items-center gap-4">
+                                            <div className="relative shrink-0">
+                                                <img src={r.avatar || 'https://via.placeholder.com/40'} alt="av" className="w-10 h-10 rounded-full border border-gray-700 shadow-md" />
+                                                {r.furnaceImage && <img src={r.furnaceImage} alt="f" className="w-4 h-4 absolute -bottom-1 -right-1 drop-shadow-xl" />}
+                                            </div>
+                                            <div className="min-w-0">
+                                                <div className="font-bold text-gray-100 truncate w-32">{r.nickname}</div>
+                                                <div className="text-[10px] text-gray-500 font-mono tracking-tighter">{r.fid}</div>
+                                            </div>
+                                            {r.direction === 'Outbound' && <span className="px-2 py-0.5 bg-red-900/40 text-red-400 text-[9px] rounded-lg uppercase font-black border border-red-800/50 tracking-widest">Exiting</span>}
+                                        </td>
+
+                                        <td className="p-4 text-gray-400 font-bold uppercase tracking-widest text-[10px]">{r.sourceState}</td>
+
+                                        <td className="p-4">
+                                            <select
+                                                disabled={!isAdmin || isConfirmed || isDeclined || r.direction === 'Outbound'}
+                                                value={r.targetAllianceId || ''}
+                                                onChange={(e) => handleUpdateRecord(r.id, 'targetAllianceId', e.target.value)}
+                                                className="bg-gray-950 border border-gray-800 rounded-xl p-2 text-[10px] font-black uppercase tracking-widest text-gray-400 outline-none w-36 disabled:opacity-30 focus:border-blue-500/50 transition-all shadow-inner"
+                                            >
+                                                <option value="">Pending...</option>
+                                                {alliances.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                                            </select>
+                                        </td>
+
+                                        <td className="p-4">
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="number"
+                                                    disabled={!isAdmin || isConfirmed || isDeclined}
+                                                    defaultValue={r.power}
+                                                    onBlur={(e) => handleUpdateRecord(r.id, 'power', e.target.value)}
+                                                    className={`bg-gray-950 border rounded-xl p-2 text-[11px] font-mono w-32 outline-none disabled:opacity-30 transition-all shadow-inner ${
+                                                        isOverPower ? 'border-red-500 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.2)]' : 'border-gray-800 text-yellow-500'
+                                                    }`}
+                                                />
+                                                {isOverPower && <AlertTriangle size={14} className="text-red-500 animate-pulse" />}
+                                            </div>
+                                        </td>
+
+                                        <td className="p-4">
+                                            <div className="flex justify-center gap-1.5">
+                                                {['Normal', 'Special'].map((type) => (
+                                                    <button
+                                                        key={type}
+                                                        disabled={!isAdmin || isConfirmed || isDeclined || r.direction === 'Outbound'}
+                                                        onClick={() => handleToggleInvite(r.id, r.inviteType, type)}
+                                                        className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-20 ${
+                                                            r.inviteType === type
+                                                                ? (type === 'Normal' ? 'bg-blue-600 text-white shadow-lg' : 'bg-purple-600 text-white shadow-lg')
+                                                                : 'bg-gray-800 text-gray-500 border border-gray-700 hover:bg-gray-700'
+                                                        }`}
+                                                    >
+                                                        {type.substring(0, 4)}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </td>
+
+                                        <td className="p-4 text-right pr-6">
+                                            <div className="flex justify-end gap-2">
+                                                {r.status === 'Pending' && isAdmin && r.direction === 'Inbound' ? (
+                                                    <>
+                                                        <button
+                                                            onClick={() => handleConfirmInbound(r)}
+                                                            disabled={season.status !== 'Active'}
+                                                            className={`p-2 rounded-xl border transition-all ${
+                                                                season.status === 'Active'
+                                                                    ? 'bg-green-900/20 text-green-400 hover:bg-green-600 hover:text-white border-green-800/50 shadow-md'
+                                                                    : 'bg-gray-800 text-gray-700 border-gray-700 cursor-not-allowed opacity-30'
+                                                            }`}
+                                                            title="Accept & Add to Roster"
+                                                        >
+                                                            <Check size={16} />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleUpdateRecord(r.id, 'status', 'Declined')}
+                                                            className="p-2 bg-red-900/20 text-red-400 hover:bg-red-600 hover:text-white rounded-xl border border-red-800/50 transition-all shadow-md"
+                                                            title="Reject"
+                                                        >
+                                                            <X size={16} />
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <div className="flex items-center gap-2">
+                                                        {isConfirmed && <span className="text-green-500 text-[10px] font-black uppercase flex items-center gap-2"><Shield size={14}/> Onboarded</span>}
+                                                        {isDeclined && <span className="text-red-500 text-[10px] font-black uppercase">Rejected</span>}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                {/* Bulk Add Modal */}
+                {showAddModal && (
+                    <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
+                        <div className="bg-gray-800 p-8 rounded-2xl w-full max-w-lg border border-gray-700 shadow-2xl">
+                            <div className="flex justify-between items-center mb-6">
+                                <div>
+                                    <h3 className="text-xl font-black text-white uppercase tracking-tighter">Draft Candidates</h3>
+                                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Poll Game API via FID List</p>
+                                </div>
+                                <button onClick={() => setShowAddModal(false)} className="p-2 text-gray-500 hover:text-white transition-colors">
+                                    <X size={24} />
+                                </button>
+                            </div>
+                            <textarea
+                                className="w-full h-40 p-4 bg-gray-900 border border-gray-700 rounded-2xl text-gray-300 font-mono text-sm outline-none mb-6 shadow-inner focus:border-blue-500 transition-all"
+                                placeholder="87654321, 12345678, ..."
+                                value={bulkFids}
+                                onChange={(e) => setBulkFids(e.target.value)}
+                            />
+                            <div className="flex justify-end gap-3">
+                                <button onClick={() => setShowAddModal(false)} className="px-6 py-2.5 text-gray-400 hover:text-white font-black text-xs uppercase tracking-widest">Cancel</button>
+                                <button onClick={handleBulkAdd} className="px-8 py-2.5 bg-green-600 hover:bg-green-500 text-white rounded-xl font-black uppercase tracking-widest shadow-xl flex items-center gap-2 transition-all hover:scale-105">
+                                    <Send size={16} /> Sync API
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            <style jsx="true">{`
+                .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+                .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 10px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #4B5563; }
+            `}</style>
+        </AdminLayout>
     );
 }

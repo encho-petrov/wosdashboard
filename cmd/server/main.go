@@ -105,7 +105,7 @@ func main() {
 
 	_, err = store.GetUserByUsername("admin")
 	if err != nil {
-		hash, _ := auth.HashPassword("admin123") // Change this!
+		hash, _ := auth.HashPassword("admin123")
 		err := store.CreateUser("admin", hash, "admin", 0)
 		if err != nil {
 			log.Fatalf("FATAL: Failed to create default admin user: %v", err)
