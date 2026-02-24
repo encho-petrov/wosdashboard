@@ -1,408 +1,197 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { navLinks } from '../config/navigation';
 import client from '../api/client';
+import AdminLayout from '../components/layout/AdminLayout';
 import { toast } from 'react-toastify';
 import { Link } from 'react-router-dom';
-import {
-  LogOut, Play, Download, Activity, FileText,
-  CheckCircle, Users as UsersIcon, List, Swords, Sword, Clock,
-  Shield, KeyRound, Terminal, ShieldCheck, LayoutGrid, ArrowRightLeft
-} from 'lucide-react';
-
+import { Play, Download, Activity, FileText, CheckCircle, ShieldCheck, KeyRound, ArrowRight } from 'lucide-react';
 import ChangePasswordModal from '../components/ChangePasswordModal';
 import MfaSetupModal from '../components/MfaSetupModal';
 
 export default function Dashboard() {
-  const { user, logout } = useAuth();
-
+  const { user } = useAuth();
   const [codes, setCodes] = useState('');
   const [activeJob, setActiveJob] = useState(null);
   const [history, setHistory] = useState([]);
-  const [loadingHistory, setLoadingHistory] = useState(true);
-
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [showMfaModal, setShowMfaModal] = useState(false); // <-- ADD THIS
-
-  const wasRunning = useRef(false);
+  const [loading, setLoading] = useState(true);
   const [captchaBalance, setCaptchaBalance] = useState(null);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showMfaModal, setShowMfaModal] = useState(false);
+  const wasRunning = useRef(false);
 
-  const fetchBalance = async () => {
-    try {
-      const res = await client.get('/moderator/captcha-balance');
-      setCaptchaBalance(res.data.balance);
-    } catch (err) {
-      console.error("Failed to fetch captcha balance");
-    }
-  };
-
-  // 1. Fetch History
-  const fetchHistory = async () => {
-    try {
-      const res = await client.get('/moderator/jobs');
-      setHistory(res.data || []);
-    } catch (err) {
-      console.error("Failed to fetch history", err);
-    } finally {
-      setLoadingHistory(false);
-    }
-  };
-
-  // 2. Poll Real-time Status
   useEffect(() => {
-    if (sessionStorage.getItem('mfa_enabled') === 'false') {
-      setShowMfaModal(true);
-    }
-    fetchHistory();
-    fetchBalance();
-
-    const interval = setInterval(async () => {
-      try {
-        const res = await client.get('/moderator/job/current');
-        const isRunning = res.data.active;
-
-        if (isRunning) {
-          setActiveJob(res.data.data);
-        } else {
-          setActiveJob(null);
-          if (wasRunning.current) {
-            toast.success("Job Completed!");
-            await fetchHistory();
-          }
-        }
-        wasRunning.current = isRunning;
-        await fetchBalance();
-      } catch (error) {
-        // Silent fail on polling errors
-      }
-    }, 2000);
-
+    if (sessionStorage.getItem('mfa_enabled') === 'false') setShowMfaModal(true);
+    void fetchData();
+    const interval = setInterval(pollJobStatus, 3000);
     return () => clearInterval(interval);
   }, []);
 
-  const handleStart = async (e) => {
-    e.preventDefault();
-    if (!codes.trim()) return toast.warning("Please enter at least one gift code");
-
-    const codeList = codes.split(',').map(c => c.trim()).filter(c => c !== "");
-
+  const fetchData = async () => {
     try {
-      await client.post('/moderator/redeem', { giftCodes: codeList });
-      toast.success("Job started successfully!");
-      setCodes('');
-      wasRunning.current = true;
-      setActiveJob({ status: "STARTING", processed: 0, total: 0 });
-    } catch (err) {
-      if (err.response?.status === 409) {
-        toast.error("A job is already running!");
-      } else {
-        toast.error("Failed to start job");
-      }
-    }
+      const [histRes, balRes] = await Promise.all([
+        client.get('/moderator/jobs'),
+        client.get('/moderator/captcha-balance')
+      ]);
+      setHistory(histRes.data || []);
+      setCaptchaBalance(balRes.data.balance);
+    } catch (err) { console.error("Data fetch error", err); }
+    finally { setLoading(false); }
   };
 
-  const handleDownload = async (filename) => {
+  const pollJobStatus = async () => {
     try {
-      const response = await client.get(`/moderator/reports/${filename}`, { responseType: 'blob' });
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', filename);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-    } catch (err) {
-      toast.error("Download failed.");
-    }
+      const res = await client.get('/moderator/job/current');
+      if (res.data.active) {
+        setActiveJob(res.data.data);
+        wasRunning.current = true;
+      } else {
+        setActiveJob(null);
+        if (wasRunning.current) {
+          toast.success("Redemption Job Finished!");
+          wasRunning.current = false;
+          await fetchData();
+        }
+      }
+    } catch (e) { /* Silent */ }
+  };
+
+  const handleStartJob = async (e) => {
+    e.preventDefault();
+    if (!codes.trim()) return toast.warning("Enter gift codes.");
+    const codeList = codes.split(',').map(c => c.trim()).filter(c => c);
+    try {
+      await client.post('/moderator/redeem', { giftCodes: codeList });
+      toast.success("Job Launched!");
+      setCodes('');
+      await pollJobStatus();
+    } catch (err) { toast.error("Job failed to start."); }
   };
 
   return (
-      <div className="min-h-screen bg-gray-900 text-gray-100 font-sans">
-
-        <nav className="bg-gray-800 border-b border-gray-700 px-6 py-4 flex flex-col md:flex-row justify-between items-center shadow-md gap-4">
-
-          {/* Left: Brand */}
-          <div className="flex items-center space-x-3">
-            <Activity className="text-blue-500 w-6 h-6" />
-            <h1 className="text-xl font-bold tracking-wide">
-              WOS Dashboard <span className="text-gray-500 text-sm font-normal">v1.0</span>
-            </h1>
+      <AdminLayout title="Command Dashboard">
+        <div className="p-6 space-y-8 max-w-[1600px] mx-auto">
+          {/* 1. DYNAMIC NAVIGATION GRID */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {navLinks.filter(l => l.path !== '/' && l.requiredRoles.includes(user?.role)).map(link => {
+              const Icon = link.icon;
+              return (
+                  <Link key={link.path} to={link.path} className="bg-gray-900 border border-gray-800 p-5 rounded-2xl hover:border-blue-500 transition-all group relative overflow-hidden">
+                    <Icon size={40} className="text-gray-700 group-hover:text-blue-500 mb-4 transition-colors" />
+                    <h3 className="text-sm font-black uppercase tracking-widest text-white">{link.name}</h3>
+                    <p className="text-[10px] text-gray-500 font-bold uppercase mt-1 leading-tight">{link.description}</p>
+                    <ArrowRight size={16} className="absolute right-4 bottom-4 text-gray-800 group-hover:text-blue-500 transition-colors" />
+                  </Link>
+              );
+            })}
           </div>
 
-          {/* Right: Actions & User */}
-          <div className="flex flex-wrap justify-center items-center gap-3">
-
-            <Link
-                to="/ministry"
-                className="flex items-center space-x-2 px-3 py-1.5 bg-blue-600/10 text-yellow-400 hover:bg-blue-600/20 rounded-lg transition-colors text-sm font-medium border border-blue-500/20"
-            >
-              <Clock className="w-4 h-4 text-yellow-400" />
-              <span>Ministry Reservations</span>
-            </Link>
-
-            <Link
-                to="/transfer-manager"
-                className="flex items-center space-x-2 px-3 py-1.5 bg-blue-600/10 text-green-400 hover:bg-blue-600/20 rounded-lg transition-colors text-sm font-medium border border-blue-500/20"
-            >
-              <ArrowRightLeft className="w-4 h-4 text-green-400" />
-              <span>Transfers</span>
-            </Link>
-            <Link
-                to="/rotation"
-                className="flex items-center space-x-2 px-3 py-1.5 bg-blue-600/10 text-blue-400 hover:bg-blue-600/20 rounded-lg transition-colors text-sm font-medium border border-blue-500/20"
-            >
-              <LayoutGrid className="w-4 h-4 text-blue-400" />
-              <span>Fortress Rotation</span>
-            </Link>
-
-            <Link
-                to="/roster"
-                className="flex items-center space-x-2 px-3 py-1.5 bg-blue-600/10 text-blue-400 hover:bg-blue-600/20 rounded-lg transition-colors text-sm font-medium border border-blue-500/20"
-            >
-              <List className="w-4 h-4" />
-              <span>Roster</span>
-            </Link>
-
-            <Link
-                to="/war-room"
-                className="flex items-center space-x-2 px-3 py-1.5 bg-red-900/20 text-red-400 hover:bg-red-900/30 rounded-lg transition-colors text-sm font-medium border border-red-500/30"
-            >
-              <Swords className="w-4 h-4" />
-              <span>War Room</span>
-            </Link>
-
-            <Link
-                to="/squads"
-                className="flex items-center space-x-2 px-3 py-1.5 bg-purple-900/20 text-purple-400 hover:bg-purple-900/30 rounded-lg transition-colors text-sm font-medium border border-purple-500/30"
-            >
-              <Sword className="w-4 h-4" />
-              <span>Squads</span>
-            </Link>
-
-            {user?.role === 'admin' && (
-                <Link
-                    to="/users"
-                    className="flex items-center space-x-2 px-3 py-1.5 bg-gray-700/50 text-gray-300 hover:bg-gray-700 rounded-lg transition-colors text-sm font-medium border border-gray-600/50"
-                >
-                  <UsersIcon className="w-4 h-4" />
-                  <span>Users</span>
-                </Link>
-            )}
-            {user?.role === 'admin' && (
-                <Link
-                    to="/alliances"
-                    className="flex items-center space-x-2 px-3 py-1.5 bg-gray-700/50 text-gray-300 hover:bg-gray-700 rounded-lg transition-colors text-sm font-medium border border-gray-600/50"
-                >
-                  <Shield className="w-4 h-4" />
-                  <span>Alliances</span>
-                </Link>
-            )}
-
-            {user?.role === 'admin' && (
-                <Link
-                    to="/audit-logs"
-                    className="flex items-center space-x-2 px-3 py-1.5 bg-gray-700/50 text-gray-300 hover:bg-gray-700 rounded-lg transition-colors text-sm font-medium border border-gray-600/50"
-                >
-                  <Terminal className="w-4 h-4" />
-                  <span>Audit Logs</span>
-                </Link>
-            )}
-
-            <div className="h-6 w-px bg-gray-700 mx-1 hidden md:block"></div>
-
-            <div className="flex items-center space-x-3">
-              <div className="text-right hidden md:block">
-                <div className="text-sm font-bold text-white">{user?.username}</div>
-                <div className="text-xs text-gray-500 uppercase">{user?.role}</div>
-              </div>
-
-              {/* --- CHANGE PASSWORD BUTTON --- */}
-              <button
-                  onClick={() => setShowPasswordModal(true)}
-                  className="p-2 hover:bg-gray-700 rounded-full transition-colors text-gray-400 hover:text-blue-400"
-                  title="Change Password"
-              >
-                <KeyRound className="w-5 h-5" />
-              </button>
-
-              <button
-                  onClick={logout}
-                  className="p-2 hover:bg-gray-700 rounded-full transition-colors text-gray-400 hover:text-red-400"
-                  title="Logout"
-              >
-                <LogOut className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        </nav>
-
-        {/* --- MAIN CONTENT --- */}
-        <main className="container mx-auto px-4 py-8 space-y-8 max-w-7xl">
-          {/* Launcher & Status */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-
-            {/* Card 1: Launcher */}
-            <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg">
-              <h2 className="text-lg font-semibold mb-4 flex items-center text-white">
-                <Play className="w-5 h-5 mr-2 text-green-400"/> New Redemption
+          {/* 2. AUTOMATION PANEL */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Launcher */}
+            <div className="lg:col-span-4 bg-gray-900 border border-gray-800 rounded-3xl p-6 shadow-2xl">
+              <h2 className="text-sm font-black uppercase tracking-widest text-white mb-6 flex items-center gap-2">
+                <Play size={16} className="text-green-500" /> Redemption Hub
               </h2>
-              <form onSubmit={handleStart}>
-                <label className="block text-sm text-gray-400 mb-2">Gift Codes (comma separated)</label>
-                <textarea
-                    className="w-full bg-gray-900 border border-gray-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-blue-500 outline-none h-32 font-mono text-sm resize-none"
-                    placeholder="CODE2024, BONUS500..."
-                    value={codes}
-                    onChange={(e) => setCodes(e.target.value)}
-                />
-                <button
-                    type="submit"
-                    disabled={!!activeJob}
-                    className={`mt-4 w-full py-3 rounded-lg font-bold flex items-center justify-center transition-all ${
-                        activeJob
-                            ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                            : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-900/20'
-                    }`}
-                >
-                  {activeJob ? 'System Busy...' : 'Launch Redemption Job'}
+              <form onSubmit={handleStartJob} className="space-y-4">
+                            <textarea
+                                className="w-full bg-black border border-gray-800 rounded-2xl p-4 text-white font-mono text-xs focus:border-blue-500 outline-none h-40 resize-none shadow-inner"
+                                placeholder="GIFTCODE1, GIFTCODE2..."
+                                value={codes} onChange={e => setCodes(e.target.value)}
+                            />
+                <button type="submit" disabled={!!activeJob} className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-800 text-white font-black uppercase tracking-widest text-xs rounded-2xl transition-all shadow-lg shadow-blue-900/20">
+                  {activeJob ? 'Process Running...' : 'Execute Batch'}
                 </button>
               </form>
             </div>
 
-            {/* Card 2: Status */}
-            <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg flex flex-col relative overflow-hidden">
-              <h2 className="text-lg font-semibold mb-4 flex items-center text-white z-10">
-                <Activity className="w-5 h-5 mr-2 text-blue-400"/> Live Status
+            {/* Live Progress */}
+            <div className="lg:col-span-5 bg-gray-900 border border-gray-800 rounded-3xl p-6 shadow-2xl flex flex-col">
+              <h2 className="text-sm font-black uppercase tracking-widest text-white mb-6 flex items-center gap-2">
+                <Activity size={16} className="text-blue-500" /> Active Job Stream
               </h2>
-
               {!activeJob ? (
-                  <div className="flex flex-col items-center justify-center h-full text-gray-500 space-y-4 opacity-50 flex-1 min-h-[160px]">
-                    <div className="w-16 h-16 rounded-full bg-gray-700/50 flex items-center justify-center">
-                      <CheckCircle className="w-8 h-8" />
-                    </div>
-                    <p>System Idle. Ready for tasks.</p>
+                  <div className="flex-1 flex flex-col items-center justify-center text-gray-700">
+                    <CheckCircle size={48} className="mb-2 opacity-20" />
+                    <p className="text-xs font-black uppercase tracking-widest">Systems Nominal</p>
                   </div>
               ) : (
-                  <div className="space-y-6 flex-1 flex flex-col justify-center z-10">
-                    <div>
-                      <div className="flex justify-between text-sm mb-2 font-mono">
-                        <span className="text-gray-400">Job ID: <span className="text-white">{activeJob.job_id}</span></span>
-                        <span className="text-blue-400 animate-pulse font-bold tracking-wider">{activeJob.status}</span>
+                  <div className="flex-1 space-y-6 flex flex-col justify-center">
+                    <div className="space-y-3">
+                      <div className="flex justify-between text-[10px] font-black uppercase text-gray-500">
+                        <span>Progress</span>
+                        <span className="text-blue-400 animate-pulse">{activeJob.status}</span>
                       </div>
-
-                      <div className="w-full bg-gray-700 rounded-full h-3 overflow-hidden">
-                        <div
-                            className="bg-gradient-to-r from-blue-500 to-cyan-400 h-3 rounded-full transition-all duration-500 ease-out"
-                            style={{ width: `${Math.max(2, (activeJob.processed / (activeJob.total || 1)) * 100)}%` }}
-                        >
-                        </div>
+                      <div className="h-4 bg-black rounded-full overflow-hidden border border-gray-800">
+                        <div className="h-full bg-blue-600 transition-all duration-700" style={{ width: `${(activeJob.processed / (activeJob.total || 1)) * 100}%` }} />
                       </div>
-
-                      <div className="flex justify-between mt-2 text-xs text-gray-400 font-mono">
-                        <span>Processed: <strong className="text-white">{activeJob.processed}</strong></span>
-                        <span>Total: <strong className="text-white">{activeJob.total}</strong></span>
+                      <div className="flex justify-between text-[10px] font-mono text-gray-500 uppercase">
+                        <span>Processed: {activeJob.processed}</span>
+                        <span>Total: {activeJob.total}</span>
                       </div>
                     </div>
                   </div>
               )}
             </div>
-          </div>
 
-          <div className="md:col-span-1 bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg flex flex-col justify-between relative overflow-hidden group">
-            {/* Decorative Background Icon */}
-            <ShieldCheck className="absolute -right-4 -bottom-4 w-32 h-32 text-blue-500/5 -rotate-12 transition-transform group-hover:scale-110 duration-500" />
-
-            <div>
-              <h2 className="text-lg font-semibold mb-1 flex items-center text-white relative z-10">
-                <Activity className="w-5 h-5 mr-2 text-blue-400"/> Captcha Credits
+            {/* Credits */}
+            <div className="lg:col-span-3 bg-gray-900 border border-gray-800 rounded-3xl p-6 shadow-2xl flex flex-col justify-between group">
+              <h2 className="text-sm font-black uppercase tracking-widest text-white flex items-center gap-2">
+                <ShieldCheck size={16} className="text-purple-500" /> API Credits
               </h2>
-              <p className="text-xs text-gray-500 mb-4 relative z-10 uppercase tracking-widest font-bold">2Captcha Account Balance</p>
-            </div>
-
-            <div className="relative z-10 py-4 text-center">
-              {captchaBalance !== null ? (
-                  <div className="animate-in fade-in zoom-in duration-500">
-                    <span className="text-4xl font-black text-white tracking-tighter">$</span>
-                    <span className="text-5xl font-black text-white tracking-tighter">
-              {parseFloat(captchaBalance).toFixed(2)}
-            </span>
-                  </div>
-              ) : (
-                  <div className="text-gray-600 animate-pulse py-4 font-mono">LOADING...</div>
-              )}
-            </div>
-
-            <div className="relative z-10">
-              <div className={`text-[10px] font-bold text-center py-1 rounded-full uppercase tracking-tighter ${
-                  parseFloat(captchaBalance) < 1.00 ? 'bg-red-900/30 text-red-400 border border-red-800/50' : 'bg-green-900/20 text-green-400 border border-green-800/30'
-              }`}>
-                {parseFloat(captchaBalance) < 1.00 ? 'Low Balance - Refill Recommended' : 'System Credits Healthy'}
+              <div className="text-center py-6">
+                <p className="text-4xl font-black text-white tracking-tighter">${captchaBalance || '0.00'}</p>
+                <p className="text-[10px] text-gray-500 font-bold uppercase mt-1 tracking-widest">2Captcha Balance</p>
+              </div>
+              <div className={`text-[9px] font-black text-center py-2 rounded-xl uppercase tracking-tighter border ${parseFloat(captchaBalance) < 1 ? 'bg-red-900/20 text-red-400 border-red-800' : 'bg-green-900/20 text-green-400 border-green-800'}`}>
+                {parseFloat(captchaBalance) < 1 ? 'Refill Required' : 'Status Healthy'}
               </div>
             </div>
           </div>
 
-          {/* Recent History Table */}
-          <div className="bg-gray-800 rounded-xl border border-gray-700 shadow-lg overflow-hidden">
-            <div className="p-6 border-b border-gray-700 flex justify-between items-center bg-gray-800/50">
-              <h2 className="text-lg font-semibold flex items-center text-white">
-                <FileText className="w-5 h-5 mr-2 text-purple-400"/> Recent History
+          {/* 3. RECENT RECORDS */}
+          <div className="bg-gray-900 border border-gray-800 rounded-3xl overflow-hidden shadow-2xl">
+            <div className="p-6 border-b border-gray-800 bg-gray-900/50 flex justify-between items-center">
+              <h2 className="text-sm font-black uppercase tracking-widest text-white flex items-center gap-2">
+                <FileText size={16} className="text-yellow-500" /> Mission Logs
               </h2>
-              <button onClick={fetchHistory} className="text-sm text-blue-400 hover:text-white transition-colors">Refresh</button>
+              <button onClick={() => setShowPasswordModal(true)} className="p-2 text-gray-500 hover:text-white transition-colors"><KeyRound size={18}/></button>
             </div>
-
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
-                <thead className="bg-gray-700/30 text-gray-400 text-xs uppercase tracking-wider">
+                <thead className="bg-black text-gray-600 text-[10px] font-black uppercase tracking-widest">
                 <tr>
-                  <th className="p-4">Date</th>
-                  <th className="p-4">Codes</th>
-                  <th className="p-4">Progress</th>
-                  <th className="p-4 text-center">Status</th>
+                  <th className="p-4">Timestamp</th>
+                  <th className="p-4">Batch Codes</th>
+                  <th className="p-4">Processed</th>
+                  <th className="p-4 text-center">Outcome</th>
                   <th className="p-4 text-right">Report</th>
                 </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-700 text-sm">
-                {loadingHistory ? (
-                    <tr><td colSpan="5" className="p-8 text-center text-gray-500">Loading...</td></tr>
-                ) : history.length === 0 ? (
-                    <tr><td colSpan="5" className="p-12 text-center text-gray-500">No jobs found.</td></tr>
-                ) : (
-                    history.map((job) => (
-                        <tr key={job.jobId} className="hover:bg-gray-700/30 transition-colors">
-                          <td className="p-4 text-gray-400 font-mono text-xs">{new Date(job.createdAt).toLocaleString()}</td>
-                          <td className="p-4 max-w-xs truncate text-gray-300 font-mono" title={job.giftCodes}>
-                            {job.giftCodes.replace(/[\[\]"]/g, '').substring(0, 30)}...
-                          </td>
-                          <td className="p-4 text-gray-400">{job.processedPlayers} / {job.totalPlayers}</td>
-                          <td className="p-4 text-center">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${
-                            job.status === 'COMPLETED' ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'
-                        }`}>{job.status}</span>
-                          </td>
-                          <td className="p-4 text-right">
-                            {job.reportPath && (
-                                <button onClick={() => handleDownload(job.reportPath)} className="text-gray-400 hover:text-blue-400">
-                                  <Download className="w-5 h-5" />
-                                </button>
-                            )}
-                          </td>
-                        </tr>
-                    ))
-                )}
+                <tbody className="text-xs">
+                {history.slice(0, 10).map(job => (
+                    <tr key={job.jobId} className="border-b border-gray-800 hover:bg-gray-800/30 transition-colors">
+                      <td className="p-4 text-gray-400 font-mono">{new Date(job.createdAt).toLocaleString()}</td>
+                      <td className="p-4 text-gray-300 font-bold truncate max-w-[200px]">{job.giftCodes.replace(/[\[\]"]/g, '')}</td>
+                      <td className="p-4 text-gray-500 font-bold">{job.processedPlayers} / {job.totalPlayers}</td>
+                      <td className="p-4 text-center">
+                                            <span className={`px-2 py-0.5 rounded-lg border text-[9px] font-black uppercase ${job.status === 'COMPLETED' ? 'bg-green-900/20 text-green-400 border-green-800' : 'bg-red-900/20 text-red-400 border-red-800'}`}>
+                                                {job.status}
+                                            </span>
+                      </td>
+                      <td className="p-4 text-right">
+                        {job.reportPath && <button className="text-gray-500 hover:text-blue-400 transition-colors"><Download size={16}/></button>}
+                      </td>
+                    </tr>
+                ))}
                 </tbody>
               </table>
             </div>
           </div>
-        </main>
+        </div>
 
-        {/* --- MOUNT THE MODAL COMPONENT --- */}
-        {showPasswordModal && (
-            <ChangePasswordModal onClose={() => setShowPasswordModal(false)} />
-        )}
-        {showMfaModal && (
-            <MfaSetupModal
-                onClose={() => setShowMfaModal(false)}
-                isForced={sessionStorage.getItem('mfa_enabled') === 'false'}
-            />
-        )}
-      </div>
+        {showPasswordModal && <ChangePasswordModal onClose={() => setShowPasswordModal(false)} />}
+        {showMfaModal && <MfaSetupModal onClose={() => setShowMfaModal(false)} isForced={sessionStorage.getItem('mfa_enabled') === 'false'} />}
+      </AdminLayout>
   );
 }

@@ -1,53 +1,99 @@
-﻿import { Link, useNavigate, useLocation } from 'react-router-dom';
+﻿import { useState } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { LogOut, Activity, ArrowLeft } from 'lucide-react';
+import { navLinks } from '../../config/navigation';
+import { LogOut, Activity, Menu, X, ChevronRight } from 'lucide-react';
 
-export default function AdminLayout({ children, title, showBackButton = true, actions }) {
+export default function AdminLayout({ children, title, actions }) {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
     const handleLogout = () => {
         logout();
         navigate('/login');
     };
 
+    const filteredLinks = navLinks.filter(link =>
+        link.requiredRoles.includes(user?.role)
+    );
+
     return (
-        <div className="min-h-screen bg-gray-900 text-gray-100 font-sans flex flex-col h-screen">
-            {/* Global Admin Navbar */}
-            <nav className="bg-gray-800 border-b border-gray-700 px-6 py-4 flex justify-between items-center shadow-md shrink-0">
-                <div className="flex items-center space-x-4">
-                    {showBackButton && location.pathname !== '/' && (
-                        <Link to="/" className="p-2 bg-gray-700 rounded-lg hover:bg-gray-600 transition-colors text-gray-300">
-                            <ArrowLeft size={20} />
-                        </Link>
-                    )}
-                    <div className="flex items-center gap-2">
-                        <Activity className="text-purple-500 w-6 h-6" />
-                        <span className="font-black text-xl tracking-wider text-white">
-                            {title || 'Command Center'}
-                        </span>
-                    </div>
+        <div className="flex h-screen bg-gray-950 text-gray-100 font-sans overflow-hidden">
+            {/* MOBILE OVERLAY */}
+            {isSidebarOpen && (
+                <div className="fixed inset-0 bg-black/80 z-40 lg:hidden backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)} />
+            )}
+
+            {/* SIDEBAR DRAWER */}
+            <aside className={`
+                fixed lg:static inset-y-0 left-0 z-50 w-64 bg-gray-900 border-r border-gray-800 
+                transform transition-transform duration-300 ease-in-out flex flex-col
+                ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+            `}>
+                <div className="h-16 flex items-center px-6 border-b border-gray-800 shrink-0">
+                    <Activity className="text-blue-500 w-6 h-6 mr-3" />
+                    <span className="font-black text-lg tracking-tighter text-white uppercase">Command Console</span>
                 </div>
 
-                <div className="flex items-center gap-4">
-                        {actions}
-                    <span className="text-sm font-bold text-gray-400 border border-gray-700 px-3 py-1 rounded-full bg-gray-900 shadow-inner">
-                        {user?.username}
-                    </span>
-                    <button
-                        onClick={handleLogout}
-                        className="flex items-center gap-2 bg-red-600/20 hover:bg-red-600/40 text-red-400 px-4 py-2 rounded-lg font-bold transition-all border border-red-800/50"
-                    >
+                <nav className="flex-1 overflow-y-auto p-4 space-y-1 custom-scrollbar">
+                    {filteredLinks.map((link) => {
+                        const Icon = link.icon;
+                        const isActive = location.pathname === link.path;
+                        return (
+                            <Link
+                                key={link.path}
+                                to={link.path}
+                                onClick={() => setIsSidebarOpen(false)}
+                                className={`flex items-center justify-between px-4 py-3 rounded-xl font-bold transition-all group ${
+                                    isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-gray-500 hover:bg-gray-800 hover:text-gray-300'
+                                }`}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <Icon size={18} />
+                                    <span className="text-sm uppercase tracking-wider">{link.name}</span>
+                                </div>
+                                {isActive && <ChevronRight size={14} />}
+                            </Link>
+                        );
+                    })}
+                </nav>
+
+                <div className="p-4 border-t border-gray-800 bg-gray-900/50">
+                    <div className="flex items-center gap-3 px-4 py-3 bg-gray-950 rounded-xl border border-gray-800 mb-3">
+                        <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-black text-xs text-white">
+                            {user?.username?.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                            <p className="text-xs font-black text-white truncate">{user?.username}</p>
+                            <p className="text-[10px] text-gray-500 font-bold uppercase">{user?.role}</p>
+                        </div>
+                    </div>
+                    <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-950/50 rounded-xl font-black text-xs uppercase transition-colors">
                         <LogOut size={18} /> Logout
                     </button>
                 </div>
-            </nav>
+            </aside>
 
-            {/* Main Content Area */}
-            <main className="flex-1 overflow-y-auto min-h-0 relative">
-                {children}
-            </main>
+            {/* MAIN CONTENT AREA */}
+            <div className="flex-1 flex flex-col min-w-0">
+                <header className="h-16 bg-gray-900/50 border-b border-gray-800 px-4 lg:px-6 flex justify-between items-center shrink-0">
+                    <div className="flex items-center gap-4">
+                        <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 text-gray-400 hover:text-white bg-gray-800 rounded-lg">
+                            <Menu size={20} />
+                        </button>
+                        <h1 className="font-black text-lg text-white uppercase tracking-tighter truncate">
+                            {title || 'Overview'}
+                        </h1>
+                    </div>
+                    <div className="flex items-center gap-2">{actions}</div>
+                </header>
+
+                <main className="flex-1 overflow-y-auto bg-gray-950 relative custom-scrollbar">
+                    {children}
+                </main>
+            </div>
         </div>
     );
 }

@@ -9,12 +9,11 @@ export default function PlayerDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchDashboard();
+    void fetchDashboard();
   }, []);
 
   const fetchDashboard = async () => {
     try {
-      // Calls the new endpoint we just created
       const res = await client.get('/player/dashboard');
       setData(res.data);
     } catch (err) {
