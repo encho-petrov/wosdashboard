@@ -1,6 +1,6 @@
 import {
     LayoutDashboard, Swords, Users, Calendar,
-    Send, Shield, Terminal, List, LayoutGrid
+    Send, Shield, Terminal, List, LayoutGrid, UserCircle
 } from 'lucide-react';
 
 export const navLinks = [
@@ -66,5 +66,19 @@ export const navLinks = [
         icon: Terminal,
         requiredRoles: ['admin'],
         description: 'Review administrative action history.'
+    },
+    {
+        name: 'Users',
+        path: '/users',
+        icon: Users,
+        requiredRoles: ['admin'],
+        description: 'User administration.'
+    },
+    {
+        name: 'User Profile',
+        path: '/profile',
+        icon: UserCircle,
+        requiredRoles: ['admin', 'moderator'],
+        description: 'User profile.'
     }
 ];
