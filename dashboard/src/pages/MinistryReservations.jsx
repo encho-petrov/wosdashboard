@@ -407,7 +407,7 @@ export default function MinistryReservations() {
                                                                     {slot.playerFid ? (
                                                                         <>
                                                                             <div className="truncate">
-                                                                                <div className="font-bold text-gray-100 text-xs truncate uppercase tracking-tighter">{slot.nickname}</div>
+                                                                                <div className="font-bold text-gray-100 text-xstracking-tighter">{slot.nickname}</div>
                                                                                 <div className="text-[9px] text-gray-500 font-black uppercase truncate tracking-tighter">
                                                                                     {slot.allianceName || 'Global'} {viewingHistory ? '' : `| ${slot.playerFid}`}
                                                                                 </div>
@@ -484,7 +484,7 @@ export default function MinistryReservations() {
                                         className="w-full flex justify-between items-center p-3.5 bg-gray-900/50 hover:bg-blue-600/20 border border-gray-800 hover:border-blue-500/50 rounded-xl transition-all text-left group"
                                     >
                                         <div className="min-w-0 pr-3">
-                                            <div className="font-bold text-sm text-gray-200 group-hover:text-white uppercase truncate tracking-tighter">{p.nickname}</div>
+                                            <div className="font-bold text-sm text-gray-200 group-hover:text-white tracking-tighter">{p.nickname}</div>
                                             <div className="text-[10px] text-gray-500 font-mono mt-0.5">{p.fid}</div>
                                         </div>
                                         <div className="text-[9px] font-black uppercase tracking-widest bg-gray-800 px-2.5 py-1.5 rounded-lg border border-gray-700 text-gray-400 shrink-0">

@@ -217,7 +217,7 @@ export default function Squads() {
                                 <div className="flex items-center gap-3">
                                     <img src={p.avatar} className="w-10 h-10 rounded-xl object-cover" alt="" />
                                     <div className="min-w-0 flex-1">
-                                        <p className={`text-[11px] font-black uppercase truncate ${selectedPlayer?.fid === p.fid ? 'text-white' : 'text-gray-200'}`}>{p.nickname}</p>
+                                        <p className={`text-[11px] font-black ${selectedPlayer?.fid === p.fid ? 'text-white' : 'text-gray-200'}`}>{p.nickname}</p>
                                         <p className="text-[9px] font-mono text-yellow-600">{(p.power || 0).toLocaleString()}</p>
                                     </div>
                                     {isAdmin && (
@@ -239,7 +239,7 @@ export default function Squads() {
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                         {(squads || []).map(sq => {
                             const roster = squadRosters[sq.id] || [];
-                            const captain = roster.find(p => p.fid === sq.captainFid) || { nickname: 'Unit Lead', avatar: '' };
+                            const captain = roster.find(p => p.fid === sq.captainFid) || { nickname: 'Player Lead', avatar: '' };
 
                             return (
                                 <div
@@ -260,7 +260,7 @@ export default function Squads() {
                                                 <Crown size={12} className="absolute -top-1.5 -right-1.5 text-yellow-500 fill-yellow-500" />
                                             </div>
                                             <div className="min-w-0">
-                                                <h4 className="text-sm font-black text-white uppercase truncate">{captain.nickname}</h4>
+                                                <h4 className="text-sm font-black text-white">{captain.nickname}</h4>
                                                 <p className="text-[10px] text-yellow-600 font-mono font-bold tracking-tighter">{(sq.totalPower || 0).toLocaleString()}</p>
                                             </div>
                                         </div>
@@ -277,7 +277,7 @@ export default function Squads() {
                                             <div key={p.fid} className="flex items-center justify-between p-2 bg-black/40 border border-gray-800 rounded-xl group hover:border-gray-600 transition-all">
                                                 <div className="flex items-center gap-3 min-w-0">
                                                     <img src={p.avatar} className="w-7 h-7 rounded-lg object-cover grayscale group-hover:grayscale-0" alt="" />
-                                                    <span className="text-[11px] font-bold text-gray-400 group-hover:text-white truncate uppercase tracking-tighter">{p.nickname}</span>
+                                                    <span className="text-[11px] font-bold text-gray-400 group-hover:text-white tracking-tighter">{p.nickname}</span>
                                                 </div>
                                                 {isAdmin && (
                                                     <button

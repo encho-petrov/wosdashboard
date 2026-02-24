@@ -266,7 +266,7 @@ export default function Roster() {
                           <img alt="av" src={p.avatar || 'https://via.placeholder.com/40'} className="w-10 h-10 rounded-xl border border-gray-800 bg-black object-cover shadow-inner" />
                         </td>
                         <td className="p-4 min-w-[150px]">
-                          <div className="font-black text-gray-100 uppercase tracking-tighter">{p.nickname || "Unknown"}</div>
+                          <div className="font-black text-gray-100 tracking-tighter">{p.nickname || "Unknown"}</div>
                           <div className="text-[10px] text-gray-600 font-mono tracking-tighter">FID: {p.fid}</div>
                         </td>
                         <td className="p-4 text-center">
