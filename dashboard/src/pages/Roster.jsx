@@ -216,7 +216,7 @@ export default function Roster() {
               {!isMod && (
                   <button
                       onClick={() => setActiveTab('all')}
-                      className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'all' ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-900 text-gray-500 border border-gray-800 hover:bg-gray-800'}`}
+                      className={`px-4 py-2 rounded-xl text-[10px] font-black tracking-widest transition-all ${activeTab === 'all' ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-900 text-gray-500 border border-gray-800 hover:bg-gray-800'}`}
                   >
                     All Players
                   </button>
@@ -228,7 +228,7 @@ export default function Roster() {
                       <button
                           key={tab.id}
                           onClick={() => setActiveTab(tab.id)}
-                          className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-900 text-gray-500 border border-gray-800 hover:bg-gray-800'}`}
+                          className={`px-4 py-2 rounded-xl text-[10px] font-black tracking-widest transition-all ${activeTab === tab.id ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-900 text-gray-500 border border-gray-800 hover:bg-gray-800'}`}
                       >
                         {tab.name}
                       </button>
@@ -384,7 +384,7 @@ export default function Roster() {
             <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
               <div className="bg-gray-800 p-8 rounded-3xl w-full max-w-md border border-gray-700 shadow-2xl">
                 <h3 className="text-xl font-black text-white mb-2 uppercase tracking-tighter flex items-center gap-2">
-                  <Archive className="text-red-500"/> Offload Unit: {outboundModal.player.nickname}
+                  <Archive className="text-red-500"/> Offload Player: {outboundModal.player.nickname}
                 </h3>
                 <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-6 leading-relaxed">
                   Archiving will strip deployments and wipe squad records. Ledger entry will be saved to history.
