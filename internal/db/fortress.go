@@ -144,3 +144,32 @@ func (s *Store) GetPlayerAllianceID(fid int64) (int, error) {
 	}
 	return int(allianceID.Int64), nil
 }
+
+func (s *Store) GetAllianceRotationForWeek(seasonID int, week int, allianceID int) ([]RotationEntryExtended, error) {
+	var results []RotationEntryExtended
+	query := `
+        SELECT 
+            rs.week_number, 
+            b.internal_id, 
+            b.type AS building_type, 
+            a.name AS alliance_name
+        FROM rotation_schedule rs
+        JOIN buildings b ON rs.building_id = b.id
+        JOIN alliances a ON rs.alliance_id = a.id
+        WHERE rs.week_number = ? AND rs.season_id = ? AND rs.alliance_id = ?
+        ORDER BY b.type DESC, b.internal_id ASC`
+
+	err := s.db.Select(&results, query, week, seasonID, allianceID)
+	return results, err
+}
+
+func (s *Store) GetActiveFortSeason() (int, int, error) {
+	var seasonID int
+
+	query := "SELECT COALESCE(MAX(season_id), 1) FROM rotation_schedule"
+	err := s.db.Get(&seasonID, query)
+
+	currentWeek := 1
+
+	return seasonID, currentWeek, err
+}

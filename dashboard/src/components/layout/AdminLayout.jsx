@@ -2,7 +2,9 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { navLinks } from '../../config/navigation';
-import { LogOut, Activity, Menu, X, ChevronRight } from 'lucide-react';
+import { LogOut, Activity, Menu, ChevronRight } from 'lucide-react';
+
+import MfaSetupModal from '../MfaSetupModal';
 
 export default function AdminLayout({ children, title, actions }) {
     const { user, logout } = useAuth();
@@ -19,8 +21,35 @@ export default function AdminLayout({ children, title, actions }) {
         link.requiredRoles.includes(user?.role)
     );
 
+    // ==========================================
+    // SECURITY CHECK
+    // ==========================================
+    const isMfaRequired = user && !user.mfaEnabled;
+
     return (
-        <div className="flex h-screen bg-gray-950 text-gray-100 font-sans overflow-hidden">
+        <div className="flex h-screen bg-gray-950 text-gray-100 font-sans overflow-hidden relative">
+
+            {/*
+                If MFA is required, the modal mounts here. Because the modal
+                has `fixed inset-0 z-50`, it will cover the entire layout below it
+                and blur the sidebar/header.
+            */}
+            {isMfaRequired && (
+                <>
+                    <MfaSetupModal isForced={true} />
+
+                    {/* Escape Hatch: Sits above the modal's z-50 overlay */}
+                    <div className="fixed top-4 right-4 z-[60]">
+                        <button
+                            onClick={handleLogout}
+                            className="flex items-center gap-2 px-4 py-2 bg-red-900/80 text-red-200 hover:text-white hover:bg-red-600 rounded-lg font-black text-xs uppercase tracking-widest transition-all shadow-xl backdrop-blur-md border border-red-500/50"
+                        >
+                            <LogOut size={16} /> Disconnect
+                        </button>
+                    </div>
+                </>
+            )}
+
             {/* MOBILE OVERLAY */}
             {isSidebarOpen && (
                 <div className="fixed inset-0 bg-black/80 z-40 lg:hidden backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)} />
@@ -91,7 +120,10 @@ export default function AdminLayout({ children, title, actions }) {
                 </header>
 
                 <main className="flex-1 overflow-y-auto bg-gray-950 relative custom-scrollbar">
-                    {children}
+                    {/* If MFA is required, we pass null instead of children.
+                        This prevents the page components from making API calls behind the modal.
+                    */}
+                    {isMfaRequired ? null : children}
                 </main>
             </div>
         </div>

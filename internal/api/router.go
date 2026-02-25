@@ -110,11 +110,13 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 		}
 
 		token, _ := auth.GenerateToken(user.Username, user.Role)
-		if user.AllianceID != nil {
-			c.JSON(http.StatusOK, gin.H{"token": token, "role": user.Role, "mfa_enabled": user.MFAEnabled, "allianceId": user.AllianceID})
-		} else {
-			c.JSON(http.StatusOK, gin.H{"token": token, "role": user.Role, "mfa_enabled": user.MFAEnabled})
-		}
+		c.JSON(http.StatusOK, gin.H{
+			"token":       token,
+			"role":        user.Role,
+			"mfa_enabled": user.MFAEnabled,
+			"allianceId":  user.AllianceID,
+			"username":    user.Username,
+		})
 	})
 
 	r.POST("/api/login/mfa", func(c *gin.Context) {
@@ -179,7 +181,7 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 			info.Data.Nickname,
 			info.Data.KID,
 			info.Data.StoveLv,
-			info.Data.StoveImg,
+			string(info.Data.StoveImg),
 			info.Data.Avatar,
 		)
 		if err != nil {
@@ -290,7 +292,29 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 				return
 			}
 
-			c.JSON(200, data)
+			ministries, _ := store.GetPlayerMinistrySlots(fid)
+			if ministries == nil {
+				ministries = make([]db.PlayerMinistrySlot, 0)
+			}
+
+			forts := make([]db.RotationEntryExtended, 0)
+
+			cfg, _ := config.LoadConfig()
+			seasonID, currentWeek := services.CalculateCurrentWeek(cfg.Rotation.SeasonReferenceDate)
+
+			if data.Player.AllianceID != nil && *data.Player.AllianceID > 0 {
+				allianceForts, err := store.GetAllianceRotationForWeek(seasonID, currentWeek, *data.Player.AllianceID)
+				if err == nil && allianceForts != nil {
+					forts = allianceForts
+				}
+			}
+
+			c.JSON(200, gin.H{
+				"player":     data.Player,
+				"teammates":  data.Teammates,
+				"ministries": ministries,
+				"forts":      forts,
+			})
 		})
 	}
 
@@ -1136,7 +1160,7 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 							info.Data.Nickname,
 							info.Data.KID,
 							info.Data.StoveLv,
-							info.Data.StoveImg,
+							string(info.Data.StoveImg),
 							info.Data.Avatar,
 						)
 						fmt.Printf("[SYNC] Updated %d/%d: %s\n", i+1, len(ids), info.Data.Nickname)
@@ -1254,7 +1278,7 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 						FurnaceLevel: info.Data.StoveLv,
 						SourceState:  fmt.Sprintf("State %d", info.Data.KID),
 						Avatar:       info.Data.Avatar,
-						FurnaceImage: info.Data.StoveImg,
+						FurnaceImage: string(info.Data.StoveImg),
 					}
 
 					if err := store.AddTransferRecord(record); err == nil {

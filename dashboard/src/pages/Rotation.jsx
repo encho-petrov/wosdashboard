@@ -16,8 +16,8 @@ export default function Rotation() {
     // Data State
     const [buildings, setBuildings] = useState([]);
     const [alliances, setAlliances] = useState([]);
-    const [matrix, setMatrix] = useState({}); // Stores [buildingId-week]: allianceId
-    const [rewards, setRewards] = useState({}); // Stores { weekNum: [rewards array] }
+    const [matrix, setMatrix] = useState({});
+    const [rewards, setRewards] = useState({});
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
@@ -40,7 +40,6 @@ export default function Rotation() {
         try {
             setLoading(true);
 
-            // 1. Fetch buildings, alliances, and the current schedule grid
             const [bRes, aRes, sRes] = await Promise.all([
                 client.get('/moderator/rotation/buildings'),
                 client.get('/moderator/options'),

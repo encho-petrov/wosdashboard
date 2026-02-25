@@ -1,15 +1,37 @@
 package models
 
-import "time"
+import (
+	"encoding/json"
+	"fmt"
+	"time"
+)
+
+type FlexString string
+
+func (fs *FlexString) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		*fs = FlexString(s)
+		return nil
+	}
+
+	var i int
+	if err := json.Unmarshal(data, &i); err == nil {
+		*fs = FlexString(fmt.Sprintf("%d", i))
+		return nil
+	}
+
+	return fmt.Errorf("FlexString: cannot unmarshal %s", string(data))
+}
 
 type PlayerData struct {
-	Fid      int64  `json:"fid"`
-	Nickname string `json:"nickname"`
-	KID      int    `json:"kid"`
-	StoveLv  int    `json:"stove_lv"`
-	StoveImg string `json:"stove_lv_content"`
-	Avatar   string `json:"avatar_image"`
-	Power    int64  `json:"power"`
+	Fid      int64      `json:"fid"`
+	Nickname string     `json:"nickname"`
+	KID      int        `json:"kid"`
+	StoveLv  int        `json:"stove_lv"`
+	StoveImg FlexString `json:"stove_lv_content"`
+	Avatar   string     `json:"avatar_image"`
+	Power    int64      `json:"power"`
 }
 
 type PlayerInfoResponse struct {

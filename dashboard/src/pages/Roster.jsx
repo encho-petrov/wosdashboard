@@ -173,6 +173,7 @@ export default function Roster() {
             <div>
               <h2 className="text-2xl font-black text-white flex items-center gap-3 uppercase tracking-tighter">
                 <Users className="text-blue-500" /> Player Ledger
+
               </h2>
               <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest mt-1">
                 {isMod ? `Restricted View: ${user.username}` : "Global State Database"}
@@ -270,7 +271,19 @@ export default function Roster() {
                           <div className="text-[10px] text-gray-600 font-mono tracking-tighter">FID: {p.fid}</div>
                         </td>
                         <td className="p-4 text-center">
-                          {p.stoveImg ? <img alt="lv" src={p.stoveImg} className="w-8 h-8 mx-auto object-contain drop-shadow-md" /> : '-'}
+                          {p.stoveImg ? (
+                              p.stoveImg.startsWith('http') ? (
+                                  <img alt="FC" src={p.stoveImg} className="w-8 h-8 mx-auto object-contain drop-shadow-md" />
+                              ) : (
+                                  <div className="flex justify-center">
+                                      <span className="px-2 py-0.5 bg-gray-800 border border-gray-600 text-gray-200 text-[10px] font-black rounded shadow-sm">
+                                          F{p.stoveImg}
+                                      </span>
+                                  </div>
+                              )
+                          ) : (
+                              <span className="text-gray-600 font-bold">-</span>
+                          )}
                         </td>
                         <td className="p-4">
                           {isEditing ? (
@@ -332,10 +345,8 @@ export default function Roster() {
                             ) : (
                                 <>
                                   <button onClick={() => { setEditingId(p.fid); setEditForm(p); }} className="p-2 bg-blue-900/20 text-blue-400 hover:bg-blue-600 hover:text-white rounded-xl transition-all shadow-md"><Edit2 size={16} /></button>
-                                  {isAdmin && (
-                                      <button onClick={() => handleDelete(p.fid, p.nickname)} className="p-2 bg-red-900/20 text-red-400 hover:bg-red-600 hover:text-white rounded-xl border border-red-800/50 transition-all shadow-md"><Trash2 size={16} /></button>
-                                  )}
-                                  {activeSeason?.status === 'Active' && isAdmin && (
+                                  <button onClick={() => handleDelete(p.fid, p.nickname)} className="p-2 bg-red-900/20 text-red-400 hover:bg-red-600 hover:text-white rounded-xl border border-red-800/50 transition-all shadow-md"><Trash2 size={16} /></button>
+                                  {activeSeason?.status === 'Active' && (
                                       <button onClick={() => setOutboundModal({ isOpen: true, player: p, destState: '' })} className="p-2 bg-purple-900/20 text-purple-400 hover:bg-purple-600 hover:text-white rounded-xl border border-purple-800/50 transition-all shadow-md"><Archive size={16} /></button>
                                   )}
                                 </>

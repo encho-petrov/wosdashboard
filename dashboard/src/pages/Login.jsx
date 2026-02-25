@@ -98,7 +98,7 @@ export default function Login() {
             triggerBiometricLogin(tToken);
           }
         } else {
-          await login(res.data.token, res.data.role, formData.username, res.data.mfa_enabled);
+          await login(res.data.token, res.data.role, formData.username, res.data.mfa_enabled, res.data.allianceId);
           navigate('/');
         }
       } else if (step === 2) {
@@ -107,7 +107,7 @@ export default function Login() {
           code: mfaCode
         });
 
-        await login(res.data.token, res.data.role, formData.username, true);
+        await login(res.data.token, res.data.role, formData.username, true, res.data.allianceId);
         navigate('/');
       }
     } catch (err) {

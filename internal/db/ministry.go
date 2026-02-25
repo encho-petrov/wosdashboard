@@ -31,6 +31,17 @@ type MinistrySlot struct {
 	AllianceName *string `db:"alliance_name" json:"allianceName"`
 }
 
+type PlayerMinistrySlot struct {
+	ID           int     `db:"id" json:"id"`
+	DayID        int     `db:"day_id" json:"dayId"`
+	SlotIndex    int     `db:"slot_index" json:"slotIndex"`
+	PlayerFID    *int64  `db:"player_fid" json:"playerFid"`
+	Nickname     *string `db:"nickname" json:"nickname"`
+	AllianceName *string `db:"alliance_name" json:"allianceName"`
+	BuffName     string  `db:"buff_name" json:"buffName"`
+	ActiveDate   string  `db:"active_date" json:"activeDate"`
+}
+
 func (s *Store) CreateMinistryEvent(title string, announceEnabled bool, days []MinistryDay) error {
 	tx, err := s.db.Beginx()
 	if err != nil {
@@ -141,4 +152,23 @@ func (s *Store) GetClosedMinistryEvents() ([]MinistryEvent, error) {
 	var events []MinistryEvent
 	err := s.db.Select(&events, "SELECT * FROM ministry_events WHERE status = 'Closed' ORDER BY closed_at DESC")
 	return events, err
+}
+
+func (s *Store) GetPlayerMinistrySlots(playerFID int64) ([]PlayerMinistrySlot, error) {
+	var slots []PlayerMinistrySlot
+
+	query := `
+       SELECT s.id, s.day_id, s.slot_index, s.player_fid,
+              p.nickname, a.name AS alliance_name,
+              md.buff_name, md.active_date
+       FROM ministry_slots s
+       LEFT JOIN players p ON s.player_fid = p.player_id
+       LEFT JOIN alliances a ON p.alliance_id = a.id
+       JOIN ministry_days md ON s.day_id = md.id
+       JOIN ministry_events me ON md.event_id = me.id
+       WHERE s.player_fid = ? AND me.status IN ('Planning', 'Active')
+       ORDER BY md.active_date ASC, s.slot_index ASC`
+
+	err := s.db.Select(&slots, query, playerFID)
+	return slots, err
 }
