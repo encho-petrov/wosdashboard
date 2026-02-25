@@ -244,12 +244,12 @@ export default function Roster() {
                 <tr>
                   <th className="p-4 w-16 text-center">Unit</th>
                   <th className="p-4">Identity</th>
-                  <th className="p-4 text-center">Stove</th>
+                  <th className="p-4 text-center">Furnace</th>
                   <th className="p-4">Power</th>
                   <th className="p-4">Troop Type</th>
                   <th className="p-4 w-32">Battle</th>
                   <th className="p-4 w-28">Tundra</th>
-                  <th className="p-4">Base Alliance</th>
+                  <th className="p-4">Alliance</th>
                   <th className="p-4 text-red-500/80">War Deployment</th>
                   <th className="p-4">Squad</th>
                   <th className="p-4 text-right pr-6">Command</th>
