@@ -298,7 +298,7 @@ export default function Roster() {
                               </select>
                           ) : <span className={`text-[10px] font-black uppercase tracking-tighter ${p.tundraAvailability === 'Full' ? 'text-blue-400' : 'text-gray-700'}`}>{p.tundraAvailability}</span>}
                         </td>
-                        <td className="p-4 text-[10px] font-black uppercase tracking-widest text-gray-500">
+                        <td className="p-4 text-[10px] font-black tracking-widest text-gray-500">
                           {isEditing && isAdmin ? (
                               <select className="bg-black border border-gray-700 rounded-lg p-1 outline-none" value={editForm.allianceId} onChange={e => setEditForm({...editForm, allianceId: e.target.value})}>
                                 <option value="">Unassigned</option>
@@ -306,7 +306,7 @@ export default function Roster() {
                               </select>
                           ) : p.allianceName || '-'}
                         </td>
-                        <td className="p-4 text-[10px] font-black uppercase tracking-widest">
+                        <td className="p-4 text-[10px] font-black tracking-widest">
                           {isEditing ? (
                               <select className="bg-black border border-red-900/50 rounded-lg p-1 outline-none" value={editForm.fightingAllianceId} onChange={e => setEditForm({...editForm, fightingAllianceId: e.target.value})}>
                                 <option value="">None</option>
@@ -314,7 +314,7 @@ export default function Roster() {
                               </select>
                           ) : <span className={p.fightingAllianceName ? "text-red-500 font-bold" : "text-gray-700"}>{p.fightingAllianceName || '-'}</span>}
                         </td>
-                        <td className="p-4 text-[10px] font-black uppercase tracking-widest text-gray-500">
+                        <td className="p-4 text-[10px] font-black tracking-widest text-gray-500">
                           {isEditing ? (
                               <select className="bg-black border border-gray-700 rounded-lg p-1 outline-none" value={editForm.teamId} onChange={e => setEditForm({...editForm, teamId: e.target.value})}>
                                 <option value="">No Team</option>
