@@ -59,7 +59,7 @@ export default function Profile() {
     const handleRegisterDevice = async () => {
         try {
             // 1. Get the challenge from the Go backend
-            const beginRes = await client.get('/webauthn/register/begin');
+            const beginRes = await client.get('/admin/webauthn/register/begin');
             const options = beginRes.data;
 
             // 2. Ask the browser to prompt FaceID / Windows Hello
@@ -76,7 +76,7 @@ export default function Profile() {
             }
 
             // 3. Send the cryptographically signed response back to Go
-            await client.post('/webauthn/register/finish', attResp);
+            await client.post('/admin/webauthn/register/finish', attResp);
 
             toast.success("Device registered successfully!");
             await fetchProfile(); // Refresh to show the active badge

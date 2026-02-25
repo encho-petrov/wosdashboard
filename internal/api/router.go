@@ -193,57 +193,6 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 		c.JSON(200, gin.H{"token": token, "role": "player", "nickname": info.Data.Nickname})
 	})
 
-	r.GET("/api/webauthn/register/begin", func(c *gin.Context) {
-		username := c.GetString("username")
-		user, err := store.GetUserByUsername(username)
-		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
-			return
-		}
-
-		store.LoadWebAuthnCredentials(user)
-
-		options, sessionData, err := auth.WA.BeginRegistration(user)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to begin registration"})
-			return
-		}
-
-		err = engine.Redis.SetWebAuthnSession(username, sessionData)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save session"})
-			return
-		}
-
-		c.JSON(http.StatusOK, options)
-	})
-
-	r.POST("/api/webauthn/register/finish", func(c *gin.Context) {
-		username := c.GetString("username")
-		user, _ := store.GetUserByUsername(username)
-		store.LoadWebAuthnCredentials(user)
-
-		sessionData, err := engine.Redis.GetWebAuthnSession(username)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Session expired or invalid"})
-			return
-		}
-
-		credential, err := auth.WA.FinishRegistration(user, *sessionData, c.Request)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Registration verification failed"})
-			return
-		}
-
-		if err := store.SaveWebAuthnCredential(user.ID, credential); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save credential"})
-			return
-		}
-
-		engine.Redis.DeleteWebAuthnSession(username)
-		c.JSON(http.StatusOK, gin.H{"message": "Biometric login enabled successfully!"})
-	})
-
 	r.GET("/api/webauthn/login/begin", func(c *gin.Context) {
 		tempToken := c.Query("temp_token")
 		if tempToken == "" {
@@ -1075,6 +1024,57 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 		c.Next()
 	})
 	{
+		admin.GET("/webauthn/register/begin", func(c *gin.Context) {
+			username := c.GetString("username")
+			user, err := store.GetUserByUsername(username)
+			if err != nil {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+				return
+			}
+
+			store.LoadWebAuthnCredentials(user)
+
+			options, sessionData, err := auth.WA.BeginRegistration(user)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to begin registration"})
+				return
+			}
+
+			err = engine.Redis.SetWebAuthnSession(username, sessionData)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save session"})
+				return
+			}
+
+			c.JSON(http.StatusOK, options)
+		})
+
+		admin.POST("/webauthn/register/finish", func(c *gin.Context) {
+			username := c.GetString("username")
+			user, _ := store.GetUserByUsername(username)
+			store.LoadWebAuthnCredentials(user)
+
+			sessionData, err := engine.Redis.GetWebAuthnSession(username)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Session expired or invalid"})
+				return
+			}
+
+			credential, err := auth.WA.FinishRegistration(user, *sessionData, c.Request)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Registration verification failed"})
+				return
+			}
+
+			if err := store.SaveWebAuthnCredential(user.ID, credential); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save credential"})
+				return
+			}
+
+			engine.Redis.DeleteWebAuthnSession(username)
+			c.JSON(http.StatusOK, gin.H{"message": "Biometric login enabled successfully!"})
+		})
+
 		admin.GET("/users", func(c *gin.Context) {
 			users, err := store.GetAllUsers()
 			if err != nil {
