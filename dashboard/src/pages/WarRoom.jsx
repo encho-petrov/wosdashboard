@@ -31,6 +31,9 @@ export default function WarRoom() {
     const [sortBy, setSortBy] = useState('Power');
     const [selectedPlayer, setSelectedPlayer] = useState(null);
 
+    // --- NEW: DISPLAY LIMIT STATE ---
+    const [displayLimit, setDisplayLimit] = useState(30);
+
     // --- MOBILE SPECIFIC STATE ---
     const [mobileTab, setMobileTab] = useState('bench'); // 'bench' | 'alliances'
 
@@ -86,8 +89,6 @@ export default function WarRoom() {
             await refreshGlobalData(true);
             await fetchData(true);
             setSelectedPlayer(null);
-            // Mobile UX: Optional - switch back to bench after deploying
-            // setMobileTab('bench');
         } catch (err) { toast.error("Deployment failed"); }
     };
 
@@ -146,11 +147,9 @@ export default function WarRoom() {
         void handleDeploy(fid, allianceId);
     };
 
-    // Mobile specific interaction handler
     const handleMobileSelect = (p) => {
         if (isMod) return;
         setSelectedPlayer(p);
-        // Automatically switch to deployments view on mobile
         if (window.innerWidth < 1024) {
             setMobileTab('alliances');
         }
@@ -175,9 +174,8 @@ export default function WarRoom() {
 
     return (
         <AdminLayout title="War Room" actions={headerActions}>
-            <div className="flex flex-col lg:flex-row h-full overflow-hidden bg-gray-950">
-
-                {/* --- MOBILE TOGGLE BAR (Hidden on Desktop) --- */}
+            <div className="flex flex-col lg:flex-row h-[calc(100dvh-64px)] lg:h-full overflow-hidden bg-gray-950">
+                {/* --- MOBILE TOGGLE BAR --- */}
                 <div className="lg:hidden flex bg-gray-900 p-2 border-b border-gray-800 shrink-0 gap-2">
                     <button
                         onClick={() => setMobileTab('bench')}
@@ -193,26 +191,23 @@ export default function WarRoom() {
                     </button>
                 </div>
 
-                {/* 1. BENCH SIDEBAR (Hidden on mobile if 'alliances' tab is active) */}
-                <aside className={`w-full lg:w-80 bg-gray-900 border-b lg:border-r border-gray-800 shrink-0 overflow-hidden ${mobileTab === 'bench' ? 'flex flex-col' : 'hidden lg:flex lg:flex-col'}`}>
+                {/* 1. BENCH SIDEBAR */}
+                <aside className={`w-full lg:w-80 bg-gray-900 border-b lg:border-r border-gray-800 shrink-0 overflow-hidden ${mobileTab === 'bench' ? 'flex flex-col flex-1' : 'hidden lg:flex lg:flex-col h-full'}`}>
                     <div className="p-4 space-y-3 bg-gray-900/50 border-b border-gray-800">
-                        <div className="flex justify-between items-center lg:hidden mb-2">
-                            <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Available Players</span>
-                        </div>
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                             <input
                                 type="text" placeholder="Filter Players..."
                                 className="w-full bg-black border border-gray-800 rounded-xl pl-10 pr-4 py-2 text-xs text-white focus:border-blue-500 outline-none"
-                                value={filterText} onChange={e => setFilterText(e.target.value)}
+                                value={filterText} onChange={e => {setFilterText(e.target.value); setDisplayLimit(30);}}
                             />
                         </div>
                         <div className="grid grid-cols-2 gap-2">
-                            <select value={filterTroops} onChange={e => setFilterTroops(e.target.value)} className="bg-black border border-gray-800 text-[10px] rounded-lg p-1 text-gray-400 outline-none">
+                            <select value={filterTroops} onChange={e => {setFilterTroops(e.target.value); setDisplayLimit(30);}} className="bg-black border border-gray-800 text-[10px] rounded-lg p-1 text-gray-400 outline-none">
                                 <option value="All">All Troops</option>
                                 {(filterOptions.troopTypes || []).map(o => <option key={o} value={o}>{o}</option>)}
                             </select>
-                            <select value={filterAvail} onChange={e => setFilterAvail(e.target.value)} className="bg-black border border-gray-800 text-[10px] rounded-lg p-1 text-gray-400 outline-none">
+                            <select value={filterAvail} onChange={e => {setFilterAvail(e.target.value); setDisplayLimit(30);}} className="bg-black border border-gray-800 text-[10px] rounded-lg p-1 text-gray-400 outline-none">
                                 <option value="All">All Battle</option>
                                 {(filterOptions.battleAvailability || []).map(o => <option key={o} value={o}>{o}</option>)}
                             </select>
@@ -220,7 +215,7 @@ export default function WarRoom() {
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
-                        {filteredPlayers.map(p => (
+                        {filteredPlayers.slice(0, displayLimit).map(p => (
                             <div
                                 key={p.fid}
                                 draggable={!isMod}
@@ -240,11 +235,20 @@ export default function WarRoom() {
                                 </div>
                             </div>
                         ))}
+
+                        {filteredPlayers.length > displayLimit && (
+                            <button
+                                onClick={() => setDisplayLimit(prev => prev + 30)}
+                                className="w-full py-4 text-[10px] font-black uppercase tracking-widest text-blue-400 hover:text-blue-300 transition-colors border-t border-gray-800 mt-2"
+                            >
+                                + Load More ({filteredPlayers.length - displayLimit} Remaining)
+                            </button>
+                        )}
                     </div>
                 </aside>
 
-                {/* 2. DEPLOYMENT GRID (Hidden on mobile if 'bench' tab is active) */}
-                <main className={`flex-1 overflow-y-auto p-4 lg:p-6 custom-scrollbar bg-gray-950 pb-24 lg:pb-6 ${mobileTab === 'alliances' ? 'block' : 'hidden lg:block'}`}>
+                {/* 2. DEPLOYMENT GRID */}
+                <main className={`flex-1 overflow-y-auto p-4 lg:p-6 custom-scrollbar bg-gray-950 ${selectedPlayer ? 'pb-32' : 'pb-12'} lg:pb-6 ${mobileTab === 'alliances' ? 'block' : 'hidden lg:block'}`}>
                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                         {(stats || []).map(alliance => {
                             const roster = (players || []).filter(p => p.fightingAllianceId === alliance.id);
@@ -256,7 +260,9 @@ export default function WarRoom() {
                                     onDragOver={(e) => !isLocked && !isMod && e.preventDefault()}
                                     onDrop={(e) => !isLocked && !isMod && onDrop(e, alliance.id)}
                                     onClick={() => !isLocked && !isMod && selectedPlayer && handleDeploy(selectedPlayer.fid, alliance.id)}
-                                    className={`bg-gray-900 rounded-3xl border transition-all flex flex-col overflow-hidden min-h-[400px] ${selectedPlayer && !isLocked && !isMod ? 'border-blue-500 ring-2 ring-blue-500/10 cursor-crosshair' : 'border-gray-800 shadow-2xl'} ${isLocked ? 'bg-red-950/5' : ''}`}
+                                    className={`bg-gray-900 rounded-3xl border transition-all flex flex-col overflow-hidden min-h-[400px] 
+                                        ${selectedPlayer && !isLocked && !isMod ? 'border-blue-500 ring-4 ring-blue-500/20 animate-pulse scale-[1.02] cursor-crosshair' : 'border-gray-800 shadow-2xl'} 
+                                        ${isLocked ? 'bg-red-950/5' : ''}`}
                                 >
                                     <div className={`p-4 flex justify-between items-center border-b ${isLocked ? 'bg-red-900/10 border-red-900/20' : 'bg-gray-900/50 border-gray-800'}`}>
                                         <div className="flex items-center gap-3">
@@ -286,7 +292,7 @@ export default function WarRoom() {
                                                 {isAdmin && !isLocked && (
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); void handleDeploy(m.fid, null); }}
-                                                        className="opacity-0 lg:group-hover:opacity-100 p-1 text-red-500 lg:hover:bg-red-500/10 rounded-lg transition-all"
+                                                        className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 p-1 text-red-500 lg:hover:bg-red-500/10 rounded-lg transition-all"
                                                     >
                                                         <X size={14} />
                                                     </button>

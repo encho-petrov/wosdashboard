@@ -150,7 +150,7 @@ export default function Alliances() {
                                                 </span>
                                         </td>
                                         <td className="p-4 text-right">
-                                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <div className="flex justify-end gap-2">
                                                 <button
                                                     onClick={() => { setEditingId(a.id); setForm({name: a.name, type: a.type}); }}
                                                     className="p-2 hover:bg-blue-600/20 text-blue-400 rounded-lg transition-colors"

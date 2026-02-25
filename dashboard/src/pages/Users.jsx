@@ -86,7 +86,7 @@ export default function Users() {
 
   return (
       <AdminLayout title="User Management">
-        <div className="p-4 lg:p-6 flex flex-col lg:flex-row gap-6 h-full min-h-0">
+        <div className="p-4 lg:p-6 flex flex-col lg:flex-row gap-6 lg:h-[calc(100vh-80px)] overflow-y-auto lg:overflow-hidden">
 
           {/* CREATE USER FORM */}
           <div className="w-full lg:w-80 shrink-0 bg-gray-800 p-6 rounded-xl border border-gray-700 h-fit shadow-lg">
@@ -145,7 +145,7 @@ export default function Users() {
           </div>
 
           {/* USERS TABLE */}
-          <div className="flex-1 bg-gray-800 rounded-xl border border-gray-700 flex flex-col min-h-0 shadow-lg overflow-hidden">
+          <div className="flex-1 bg-gray-800 rounded-xl border border-gray-700 flex flex-col shadow-lg overflow-hidden min-h-[500px] lg:min-h-0">
             <div className="p-4 border-b border-gray-700 bg-gray-900/50 flex justify-between items-center shrink-0">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
                 <User className="text-purple-400" /> Active Personnel
@@ -220,7 +220,7 @@ export default function Users() {
                                     (u.mfa_enabled || u.has_webauthn)
                                         ? 'text-yellow-500 hover:bg-yellow-500/10 border border-transparent hover:border-yellow-500/30'
                                         : 'text-gray-600 cursor-not-allowed'
-                                } lg:opacity-0 lg:group-hover:opacity-100 opacity-100`}
+                                }`}
                                 disabled={!(u.mfa_enabled || u.has_webauthn)}
                                 title="Reset MFA & Biometrics"
                             >
