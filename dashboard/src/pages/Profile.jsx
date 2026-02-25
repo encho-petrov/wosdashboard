@@ -58,28 +58,31 @@ export default function Profile() {
 
     const handleRegisterDevice = async () => {
         try {
-            // 1. Get the challenge from the Go backend
             const beginRes = await client.get('/admin/webauthn/register/begin');
-            const options = beginRes.data;
 
-            // 2. Ask the browser to prompt FaceID / Windows Hello
+            // DRILL DOWN HERE:
+            const options = beginRes.data.publicKey;
+
+            if (!options) {
+                toast.error("Invalid response from server");
+                return;
+            }
+
             let attResp;
             try {
                 attResp = await startRegistration(options);
             } catch (error) {
                 if (error.name === 'NotAllowedError') {
-                    toast.error("Registration cancelled by user.");
+                    toast.error("Registration cancelled.");
                 } else {
-                    toast.error("Biometrics not supported or failed.");
+                    toast.error(`WebAuthn Error: ${error.message}`);
                 }
                 return;
             }
 
-            // 3. Send the cryptographically signed response back to Go
             await client.post('/admin/webauthn/register/finish', attResp);
-
             toast.success("Device registered successfully!");
-            await fetchProfile(); // Refresh to show the active badge
+            await fetchProfile();
         } catch (err) {
             toast.error(err.response?.data?.error || "Failed to register device");
         }

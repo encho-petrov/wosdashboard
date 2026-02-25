@@ -6,6 +6,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
@@ -74,6 +75,12 @@ func InitWebAuthn(rpDisplayName, rpID, rpOrigin string) error {
 		RPDisplayName: rpDisplayName,
 		RPID:          rpID,
 		RPOrigins:     []string{rpOrigin},
+
+		AuthenticatorSelection: protocol.AuthenticatorSelection{
+			AuthenticatorAttachment: protocol.Platform,
+			UserVerification:        protocol.VerificationRequired,
+			ResidentKey:             protocol.ResidentKeyRequirementPreferred,
+		},
 	}
 
 	var err error

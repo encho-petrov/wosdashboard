@@ -41,18 +41,23 @@ export default function Login() {
     }
   };
 
-  // The WebAuthn Authentication Flow
   const triggerBiometricLogin = async (token) => {
     try {
       setLoading(true);
       const beginRes = await client.get(`/webauthn/login/begin?temp_token=${token}`);
 
+      const options = beginRes.data.publicKey;
+
+      if (!options) {
+        toast.error("Invalid server response");
+      }
+
       let asseResp;
       try {
-        asseResp = await startAuthentication(beginRes.data);
+        asseResp = await startAuthentication(options);
       } catch (error) {
         if (error.name !== 'NotAllowedError') {
-          toast.error("Biometric authentication failed or is not supported here.");
+          toast.error("Biometric authentication failed.");
         }
         setLoading(false);
         return;
@@ -89,7 +94,7 @@ export default function Login() {
           setStep(2);
 
           if (res.data.has_webauthn) {
-            // do not await this
+            // do not await this!
             triggerBiometricLogin(tToken);
           }
         } else {
