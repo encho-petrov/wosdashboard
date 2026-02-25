@@ -486,6 +486,7 @@ export default function MinistryReservations() {
                                         <div className="min-w-0 pr-3">
                                             <div className="font-bold text-sm text-gray-200 group-hover:text-white tracking-tighter">{p.nickname}</div>
                                             <div className="text-[10px] text-gray-500 font-mono mt-0.5">{p.fid}</div>
+                                            <p className="text-[9px] font-mono text-gray-400 border-gray-700">{p.allianceName}</p>
                                         </div>
                                         <div className="text-[9px] font-black uppercase tracking-widest bg-gray-800 px-2.5 py-1.5 rounded-lg border border-gray-700 text-gray-400 shrink-0">
                                             {p.allianceName || 'Global'}

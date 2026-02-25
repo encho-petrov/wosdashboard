@@ -194,7 +194,7 @@ export default function Squads() {
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                             <input
-                                type="text" placeholder="Search Infantry..."
+                                type="text" placeholder="Search Players..."
                                 className="w-full bg-black border border-gray-800 rounded-xl pl-10 pr-4 py-2 text-xs text-white focus:border-blue-500 outline-none"
                                 value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
                             />
@@ -219,6 +219,7 @@ export default function Squads() {
                                     <div className="min-w-0 flex-1">
                                         <p className={`text-[11px] font-black ${selectedPlayer?.fid === p.fid ? 'text-white' : 'text-gray-200'}`}>{p.nickname}</p>
                                         <p className="text-[9px] font-mono text-yellow-600">{(p.power || 0).toLocaleString()}</p>
+                                        <p className="text-[9px] font-mono text-gray-400 border-gray-700">{p.allianceName}</p>
                                     </div>
                                     {isAdmin && (
                                         <button
@@ -262,6 +263,7 @@ export default function Squads() {
                                             <div className="min-w-0">
                                                 <h4 className="text-sm font-black text-white">{captain.nickname}</h4>
                                                 <p className="text-[10px] text-yellow-600 font-mono font-bold tracking-tighter">{(sq.totalPower || 0).toLocaleString()}</p>
+                                                <p className="text-[9px] font-mono text-gray-400 border-gray-700">{captain.allianceName}</p>
                                             </div>
                                         </div>
                                         {isAdmin && (
@@ -298,7 +300,7 @@ export default function Squads() {
                                     </div>
 
                                     <div className="px-4 py-2 bg-gray-900/50 border-t border-gray-800 text-[10px] font-black uppercase text-center text-gray-500">
-                                        {roster.length} / 5 Members
+                                        {roster.length} / 8 Members
                                     </div>
                                 </div>
                             );

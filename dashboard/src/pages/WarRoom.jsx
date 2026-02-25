@@ -31,11 +31,8 @@ export default function WarRoom() {
     const [sortBy, setSortBy] = useState('Power');
     const [selectedPlayer, setSelectedPlayer] = useState(null);
 
-    // --- NEW: DISPLAY LIMIT STATE ---
     const [displayLimit, setDisplayLimit] = useState(30);
-
-    // --- MOBILE SPECIFIC STATE ---
-    const [mobileTab, setMobileTab] = useState('bench'); // 'bench' | 'alliances'
+    const [mobileTab, setMobileTab] = useState('bench');
 
     useEffect(() => {
         void fetchData();
@@ -55,6 +52,19 @@ export default function WarRoom() {
         } finally {
             if (!silent) setLoading(false);
         }
+    };
+
+    // --- LOGIC: MUTUALLY EXCLUSIVE FILTERS ---
+    const handleBattleFilterChange = (val) => {
+        setFilterAvail(val);
+        if (val !== 'All') setFilterTundra('All'); // Reset Tundra
+        setDisplayLimit(30);
+    };
+
+    const handleTundraFilterChange = (val) => {
+        setFilterTundra(val);
+        if (val !== 'All') setFilterAvail('All'); // Reset Battle
+        setDisplayLimit(30);
     };
 
     const handleReset = async () => {
@@ -119,8 +129,11 @@ export default function WarRoom() {
             const matchesText = (p.nickname || '').toLowerCase().includes(filterText.toLowerCase()) ||
                 (p.fid || '').toString().includes(filterText);
             const matchesTroops = filterTroops === 'All' || p.troopType === filterTroops;
+
+            // Logic: Only one of these will ever be active at a time due to handlers
             const matchesAvail = filterAvail === 'All' || p.battleAvailability === filterAvail;
             const matchesTundra = filterTundra === 'All' || p.tundraAvailability === filterTundra;
+
             return matchesText && matchesTroops && matchesAvail && matchesTundra && !p.fightingAllianceId;
         }).sort((a, b) => {
             if (sortBy === 'Power') return (b.power || 0) - (a.power || 0);
@@ -202,14 +215,32 @@ export default function WarRoom() {
                                 value={filterText} onChange={e => {setFilterText(e.target.value); setDisplayLimit(30);}}
                             />
                         </div>
-                        <div className="grid grid-cols-2 gap-2">
-                            <select value={filterTroops} onChange={e => {setFilterTroops(e.target.value); setDisplayLimit(30);}} className="bg-black border border-gray-800 text-[10px] rounded-lg p-1 text-gray-400 outline-none">
+                        <div className="grid grid-cols-3 gap-2">
+                            <select
+                                value={filterTroops}
+                                onChange={e => {setFilterTroops(e.target.value); setDisplayLimit(30);}}
+                                className="bg-black border border-gray-800 text-[10px] rounded-lg p-1 text-gray-400 outline-none"
+                            >
                                 <option value="All">All Troops</option>
                                 {(filterOptions.troopTypes || []).map(o => <option key={o} value={o}>{o}</option>)}
                             </select>
-                            <select value={filterAvail} onChange={e => {setFilterAvail(e.target.value); setDisplayLimit(30);}} className="bg-black border border-gray-800 text-[10px] rounded-lg p-1 text-gray-400 outline-none">
-                                <option value="All">All Battle</option>
+
+                            <select
+                                value={filterAvail}
+                                onChange={e => handleBattleFilterChange(e.target.value)}
+                                className={`bg-black border rounded-lg p-1 text-[10px] outline-none transition-colors ${filterAvail !== 'All' ? 'border-blue-500 text-blue-400' : 'border-gray-800 text-gray-400'}`}
+                            >
+                                <option value="All">Battle Availability</option>
                                 {(filterOptions.battleAvailability || []).map(o => <option key={o} value={o}>{o}</option>)}
+                            </select>
+
+                            <select
+                                value={filterTundra}
+                                onChange={e => handleTundraFilterChange(e.target.value)}
+                                className={`bg-black border rounded-lg p-1 text-[10px] outline-none transition-colors ${filterTundra !== 'All' ? 'border-purple-500 text-purple-400' : 'border-gray-800 text-gray-400'}`}
+                            >
+                                <option value="All">Tundra Availability</option>
+                                {(filterOptions.tundraAvailability || []).map(o => <option key={o} value={o}>{o}</option>)}
                             </select>
                         </div>
                     </div>
@@ -228,9 +259,11 @@ export default function WarRoom() {
                                         <img src={p.avatar} className="w-10 h-10 rounded-xl object-cover" alt="" />
                                         {p.stoveImg && <img src={p.stoveImg} className="absolute -bottom-1 -right-1 w-5 h-5" alt="" />}
                                     </div>
-                                    <div className="min-w-0 flex-1">
+                                    <div className="min-w-0 flex-1 space-x-2">
                                         <p className={`text-[11px] font-black ${selectedPlayer?.fid === p.fid ? 'text-white' : 'text-gray-200'}`}>{p.nickname}</p>
                                         <div className={`mt-1 inline-block text-[8px] px-1.5 rounded-sm border font-black uppercase tracking-tighter ${getTroopColor(p.troopType)}`}>{p.troopType || 'NONE'}</div>
+                                        <div className={`mt-1 inline-block text-[8px] px-1.5 rounded-sm border font-black tracking-tighter text-gray-400 border-gray-700 bg-gray-800/40`}>{p.allianceName || 'NONE'}</div>
+
                                     </div>
                                 </div>
                             </div>

@@ -242,7 +242,7 @@ export default function Roster() {
               <table className="w-full text-left border-collapse min-w-[1400px]">
                 <thead className="bg-black text-gray-600 text-[10px] font-black uppercase tracking-widest border-b border-gray-800">
                 <tr>
-                  <th className="p-4 w-16 text-center">Unit</th>
+                  <th className="p-4 w-16 text-center"></th>
                   <th className="p-4">Identity</th>
                   <th className="p-4 text-center">Furnace</th>
                   <th className="p-4">Power</th>
