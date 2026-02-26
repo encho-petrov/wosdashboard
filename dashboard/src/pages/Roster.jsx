@@ -101,11 +101,12 @@ export default function Roster() {
     try {
       await client.put(`/moderator/players/${editingId}`, {
         ...editForm,
-        power: parseInt(editForm.power)
+        power: parseInt(editForm.power),
+        allianceId: parseInt(editForm.allianceId)
       });
       toast.success("Player updated");
       setEditingId(null);
-      await refreshGlobalData(true); // Silent update
+      await refreshGlobalData(true);
     } catch (err) {
       toast.error("Update failed");
     }

@@ -225,8 +225,8 @@ export default function PlayerDashboard() {
                               <Castle className="w-5 h-5 text-orange-400" />
                             </div>
                             <div>
-                              <div className="text-sm font-black text-white">{fort.buildingType}</div>
-                              <div className="text-xs text-orange-300 font-mono mt-0.5">{fort.internalId}</div>
+                              <snap className="text-sm font-black text-white">{fort.buildingType} </snap>
+                              <snap className="text-sm text-orange-300 font-mono mt-0.5">{fort.internalId}</snap>
                             </div>
                           </div>
                       ))}
