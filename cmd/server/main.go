@@ -14,6 +14,7 @@ import (
 	"gift-redeemer/internal/services"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/mysql"
@@ -132,23 +133,26 @@ func main() {
 	router := api.SetupRouter(engine, store, cfg.Game.TargetState, cfg.ApiSecrets.CaptchaApiKey, pClient)
 
 	if cfg.Discord.WebhookURL != "" {
-		c := cron.New()
+		c := cron.New(cron.WithLocation(time.UTC))
 
-		cronExp := parseCronSchedule(cfg.Discord.AnnounceDay, cfg.Discord.AnnounceTimeUTC)
+		cronExp := parseCronSchedule(cfg.Rotation.AnnounceDay, cfg.Rotation.AnnounceTimeUTC)
 
 		// Fortress rotation cron
 		_, err := c.AddFunc(cronExp, func() {
 			log.Println("CRON: Triggering automated Discord rotation announcement...")
-			targetSeason, upcomingWeek := services.CalculateUpcomingWeek(cfg.Rotation.SeasonReferenceDate)
 
-			entries, err := store.GetRotationForWeek(targetSeason, upcomingWeek)
-			if err != nil {
-				log.Printf("CRON Error fetching rotation: %v", err)
+			cfg, _ := config.LoadConfig()
+			liveSeason, liveWeek := services.GetRotationState(cfg.Rotation.SeasonReferenceDate, cfg.Rotation.AnchorSeason)
+
+			entries, err := store.GetRotationForWeek(liveSeason, liveWeek)
+			if err != nil || len(entries) == 0 {
+				log.Printf("CRON: No rotation data found for S%d W%d. Skipping announcement.", liveSeason, liveWeek)
 				return
 			}
 
-			if err := services.SendDiscordRotation(cfg.Discord.WebhookURL, upcomingWeek, entries); err != nil {
-				log.Printf("CRON Error sending to Discord: %v", err)
+			// Pass Season to the service so it appears in the Discord title
+			if err := services.SendDiscordRotation(cfg.Discord.WebhookURL, liveSeason, liveWeek, entries); err != nil {
+				log.Printf("CRON Error: %v", err)
 			}
 		})
 
@@ -161,7 +165,7 @@ func main() {
 			log.Printf("Failed to schedule Discord cron: %v", err)
 		} else {
 			c.Start()
-			log.Printf("Discord Rotation Cron scheduled for %s at %s UTC", cfg.Discord.AnnounceDay, cfg.Discord.AnnounceTimeUTC)
+			log.Printf("Discord Rotation Cron scheduled for %s at %s UTC", cfg.Rotation.AnnounceDay, cfg.Rotation.AnnounceTimeUTC)
 		}
 		defer c.Stop()
 	}

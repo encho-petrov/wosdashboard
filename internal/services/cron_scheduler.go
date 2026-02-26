@@ -68,3 +68,16 @@ func CheckMinistrySchedule(store *db.Store, webhookURL string) {
 		}
 	}
 }
+
+func GetRotationState(anchorDateStr string, anchorSeason int) (int, int) {
+	referenceDate, _ := time.Parse("2006-01-02", anchorDateStr)
+
+	daysSince := int(time.Since(referenceDate).Hours() / 24)
+
+	seasonOffset := daysSince / 56
+	currentSeason := anchorSeason + seasonOffset
+
+	currentWeek := ((daysSince / 7) % 8) + 1
+
+	return currentSeason, currentWeek
+}

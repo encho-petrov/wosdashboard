@@ -41,7 +41,7 @@ func SendCustomDiscordEmbed(webhookURL, title, description string, color int) er
 	return nil
 }
 
-func SendDiscordRotation(webhookURL string, week int, entries []db.RotationEntryExtended) error {
+func SendDiscordRotation(webhookURL string, season int, week int, entries []db.RotationEntryExtended) error {
 	description := ""
 	for _, entry := range entries {
 		alliance := entry.AllianceName
@@ -51,7 +51,7 @@ func SendDiscordRotation(webhookURL string, week int, entries []db.RotationEntry
 		description += fmt.Sprintf("🛡️ **%s %d** ➡️ %s\n", entry.BuildingType, entry.InternalID, alliance)
 	}
 
-	title := fmt.Sprintf("🏰 Fortress Rotation: Week %d", week)
+	title := fmt.Sprintf("🏰 Season %d | Fortress Rotation: Week %d", season, week)
 	return SendCustomDiscordEmbed(webhookURL, title, description, 3447003)
 }
 

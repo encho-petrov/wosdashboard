@@ -163,13 +163,20 @@ func (s *Store) GetAllianceRotationForWeek(seasonID int, week int, allianceID in
 	return results, err
 }
 
-func (s *Store) GetActiveFortSeason() (int, int, error) {
-	var seasonID int
+//func (s *Store) GetActiveFortSeason() (int, int, error) {
+//	var seasonID int
+//
+//	query := "SELECT COALESCE(MAX(season_id), 1) FROM rotation_schedule"
+//	err := s.db.Get(&seasonID, query)
+//
+//	currentWeek := 1
+//
+//	return seasonID, currentWeek, err
+//}
 
-	query := "SELECT COALESCE(MAX(season_id), 1) FROM rotation_schedule"
-	err := s.db.Get(&seasonID, query)
-
-	currentWeek := 1
-
-	return seasonID, currentWeek, err
+func (s *Store) GetRotationHistory() ([]int, error) {
+	var history []int
+	query := "SELECT DISTINCT season_id FROM rotation_schedule ORDER BY season_id ASC"
+	err := s.db.Select(&history, query)
+	return history, err
 }

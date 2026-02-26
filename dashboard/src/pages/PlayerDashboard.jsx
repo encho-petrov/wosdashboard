@@ -36,6 +36,19 @@ export default function PlayerDashboard() {
     return `${startH}:${startM} - ${endH === '24' ? '00' : endH}:${endM}`;
   };
 
+  const formatDate = (dateString) => {
+    if (!dateString) return "";
+
+    const date = new Date(dateString);
+
+    return date.toLocaleDateString("en-GB", {
+      timeZone: "UTC",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
   return (
       <div className="min-h-screen bg-gray-900 text-gray-100 font-sans pb-10">
 
@@ -189,12 +202,12 @@ export default function PlayerDashboard() {
                 {ministries && ministries.length > 0 ? (
                     <div className="space-y-3">
                       {ministries.map((min, idx) => (
-                          <div className="flex items-center gap-3">
+                          <div key={min.id || idx} className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-lg bg-blue-900/20 border border-blue-500/30 flex items-center justify-center shrink-0">
                               <Clock className="text-blue-400 w-5 h-5" />
                             </div>
                             <div>
-                              <div className="text-sm font-black text-white">{min.activeDate} <span className="text-blue-400">({min.buffName})</span></div>
+                              <div className="text-sm font-black text-white">{formatDate(min.activeDate)} <span className="text-blue-400">({min.buffName})</span></div>
                               <div className="text-xs text-gray-400 mt-0.5 font-mono">{getSlotTime(min.slotIndex)} (UTC)</div>
                             </div>
                           </div>
@@ -225,8 +238,8 @@ export default function PlayerDashboard() {
                               <Castle className="w-5 h-5 text-orange-400" />
                             </div>
                             <div>
-                              <snap className="text-sm font-black text-white">{fort.buildingType} </snap>
-                              <snap className="text-sm text-orange-300 font-mono mt-0.5">{fort.internalId}</snap>
+                              <span className="text-sm font-black text-white">{fort.buildingType} </span>
+                              <span className="text-base text-orange-300 font-mono mt-0.5">{fort.internalId}</span>
                             </div>
                           </div>
                       ))}

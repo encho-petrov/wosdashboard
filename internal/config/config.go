@@ -29,14 +29,15 @@ type Config struct {
 	} `mapstructure:"Game"`
 
 	Discord struct {
-		WebhookURL      string `mapstructure:"WebhookUrl"`
-		ChannelId       string `mapstructure:"ChannelId"`
-		AnnounceTimeUTC string `mapstructure:"AnnounceTimeUTC"`
-		AnnounceDay     string `mapstructure:"AnnounceDay"`
+		WebhookURL string `mapstructure:"WebhookUrl"`
+		ChannelId  string `mapstructure:"ChannelId"`
 	} `mapstructure:"Discord"`
 
 	Rotation struct {
 		SeasonReferenceDate string `mapstructure:"SeasonReferenceDate"`
+		AnchorSeason        int    `json:"AnchorSeason"`
+		AnnounceTimeUTC     string `mapstructure:"AnnounceTimeUTC"`
+		AnnounceDay         string `mapstructure:"AnnounceDay"`
 	} `mapstructure:"Rotation"`
 
 	BioID struct {

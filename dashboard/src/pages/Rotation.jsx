@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
 import {
     LayoutGrid, Shield, Save,
-    Info, Lock, AlertTriangle, Megaphone
+    Lock, AlertTriangle, Megaphone
 } from 'lucide-react';
 import AdminLayout from '../components/layout/AdminLayout';
 import { getRewardIcon } from '../assets/rewards/index';
@@ -21,70 +21,97 @@ export default function Rotation() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
 
+    // Season Management State
+    const [seasons, setSeasons] = useState([]);
+    const [currentSeason, setCurrentSeason] = useState(null);
+    const [viewSeason, setViewSeason] = useState(null);
+
     const weeks = [1, 2, 3, 4, 5, 6, 7, 8];
+
+    // Determine if the currently viewed season is in the past
+    const isReadOnly = useMemo(() => {
+        if (!currentSeason || !viewSeason) return false;
+        return viewSeason < currentSeason;
+    }, [currentSeason, viewSeason]);
 
     useEffect(() => {
         void fetchInitialData();
     }, []);
 
-    const handleAnnounceRotation = async (week) => {
-        try {
-            await client.post(`/moderator/discord/rotation/1/${week}`);
-            toast.success(`Week ${week} schedule sent to Discord!`);
-        } catch (err) {
-            toast.error("Failed to announce rotation.");
+    // Re-fetch the schedule whenever the selected season changes
+    useEffect(() => {
+        if (viewSeason) {
+            void fetchSchedule(viewSeason);
         }
-    };
+    }, [viewSeason]);
 
     const fetchInitialData = async () => {
         try {
             setLoading(true);
 
-            const [bRes, aRes, sRes] = await Promise.all([
+            // Fetch structural data and the season state
+            const [bRes, aRes, sListRes] = await Promise.all([
                 client.get('/moderator/rotation/buildings'),
                 client.get('/moderator/options'),
-                client.get('/moderator/rotation/schedule/1')
+                client.get('/moderator/rotation/seasons')
             ]);
 
             setBuildings(bRes.data);
             setAlliances(aRes.data.alliances || []);
+            setSeasons(sListRes.data.availableSeasons);
+            setCurrentSeason(sListRes.data.liveSeason);
+            setViewSeason(sListRes.data.liveSeason);
 
-            const scheduleMap = {};
-            sRes.data.forEach(entry => {
-                scheduleMap[`${entry.buildingId}-${entry.week}`] = entry.allianceId;
-            });
-            setMatrix(scheduleMap);
-
-            // 2. Fetch rewards for ALL 8 weeks simultaneously
+            // Fetch rewards (Weekly rewards are static across seasons)
             const rewardPromises = weeks.map(w => client.get(`/moderator/rotation/rewards/${w}`));
             const rewardResponses = await Promise.all(rewardPromises);
 
             const rewardsMap = {};
             rewardResponses.forEach((res, index) => {
-                const weekNum = weeks[index];
-                rewardsMap[weekNum] = res.data;
+                rewardsMap[weeks[index]] = res.data;
             });
             setRewards(rewardsMap);
 
         } catch (err) {
-            toast.error("Failed to load rotation data");
-            console.error(err);
+            toast.error("Failed to load initial rotation data");
         } finally {
             setLoading(false);
         }
     };
 
+    const fetchSchedule = async (seasonId) => {
+        try {
+            const res = await client.get(`/moderator/rotation/schedule/${seasonId}`);
+            const scheduleMap = {};
+            res.data.forEach(entry => {
+                scheduleMap[`${entry.buildingId}-${entry.week}`] = entry.allianceId;
+            });
+            setMatrix(scheduleMap);
+        } catch (err) {
+            toast.error(`Failed to load Season ${seasonId} schedule`);
+        }
+    };
+
     const handleCellChange = (buildingId, week, allianceId) => {
-        if (!isAdmin) return;
+        if (!isAdmin || isReadOnly) return;
         setMatrix(prev => ({
             ...prev,
             [`${buildingId}-${week}`]: parseInt(allianceId) || null
         }));
     };
 
+    const handleAnnounceRotation = async (week) => {
+        if (isReadOnly) return;
+        try {
+            await client.post(`/moderator/discord/rotation/${viewSeason}/${week}`);
+            toast.success(`Week ${week} schedule sent to Discord!`);
+        } catch (err) {
+            toast.error("Failed to announce rotation.");
+        }
+    };
+
     const hasConflict = useMemo(() => {
         const conflicts = {};
-
         weeks.forEach(w => {
             const fortAssignments = {};
             const shAssignments = {};
@@ -92,7 +119,6 @@ export default function Rotation() {
             buildings.forEach(b => {
                 const val = matrix[`${b.id}-${w}`];
                 if (!val) return;
-
                 if (b.type === 'Fortress') {
                     fortAssignments[val] = (fortAssignments[val] || 0) + 1;
                 } else if (b.type === 'Stronghold') {
@@ -108,19 +134,15 @@ export default function Rotation() {
             buildings.forEach(b => {
                 const val = matrix[`${b.id}-${w}`];
                 if (!val) return;
-
-                if (b.type === 'Fortress' && fortAssignments[val] > fortLimit) {
-                    conflicts[`${b.id}-${w}`] = true;
-                } else if (b.type === 'Stronghold' && shAssignments[val] > shLimit) {
-                    conflicts[`${b.id}-${w}`] = true;
-                }
+                if (b.type === 'Fortress' && fortAssignments[val] > fortLimit) conflicts[`${b.id}-${w}`] = true;
+                else if (b.type === 'Stronghold' && shAssignments[val] > shLimit) conflicts[`${b.id}-${w}`] = true;
             });
         });
-
         return conflicts;
     }, [matrix, buildings]);
 
     const handleSave = async () => {
+        if (isReadOnly) return;
         if (Object.keys(hasConflict).length > 0) {
             toast.error("Cannot save: Detected alliance scheduling conflicts.");
             return;
@@ -131,189 +153,136 @@ export default function Rotation() {
             const entries = Object.entries(matrix).map(([key, allianceId]) => {
                 const [buildingId, week] = key.split('-').map(Number);
                 return {
-                    seasonId: 1,
+                    seasonId: viewSeason,
                     week: week,
                     buildingId: buildingId,
                     allianceId: allianceId
                 };
             }).filter(e => e.allianceId !== null);
 
-            await client.post('/moderator/rotation/save', { seasonId: 1, entries });
-            toast.success("Season rotation saved and locked!");
+            await client.post('/moderator/rotation/save', { seasonId: viewSeason, entries });
+            toast.success(`Season ${viewSeason} plan saved!`);
         } catch (err) {
-            toast.error(err.response?.data?.error || "Failed to save schedule");
+            toast.error("Failed to save schedule");
         } finally {
             setSaving(false);
         }
     };
 
-    if (loading) return (
-        <div className="min-h-screen bg-gray-900 flex items-center justify-center font-mono text-blue-500">
-            INITIALIZING STATE MATRIX...
-        </div>
-    );
+    if (loading) return <div className="min-h-screen bg-gray-900 flex items-center justify-center font-mono text-blue-500">SYNCHRONIZING SEASON MATRIX...</div>;
 
     return (
         <AdminLayout title="Fortress Rotation">
-        <div className="min-h-screen bg-gray-900 text-gray-100 font-sans">
-            <main className="container mx-auto px-4 py-8 max-w-[1600px] space-y-6">
+            <div className="min-h-screen bg-gray-900 text-gray-100 font-sans">
+                <main className="container mx-auto px-4 py-8 max-w-[1600px] space-y-6">
 
-                {/* Header Section */}
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-                    <div>
-                        <h2 className="text-2xl font-bold flex items-center gap-3">
-                            <LayoutGrid className="text-blue-400" /> Season 1 Rotation Matrix
-                        </h2>
-                        <p className="text-gray-500 text-sm mt-1">
-                            Manage 12 Fortresses and 4 Strongholds. Rules: 1 Stronghold/week. Fortress limits scale from 1 (W1) to 3 (W3+).
-                        </p>
+                    {/* Header with Season Selector */}
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+                        <div className="flex flex-col md:flex-row md:items-center gap-6">
+                            <div>
+                                <h2 className="text-2xl font-bold flex items-center gap-3">
+                                    <LayoutGrid className="text-blue-400" /> Season {viewSeason} Matrix
+                                </h2>
+                                <p className="text-gray-500 text-sm mt-1">Status: {isReadOnly ? 'Archived / Read-Only' : 'Active Planning'}</p>
+                            </div>
+
+                            <div className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-2 flex items-center gap-3">
+                                <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Select Season</span>
+                                <select
+                                    value={viewSeason}
+                                    onChange={(e) => setViewSeason(parseInt(e.target.value))}
+                                    className="bg-transparent text-blue-400 font-bold outline-none cursor-pointer text-sm"
+                                >
+                                    {seasons.map(s => (
+                                        <option key={s} value={s} className="bg-gray-800">Season {s} {s === currentSeason ? '(Live)' : ''}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        {isAdmin && !isReadOnly ? (
+                            <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-all disabled:opacity-50">
+                                <Save size={18} /> {saving ? 'Saving...' : `Save Season ${viewSeason}`}
+                            </button>
+                        ) : (
+                            <div className="flex items-center gap-2 px-4 py-2 bg-amber-900/20 text-amber-400 border border-amber-800/30 rounded-lg text-xs font-bold uppercase">
+                                <Lock size={14} /> {isReadOnly ? `Season ${viewSeason} Locked` : 'Restricted Access'}
+                            </div>
+                        )}
                     </div>
 
-                    {isAdmin ? (
-                        <button
-                            onClick={handleSave}
-                            disabled={saving}
-                            className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold shadow-lg shadow-blue-900/20 transition-all disabled:opacity-50"
-                        >
-                            <Save size={18} /> {saving ? 'Saving...' : 'Save Season Plan'}
-                        </button>
-                    ) : (
-                        <div className="flex items-center gap-2 px-4 py-2 bg-amber-900/20 text-amber-400 border border-amber-800/30 rounded-lg text-xs font-bold uppercase">
-                            <Lock size={14} /> Read-Only Mode (Moderator)
-                        </div>
-                    )}
-                </div>
-
-                {/* The Matrix */}
-                <div className="bg-gray-800 rounded-2xl border border-gray-700 shadow-2xl overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                            <tr className="bg-gray-700/30 border-b border-gray-700">
-                                <th className="p-4 w-48 sticky left-0 bg-gray-800 z-10 border-r border-gray-700 shadow-[1px_0_0_0_#374151]">Building ID</th>
-                                {weeks.map(w => (
-                                    <th key={w} className="p-4 text-center min-w-[140px] font-black text-xs uppercase tracking-tighter text-gray-400 group relative">
-                                        <div className="flex items-center justify-center gap-2">
-                                            <span>Week {w}</span>
-                                            {isAdmin && (
-                                                <button
-                                                    onClick={() => handleAnnounceRotation(w)}
-                                                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-blue-900/40 hover:bg-blue-600 text-blue-400 hover:text-white rounded-md border border-blue-500/30 shadow-md"
-                                                    title={`Announce Week ${w} to Discord`}
-                                                >
-                                                    <Megaphone size={12} />
-                                                </button>
-                                            )}
-                                        </div>
-                                    </th>
-                                ))}
-                            </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-700/50">
-                            {buildings.map(b => (
-                                <tr key={b.id} className="hover:bg-gray-700/20 transition-colors">
-                                    <td className="p-4 sticky left-0 bg-gray-800 z-10 border-r border-gray-700 shadow-[1px_0_0_0_#374151]">
-                                        <div className="flex items-center gap-3">
-                                            <div className={`p-2 rounded-lg ${b.type === 'Stronghold' ? 'bg-purple-900/30 text-purple-400' : 'bg-blue-900/30 text-blue-400'}`}>
-                                                <Shield size={16} />
+                    {/* The Matrix Table */}
+                    <div className="bg-gray-800 rounded-2xl border border-gray-700 shadow-2xl overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                <tr className="bg-gray-700/30 border-b border-gray-700">
+                                    <th className="p-4 w-48 sticky left-0 bg-gray-800 z-10 border-r border-gray-700">Building</th>
+                                    {weeks.map(w => (
+                                        <th key={w} className="p-4 text-center min-w-[140px] font-black text-xs uppercase tracking-tighter text-gray-400 group relative">
+                                            <div className="flex items-center justify-center gap-2">
+                                                <span>Week {w}</span>
+                                                {isAdmin && !isReadOnly && (
+                                                    <button onClick={() => handleAnnounceRotation(w)} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-blue-900/40 hover:bg-blue-600 text-blue-400 hover:text-white rounded-md border border-blue-500/30">
+                                                        <Megaphone size={12} />
+                                                    </button>
+                                                )}
                                             </div>
-                                            <div>
-                                                <div className="font-bold text-sm">{b.type} {b.internal_id}</div>
-
-                                            </div>
-                                        </div>
-                                    </td>
-
-                                    {weeks.map(w => {
-                                        const coord = `${b.id}-${w}`;
-                                        const conflict = hasConflict[coord];
-                                        const currentAlliance = matrix[coord] || '';
-
-                                        // Retrieve the reward for this specific week and building
-                                        const weekRewards = rewards[w] || [];
-                                        const cellReward = weekRewards.find(r => r.building_id === b.id);
-
-                                        return (
-                                            <td key={w} className={`p-2 align-middle ${conflict ? 'bg-red-900/10' : ''}`}>
-                                                <div className="flex items-center gap-2 relative">
-
-                                                    {/* --- REWARD ICON (Left Side) --- */}
-                                                    {/* We use a fixed width container so the dropdowns stay perfectly aligned vertically even if an icon is missing */}
-                                                    <div className="flex-shrink-0 w-7 flex justify-center items-center">
-                                                        {cellReward && cellReward.icon && (
-                                                            <img
-                                                                src={getRewardIcon(cellReward.icon)}
-                                                                alt={cellReward.name}
-                                                                // Larger size, no opacity, added drop shadow and a subtle hover grow effect
-                                                                className="w-7 h-7 object-contain drop-shadow-md hover:scale-110 transition-transform cursor-help"
-                                                                title={cellReward.name} // Native hover tooltip
-                                                                onError={(e) => e.target.style.display = 'none'}
-                                                            />
-                                                        )}
-                                                    </div>
-
-                                                    {/* --- DROPDOWN (Right Side) --- */}
-                                                    <div className="relative w-full">
-                                                        <select
-                                                            disabled={!isAdmin}
-                                                            value={currentAlliance}
-                                                            onChange={(e) => handleCellChange(b.id, w, e.target.value)}
-                                                            // Removed horizontal padding slightly and centered text for 3-letter tags
-                                                            className={`w-full bg-gray-900 border appearance-none rounded-lg px-2 py-2 text-xs font-bold text-center outline-none transition-all cursor-pointer ${
-                                                                conflict
-                                                                    ? 'border-red-500 text-red-400'
-                                                                    : currentAlliance
-                                                                        ? 'border-blue-500/30 text-blue-100 hover:border-blue-500'
-                                                                        : 'border-gray-700 text-gray-500 hover:border-gray-600'
-                                                            } disabled:cursor-default`}
-                                                        >
-                                                            <option value="">---</option>
-                                                            {alliances.map(a => (
-                                                                <option key={a.id} value={a.id}>{a.name}</option>
-                                                            ))}
-                                                        </select>
-
-                                                        {/* Conflict Warning Indicator */}
-                                                        {conflict && (
-                                                            <div className="absolute -top-2 -right-2 z-10 bg-gray-900 rounded-full">
-                                                                <AlertTriangle size={16} className="text-red-500 fill-red-900 drop-shadow-md" />
-                                                            </div>
-                                                        )}
-                                                    </div>
-
-                                                </div>
-                                            </td>
-                                        );
-                                    })}
+                                        </th>
+                                    ))}
                                 </tr>
-                            ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                                </thead>
+                                <tbody className="divide-y divide-gray-700/50">
+                                {buildings.map(b => (
+                                    <tr key={b.id} className="hover:bg-gray-700/20 transition-colors">
+                                        <td className="p-4 sticky left-0 bg-gray-800 z-10 border-r border-gray-700">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`p-2 rounded-lg ${b.type === 'Stronghold' ? 'bg-purple-900/30 text-purple-400' : 'bg-blue-900/30 text-blue-400'}`}>
+                                                    <Shield size={16} />
+                                                </div>
+                                                <div className="font-bold text-sm">{b.type} {b.internal_id}</div>
+                                            </div>
+                                        </td>
+                                        {weeks.map(w => {
+                                            const coord = `${b.id}-${w}`;
+                                            const conflict = hasConflict[coord];
+                                            const currentAlliance = matrix[coord] || '';
+                                            const cellReward = (rewards[w] || []).find(r => r.building_id === b.id);
 
-                {/* Legend / Warnings */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-gray-800/50 p-6 rounded-xl border border-gray-700 space-y-3">
-                        <h4 className="text-sm font-bold uppercase text-gray-400 tracking-widest flex items-center gap-2">
-                            <Info size={16} className="text-blue-400" /> Rotation Rules
-                        </h4>
-                        <ul className="text-xs text-gray-500 space-y-2 list-disc list-inside">
-                            <li>Strongholds: 1 max per alliance per week.</li>
-                            <li>Fortresses: Max 1 in Week 1, Max 2 in Week 2, Max 3 per week thereafter.</li>
-                            <li>Red highlights indicate an alliance has exceeded their building limit for that week.</li>
-                        </ul>
-                    </div>
-
-                    <div className="bg-gray-800/50 p-6 rounded-xl border border-gray-700 flex flex-col justify-center items-center text-center">
-                        <p className="text-sm text-gray-400 mb-2">Automated Discord Announcement:</p>
-                        <div className="font-mono text-xs bg-gray-950 px-4 py-2 rounded-lg border border-gray-700 text-blue-500">
-                            Triggered every {user?.discordAnnounceDay || 'Thursday'} at {user?.discordAnnounceTime || '12:00'} UTC
+                                            return (
+                                                <td key={w} className={`p-2 align-middle ${conflict ? 'bg-red-900/10' : ''}`}>
+                                                    <div className="flex items-center gap-2 relative">
+                                                        <div className="flex-shrink-0 w-7 flex justify-center items-center">
+                                                            {cellReward?.icon && (
+                                                                <img src={getRewardIcon(cellReward.icon)} alt="" className="w-7 h-7 object-contain drop-shadow-md" title={cellReward.name} />
+                                                            )}
+                                                        </div>
+                                                        <div className="relative w-full">
+                                                            <select
+                                                                disabled={!isAdmin || isReadOnly}
+                                                                value={currentAlliance}
+                                                                onChange={(e) => handleCellChange(b.id, w, e.target.value)}
+                                                                className={`w-full bg-gray-900 border appearance-none rounded-lg px-2 py-2 text-xs font-bold text-center outline-none transition-all ${
+                                                                    conflict ? 'border-red-500 text-red-400' : currentAlliance ? 'border-blue-500/30 text-blue-100' : 'border-gray-700 text-gray-500'
+                                                                } disabled:opacity-80`}
+                                                            >
+                                                                <option value="">---</option>
+                                                                {alliances.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                                                            </select>
+                                                            {conflict && <div className="absolute -top-2 -right-2"><AlertTriangle size={16} className="text-red-500 fill-red-900" /></div>}
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            );
+                                        })}
+                                    </tr>
+                                ))}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
-                </div>
-            </main>
-        </div>
+                </main>
+            </div>
         </AdminLayout>
     );
 }

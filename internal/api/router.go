@@ -297,15 +297,14 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 				ministries = make([]db.PlayerMinistrySlot, 0)
 			}
 
+			cfg, _ := config.LoadConfig()
+			liveSeason, liveWeek := services.GetRotationState(cfg.Rotation.SeasonReferenceDate, cfg.Rotation.AnchorSeason)
 			forts := make([]db.RotationEntryExtended, 0)
 
-			cfg, _ := config.LoadConfig()
-			seasonID, currentWeek := services.CalculateCurrentWeek(cfg.Rotation.SeasonReferenceDate)
-
-			if data.Player.AllianceID != nil && *data.Player.AllianceID > 0 {
-				allianceForts, err := store.GetAllianceRotationForWeek(seasonID, currentWeek, *data.Player.AllianceID)
-				if err == nil && allianceForts != nil {
-					forts = allianceForts
+			if data.Player.AllianceID != nil {
+				res, _ := store.GetAllianceRotationForWeek(liveSeason, liveWeek, *data.Player.AllianceID)
+				if res != nil {
+					forts = res
 				}
 			}
 
@@ -1421,6 +1420,37 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 				logAction(c, store, "UPDATE_ROTATION", fmt.Sprintf("Updated rotation for Season %d", req.SeasonID))
 				c.JSON(http.StatusOK, gin.H{"message": "Rotation schedule updated successfully"})
 			})
+
+			rotation.GET("/seasons", func(c *gin.Context) {
+				cfg, _ := config.LoadConfig()
+
+				liveSeason, _ := services.GetRotationState(
+					cfg.Rotation.SeasonReferenceDate,
+					cfg.Rotation.AnchorSeason,
+				)
+
+				existingSeasons, err := store.GetRotationHistory()
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch history"})
+					return
+				}
+
+				foundLive := false
+				for _, s := range existingSeasons {
+					if s == liveSeason {
+						foundLive = true
+						break
+					}
+				}
+				if !foundLive {
+					existingSeasons = append(existingSeasons, liveSeason)
+				}
+
+				c.JSON(http.StatusOK, gin.H{
+					"liveSeason":       liveSeason,
+					"availableSeasons": existingSeasons,
+				})
+			})
 		}
 		discord := authorized.Group("/discord")
 		{
@@ -1435,7 +1465,7 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 				}
 
 				cfg, _ := config.LoadConfig()
-				if err := services.SendDiscordRotation(cfg.Discord.WebhookURL, week, entries); err != nil {
+				if err := services.SendDiscordRotation(cfg.Discord.WebhookURL, seasonId, week, entries); err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 					return
 				}
