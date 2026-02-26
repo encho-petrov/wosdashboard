@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"gift-redeemer/internal/auth"
+	"gift-redeemer/internal/cache"
 	"gift-redeemer/internal/client"
 	"gift-redeemer/internal/config"
 	"gift-redeemer/internal/db"
@@ -37,8 +38,13 @@ func logAction(c *gin.Context, store *db.Store, action string, details string) {
 	})
 }
 
-func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, apiKey string, pClient *client.PlayerClient) *gin.Engine {
+func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, apiKey string, pClient *client.PlayerClient, redisStore *cache.RedisStore) *gin.Engine {
+
 	r := gin.Default()
+	r.Use(func(c *gin.Context) {
+		c.Set("redisStore", redisStore)
+		c.Next()
+	})
 
 	r.ForwardedByClientIP = true
 	err := r.SetTrustedProxies([]string{
@@ -195,6 +201,24 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 		c.JSON(200, gin.H{"token": token, "role": "player", "nickname": info.Data.Nickname})
 	})
 
+	r.GET("/api/shared-assets/heroes/:filename", func(c *gin.Context) {
+		filename := c.Param("filename")
+
+		if strings.Contains(filename, "..") || strings.Contains(filename, "/") || strings.Contains(filename, "\\") {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Invalid file path"})
+			return
+		}
+
+		imagePath := fmt.Sprintf("./shared-assets/heroes/%s", filename)
+
+		if _, err := os.Stat(imagePath); os.IsNotExist(err) {
+			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Hero portrait not found"})
+			return
+		}
+
+		c.File(imagePath)
+	})
+
 	r.GET("/api/webauthn/login/begin", func(c *gin.Context) {
 		tempToken := c.Query("temp_token")
 		if tempToken == "" {
@@ -320,6 +344,190 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 	authorized := r.Group("/api/moderator")
 	authorized.Use(AuthMiddleware(store))
 	{
+		authorized.GET("/strategy/heroes", func(c *gin.Context) {
+			heroes, err := store.GetHeroes()
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch heroes"})
+				return
+			}
+			c.JSON(http.StatusOK, heroes)
+		})
+
+		authorized.POST("/strategy/meta", func(c *gin.Context) {
+			var req models.BattleMetaRequest
+
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload format: " + err.Error()})
+				return
+			}
+
+			strategyID, err := store.SaveBattleStrategy(req)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save strategy"})
+				return
+			}
+
+			c.JSON(http.StatusOK, gin.H{"message": "Strategy updated successfully", "id": strategyID})
+		})
+
+		authorized.GET("/strategy/active", func(c *gin.Context) {
+			activeMeta, err := store.GetActiveStrategy()
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch active strategy"})
+				return
+			}
+
+			c.JSON(http.StatusOK, activeMeta)
+		})
+
+		authorized.GET("/strategy/captains", func(c *gin.Context) {
+			captainList, err := store.GetActiveCaptains()
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch active captains"})
+				return
+			}
+
+			c.JSON(http.StatusOK, captainList)
+		})
+
+		authorized.POST("/strategy/pets", func(c *gin.Context) {
+			var req db.PetScheduleRequest
+
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload: " + err.Error()})
+				return
+			}
+
+			if err := store.SavePetSchedule(req); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save pet schedule"})
+				return
+			}
+
+			c.JSON(http.StatusOK, gin.H{"message": "Pet schedule saved successfully"})
+		})
+
+		authorized.GET("/strategy/pets", func(c *gin.Context) {
+			date := c.Query("date")
+			if date == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Date required"})
+				return
+			}
+
+			schedule, err := store.GetPetScheduleByDate(date)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, schedule)
+		})
+
+		authorized.POST("/strategy/notify", func(c *gin.Context) {
+			var req struct {
+				Target    string `json:"target"`
+				FightDate string `json:"fightDate"`
+			}
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+				return
+			}
+
+			cfg, _ := config.LoadConfig()
+			if cfg.Discord.WebhookURL == "" {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Webhook not configured"})
+				return
+			}
+
+			activeMeta, err := store.GetActiveStrategy()
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch active strategy"})
+				return
+			}
+
+			var targetMeta *models.BattleMetaRequest
+			if req.Target == "Attack" && activeMeta.Attack != nil {
+				targetMeta = activeMeta.Attack
+			} else if req.Target == "Defense" && activeMeta.Defense != nil {
+				targetMeta = activeMeta.Defense
+			} else if req.Target == "Pet Schedule" {
+				val, exists := c.Get("redisStore")
+				if !exists {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Redis not found in context"})
+					return
+				}
+				rStore, ok := val.(*cache.RedisStore)
+				if !ok {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Redis type mismatch"})
+					return
+				}
+
+				scheduleData := make(map[int][]db.CaptainBadge)
+				for i := 1; i <= 3; i++ {
+					caps, err := store.GetCaptainsForPetSlot(req.FightDate, i)
+					if err != nil {
+						log.Printf("DB Error fetching slot %d: %v", i, err)
+						continue
+					}
+					scheduleData[i] = caps
+				}
+
+				imgBuffer, err := services.GeneratePetScheduleCard(req.FightDate, scheduleData, rStore)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Render failed: " + err.Error()})
+					return
+				}
+
+				message := fmt.Sprintf("📢 Pet Rotation for %s is live!", req.FightDate)
+
+				fileName := fmt.Sprintf("pets_%d.jpg", time.Now().Unix())
+				services.SendDiscordImage(cfg.Discord.WebhookURL, imgBuffer, fileName, message)
+
+				c.JSON(http.StatusOK, gin.H{"message": "Pet Image Published"})
+				return
+			} else {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "No active strategy found for " + req.Target})
+				return
+			}
+
+			allHeroes, _ := store.GetHeroes()
+			heroMap := make(map[int]string)
+			for _, h := range allHeroes {
+				heroMap[h.ID] = h.LocalImagePath
+			}
+
+			var leadPaths, joinerPaths []string
+			for _, id := range targetMeta.Leads {
+				leadPaths = append(leadPaths, heroMap[id])
+			}
+			for _, id := range targetMeta.Joiners {
+				joinerPaths = append(joinerPaths, heroMap[id])
+			}
+
+			cardData := services.MetaCardData{
+				Type:          req.Target,
+				InfantryRatio: targetMeta.InfantryRatio,
+				LancerRatio:   targetMeta.LancerRatio,
+				MarksmanRatio: targetMeta.MarksmanRatio,
+				LeadImages:    leadPaths,
+				JoinerImages:  joinerPaths,
+			}
+
+			imgBuffer, err := services.GenerateMetaCard(cardData)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate image"})
+				return
+			}
+
+			message := fmt.Sprintf("🚨 %s Strategy Deployed! 🚨", req.Target)
+			err = services.SendDiscordImage(cfg.Discord.WebhookURL, imgBuffer, "strategy.jpg", message)
+
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send to Discord"})
+				return
+			}
+
+			c.JSON(http.StatusOK, gin.H{"message": "Published to Discord"})
+		})
+
 		authorized.GET("/admin/alliances", func(c *gin.Context) {
 			list, err := store.GetAlliances()
 			if err != nil {

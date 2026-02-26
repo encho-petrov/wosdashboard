@@ -67,9 +67,30 @@ type RedeemJob struct {
 	Targets     []PlayerData
 }
 
-type DiscordConfig struct {
-	WebhookURL      string `json:"webhookUrl"`
-	ChannelID       string `json:"channelId"`
-	AnnounceTimeUTC string `json:"announceTimeUtc"`
-	AnnounceDay     string `json:"announceDay"`
+//type DiscordConfig struct {
+//	WebhookURL      string `json:"webhookUrl"`
+//	ChannelID       string `json:"channelId"`
+//	AnnounceTimeUTC string `json:"announceTimeUtc"`
+//	AnnounceDay     string `json:"announceDay"`
+//}
+
+type Hero struct {
+	ID             int    `json:"id" db:"id"`
+	Name           string `json:"name" db:"name"`
+	TroopType      string `json:"troopType" db:"troop_type"`
+	LocalImagePath string `json:"localImagePath" db:"local_image_path"`
+}
+
+type BattleMetaRequest struct {
+	Type          string `json:"type"`
+	InfantryRatio int    `json:"infantryRatio"`
+	LancerRatio   int    `json:"lancerRatio"`
+	MarksmanRatio int    `json:"marksmanRatio"`
+	Leads         []int  `json:"leads"`
+	Joiners       []int  `json:"joiners"`
+}
+
+type ActiveStrategyResponse struct {
+	Attack  *BattleMetaRequest `json:"attack"`
+	Defense *BattleMetaRequest `json:"defense"`
 }

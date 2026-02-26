@@ -18,6 +18,7 @@ import Rotation from './pages/Rotation';
 import TransferManager from "./pages/TransferManager.jsx";
 import MinistryReservations from "./pages/MinistryReservations.jsx";
 import Profile from './pages/Profile.jsx';
+import Strategy from './pages/StrategyMeta.jsx';
 import NotFound from './pages/NotFound';
 
 const Home = () => {
@@ -117,6 +118,12 @@ function App() {
             <Route path="/ministry" element={
               <ProtectedRoute>
                 <MinistryReservations />
+              </ProtectedRoute>
+            }
+            />
+            <Route path="/strategy" element={
+              <ProtectedRoute>
+                <Strategy />
               </ProtectedRoute>
             }
             />

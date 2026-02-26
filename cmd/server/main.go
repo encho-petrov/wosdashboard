@@ -130,7 +130,7 @@ func main() {
 	engine := processor.NewProcessor(pClient, gClient, store, solver, redisStore)
 
 	go engine.StartWorkers()
-	router := api.SetupRouter(engine, store, cfg.Game.TargetState, cfg.ApiSecrets.CaptchaApiKey, pClient)
+	router := api.SetupRouter(engine, store, cfg.Game.TargetState, cfg.ApiSecrets.CaptchaApiKey, pClient, redisStore)
 
 	if cfg.Discord.WebhookURL != "" {
 		c := cron.New(cron.WithLocation(time.UTC))
@@ -159,6 +159,7 @@ func main() {
 		// Ministry reservations cron
 		_, err = c.AddFunc("* * * * *", func() {
 			services.CheckMinistrySchedule(store, cfg.Discord.WebhookURL)
+			services.CheckPetSchedule(store, cfg.Discord.WebhookURL)
 		})
 
 		if err != nil {

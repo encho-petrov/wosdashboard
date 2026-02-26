@@ -1,7 +1,6 @@
 version: '3.8'
 
 services:
-  # 1. The Database
   mysql:
     image: mysql:8.0
     container_name: mysql
@@ -15,7 +14,6 @@ services:
     networks:
       - wos-net
 
-  # 2. Redis Cache
   redis:
     image: redis:alpine
     container_name: redis
@@ -24,7 +22,6 @@ services:
     networks:
       - wos-net
 
-  # 3. Go Backend
   backend:
     build: .
     container_name: backend
@@ -37,10 +34,11 @@ services:
       Database__Host: "mysql:3306"
       Database__Password: "rootpassword"
       Redis__Host: "redis:6379"
+    volumes:
+      - shared_assets:/app/shared-assets
     networks:
       - wos-net
 
-  # 4. React Frontend
   frontend:
     build: ./dashboard
     container_name: frontend
@@ -51,8 +49,24 @@ services:
     networks:
       - wos-net
 
+  scraper:
+    build:
+      context: .
+      dockerfile: Dockerfile.scraper
+    container_name: scraper
+    depends_on:
+      - mysql
+    environment:
+      Database__Host: "mysql:3306"
+      Database__Password: "rootpassword"
+    volumes:
+      - shared_assets:/app/shared-assets
+    networks:
+      - wos-net
+
 volumes:
   mysql_data:
+  shared_assets:
 
 networks:
   wos-net:

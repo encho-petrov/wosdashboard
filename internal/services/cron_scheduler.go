@@ -5,33 +5,6 @@ import (
 	"time"
 )
 
-func CalculateUpcomingWeek(referenceDateStr string) (int, int) {
-	referenceDate, _ := time.Parse("2006-01-02", referenceDateStr)
-	daysSince := int(time.Since(referenceDate).Hours() / 24)
-
-	seasonNumber := (daysSince / 56) + 1
-	currentWeek := ((daysSince / 7) % 8) + 1
-	upcomingWeek := currentWeek + 1
-	targetSeason := seasonNumber
-
-	if upcomingWeek > 8 {
-		upcomingWeek = 1
-		targetSeason++
-	}
-
-	return targetSeason, upcomingWeek
-}
-
-func CalculateCurrentWeek(referenceDateStr string) (int, int) {
-	referenceDate, _ := time.Parse("2006-01-02", referenceDateStr)
-	daysSince := int(time.Since(referenceDate).Hours() / 24)
-
-	seasonNumber := (daysSince / 56) + 1
-	currentWeek := ((daysSince / 7) % 8) + 1
-
-	return seasonNumber, currentWeek
-}
-
 func CheckMinistrySchedule(store *db.Store, webhookURL string) {
 	event, err := store.GetActiveMinistryEvent()
 	if err != nil || event == nil || event.Status != "Active" || !event.AnnounceEnabled {
@@ -80,4 +53,31 @@ func GetRotationState(anchorDateStr string, anchorSeason int) (int, int) {
 	currentWeek := ((daysSince / 7) % 8) + 1
 
 	return currentSeason, currentWeek
+}
+
+func CheckPetSchedule(store *db.Store, webhookURL string) {
+	now := time.Now().UTC()
+
+	var slotId int
+	var buffTime string
+
+	if now.Hour() == 11 && now.Minute() == 50 {
+		slotId = 1
+		buffTime = "12:00 UTC"
+	} else if now.Hour() == 13 && now.Minute() == 50 {
+		slotId = 2
+		buffTime = "14:00 UTC"
+	} else if now.Hour() == 15 && now.Minute() == 20 {
+		slotId = 3
+		buffTime = "15:30 UTC"
+	} else {
+		return
+	}
+
+	today := now.Format("2006-01-02")
+	captains, err := store.GetCaptainsForPetSlot(today, slotId)
+
+	if err == nil && len(captains) > 0 {
+		_ = SendPetPing(webhookURL, buffTime, captains)
+	}
 }

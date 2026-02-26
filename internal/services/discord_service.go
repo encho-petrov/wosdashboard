@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"gift-redeemer/internal/db"
+	"mime/multipart"
 	"net/http"
 )
 
@@ -74,4 +75,67 @@ func SendMinistryPing(webhookURL string, buffName, nickname, alliance string) er
 		nickname, alliance, buffName)
 
 	return SendCustomDiscordEmbed(webhookURL, title, desc, 15158332)
+}
+
+func SendPetPing(webhookURL string, buffTime string, captains []db.CaptainBadge) error {
+	title := "🐾 Pet Skill Activation Warning!"
+
+	desc := fmt.Sprintf("The **%s** rotation begins in exactly 10 minutes.\n\n**Assigned Captains:**\n", buffTime)
+
+	for _, cap := range captains {
+		alliance := cap.AllianceName
+		if alliance == nil {
+			desc += fmt.Sprintf("🔸 **%s**\n", cap.Nickname)
+		} else {
+			desc += fmt.Sprintf("🔸 **%s** [%s]\n", cap.Nickname, *alliance)
+		}
+	}
+
+	desc += "\n*Please ensure you are online and ready to activate your pet skills!*"
+
+	return SendCustomDiscordEmbed(webhookURL, title, desc, 16753920)
+}
+
+func SendDiscordImage(webhookURL string, imageBuf *bytes.Buffer, filename string, messageContent string) error {
+	if webhookURL == "" {
+		return fmt.Errorf("discord webhook URL is empty")
+	}
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	_ = writer.WriteField("content", messageContent)
+
+	part, err := writer.CreateFormFile("file", filename)
+	if err != nil {
+		return err
+	}
+	_, err = part.Write(imageBuf.Bytes())
+	if err != nil {
+		return err
+	}
+
+	err = writer.Close()
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", webhookURL, body)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("discord API returned status: %d", resp.StatusCode)
+	}
+
+	return nil
 }

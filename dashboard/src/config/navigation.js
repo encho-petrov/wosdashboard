@@ -1,5 +1,5 @@
 import {
-    LayoutDashboard, Swords, Users, Calendar,
+    LayoutDashboard, Swords, Users, Calendar, Crown,
     Send, Shield, Terminal, List, LayoutGrid, UserCircle
 } from 'lucide-react';
 
@@ -15,6 +15,13 @@ export const navLinks = [
         name: 'War Room',
         path: '/war-room',
         icon: Swords,
+        requiredRoles: ['admin', 'moderator'],
+        description: 'Event deployment and troop assignments.'
+    },
+    {
+        name: 'Strategy',
+        path: '/strategy',
+        icon: Crown,
         requiredRoles: ['admin', 'moderator'],
         description: 'Event deployment and troop assignments.'
     },

@@ -94,15 +94,24 @@ export default function Squads() {
 
     const handleAnnounceSquads = async () => {
         if (!isAdmin) return;
-        let description = "Current Squad formations for the event:\n\n";
+
+        // Find the current alliance name based on the activeAlliance ID
+        const currentAlliance = alliances.find(a => a.id === parseInt(activeAlliance));
+        const allianceName = currentAlliance ? currentAlliance.name : "Unknown Alliance";
+
+        let description = `Current Squad formations for **${allianceName}**:\n\n`;
+
         squads.forEach(sq => {
             const captain = (players || []).find(p => p.fid === sq.captainFid);
             const roster = (players || []).filter(p => p.teamId === sq.id);
-            description += `**🛑 Squad ${sq.id}**\n`;
+
             description += `👑 **Lead:** ${captain ? captain.nickname : 'No Captain Assigned'}\n`;
+
             const joiners = roster.filter(p => p.fid !== sq.captainFid);
             if (joiners.length > 0) {
-                joiners.forEach(j => { description += `  ↳ ${j.nickname}\n`; });
+                joiners.forEach(j => {
+                    description += `  ↳ ${j.nickname}\n`;
+                });
             } else {
                 description += `  ↳ *No joiners assigned yet*\n`;
             }
@@ -115,8 +124,10 @@ export default function Squads() {
                 description: description,
                 color: 3447003
             });
-            toast.success("Squads announced to Discord!");
-        } catch (err) { toast.error("Failed to announce squads."); }
+            toast.success(`Squads for ${allianceName} announced!`);
+        } catch (err) {
+            toast.error("Failed to announce squads.");
+        }
     };
 
     // --- LOGIC ---
