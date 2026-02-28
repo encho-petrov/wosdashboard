@@ -248,7 +248,8 @@ func (p *Processor) redeemForPlayer(fid int64, nickname, code string) (int, stri
 			strings.Contains(msg, "CDK NOT FOUND") ||
 			strings.Contains(msg, "TIME EXPIRED") ||
 			strings.Contains(msg, "NOT MEET CONDITIONS") ||
-			strings.Contains(msg, "NOT IN THE REDEMPTION") {
+			strings.Contains(msg, "NOT IN THE REDEMPTION") || 
+			strings.Contains(msg, "RECHARGE_MONEY_VIP ERROR.") {
 			return errCode, msg, nickname
 		}
 
