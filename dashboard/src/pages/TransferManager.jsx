@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
 import AdminLayout from '../components/layout/AdminLayout';
 import { toast } from 'react-toastify';
+import MfaSetupModal from '../components/MfaSetupModal';
 import {
     Plus, Archive, Check, X,
     AlertTriangle, Send, Shield, Play, History, Activity
@@ -28,6 +29,7 @@ export default function TransferManager() {
     const [showAddModal, setShowAddModal] = useState(false);
     const [bulkFids, setBulkFids] = useState('');
     const [newSeason, setNewSeason] = useState({ name: '', powerCap: 200000000, leading: false, specials: 3 });
+    const [showMfaModal, setShowMfaModal] = useState(false);
 
     useEffect(() => { void fetchData(); }, []);
 
@@ -164,8 +166,6 @@ export default function TransferManager() {
             await fetchData(true);
         } catch (err) { toast.error("Failed to confirm player"); }
     };
-
-    //if (loading || globalLoading) return <div className="p-10 text-white font-mono uppercase tracking-widest">Loading Transfer Data...</div>;
 
     const transferActions = (
         <div className="flex gap-3">
@@ -450,7 +450,7 @@ export default function TransferManager() {
                                                 disabled={!isAdmin || isConfirmed || isDeclined || r.direction === 'Outbound'}
                                                 value={r.targetAllianceId || ''}
                                                 onChange={(e) => handleUpdateRecord(r.id, 'targetAllianceId', e.target.value)}
-                                                className="bg-gray-950 border border-gray-800 rounded-xl p-2 text-[10px] font-black uppercase tracking-widest text-gray-400 outline-none w-36 disabled:opacity-30 focus:border-blue-500/50 transition-all shadow-inner"
+                                                className="bg-gray-950 border border-gray-800 rounded-xl p-2 text-[10px] font-black tracking-widest text-gray-400 outline-none w-36 disabled:opacity-30 focus:border-blue-500/50 transition-all shadow-inner"
                                             >
                                                 <option value="">Pending...</option>
                                                 {alliances.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
@@ -567,6 +567,7 @@ export default function TransferManager() {
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: #374151; border-radius: 10px; }
                 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #4B5563; }
             `}</style>
+        {showMfaModal && <MfaSetupModal onClose={() => setShowMfaModal(false)} isForced={sessionStorage.getItem('mfa_enabled') === 'false'} />}
         </AdminLayout>
     );
 }

@@ -5,20 +5,18 @@ import client from '../api/client';
 import AdminLayout from '../components/layout/AdminLayout';
 import { toast } from 'react-toastify';
 import { Link } from 'react-router-dom';
-import { Play, Download, Activity, FileText, CheckCircle, ShieldCheck, KeyRound, ArrowRight } from 'lucide-react';
-import ChangePasswordModal from '../components/ChangePasswordModal';
 import MfaSetupModal from '../components/MfaSetupModal';
+import { Play, Download, Activity, FileText, CheckCircle, ShieldCheck, ArrowRight } from 'lucide-react';
 
 export default function Dashboard() {
   const { user } = useAuth();
   const [codes, setCodes] = useState('');
   const [activeJob, setActiveJob] = useState(null);
   const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [captchaBalance, setCaptchaBalance] = useState(null);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [showMfaModal, setShowMfaModal] = useState(false);
+  const [loading, setLoading] = useState(true);
   const wasRunning = useRef(false);
+  const [showMfaModal, setShowMfaModal] = useState(false);
 
   useEffect(() => {
     if (sessionStorage.getItem('mfa_enabled') === 'false') setShowMfaModal(true);
@@ -66,6 +64,24 @@ export default function Dashboard() {
       setCodes('');
       await pollJobStatus();
     } catch (err) { toast.error("Job failed to start."); }
+  };
+
+  const handleDownload = async (filename) => {
+    try {
+      const response = await client.get(`/moderator/reports/${filename}`, {
+        responseType: 'blob',
+      });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      toast.error("Download failed. File might be missing.");
+    }
   };
 
   return (
@@ -155,7 +171,6 @@ export default function Dashboard() {
               <h2 className="text-sm font-black uppercase tracking-widest text-white flex items-center gap-2">
                 <FileText size={16} className="text-yellow-500" /> Redemption Logs
               </h2>
-              <button onClick={() => setShowPasswordModal(true)} className="p-2 text-gray-500 hover:text-white transition-colors"><KeyRound size={18}/></button>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
@@ -180,7 +195,17 @@ export default function Dashboard() {
                                             </span>
                       </td>
                       <td className="p-4 text-right">
-                        {job.reportPath && <button className="text-gray-500 hover:text-blue-400 transition-colors"><Download size={16}/></button>}
+                        {job.reportPath ? (
+                            <button
+                                onClick={() => handleDownload(job.reportPath)}
+                                className="text-gray-400 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg group-hover:text-blue-400"
+                                title="Download CSV Report"
+                            >
+                              <Download className="w-5 h-5" />
+                            </button>
+                        ) : (
+                            <span className="text-gray-700">-</span>
+                        )}
                       </td>
                     </tr>
                 ))}
@@ -189,8 +214,6 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
-
-        {showPasswordModal && <ChangePasswordModal onClose={() => setShowPasswordModal(false)} />}
         {showMfaModal && <MfaSetupModal onClose={() => setShowMfaModal(false)} isForced={sessionStorage.getItem('mfa_enabled') === 'false'} />}
       </AdminLayout>
   );
