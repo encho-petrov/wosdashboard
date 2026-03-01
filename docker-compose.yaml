@@ -35,7 +35,7 @@ services:
       Database__Password: "rootpassword"
       Redis__Host: "redis:6379"
     volumes:
-      - shared_assets:/app/shared-assets
+      - shared_assets:/app/shared-assets/heroes
     networks:
       - wos-net
 
@@ -60,7 +60,7 @@ services:
       Database__Host: "mysql:3306"
       Database__Password: "rootpassword"
     volumes:
-      - shared_assets:/app/shared-assets
+      - shared_assets:/app/shared-assets/heroes
     networks:
       - wos-net
 

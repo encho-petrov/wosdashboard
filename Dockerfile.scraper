@@ -1,29 +1,18 @@
 FROM golang:1.26-alpine AS builder
-
 WORKDIR /app
-
 COPY go.mod go.sum ./
 RUN go mod download
-
 COPY . .
-
-# Build the scraper instead of the server
-RUN CGO_ENABLED=0 GOOS=linux \
-    go build -ldflags="-s -w" -o scraper ./cmd/scraper
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o scraper ./cmd/scraper
 
 FROM alpine:latest
-
 WORKDIR /app
-
 RUN apk --no-cache add ca-certificates tzdata
 
 COPY --from=builder /app/scraper .
 COPY --from=builder /app/appsettings.json .
 COPY --from=builder /app/shared-assets ./shared-assets
-
 RUN mkdir -p /app/shared-assets/heroes
 
 RUN echo "0 0 * */1 * cd /app && ./scraper" > /etc/crontabs/root
-
-# Run the cron daemon in the foreground
 CMD ["crond", "-f", "-d", "8"]
