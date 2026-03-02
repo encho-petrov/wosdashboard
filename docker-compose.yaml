@@ -36,6 +36,7 @@ services:
       Redis__Host: "redis:6379"
     volumes:
       - shared_assets:/app/shared-assets/heroes
+      - ./server_reports:/app/reports
     networks:
       - wos-net
 
