@@ -86,7 +86,7 @@ func (s *Store) ResetEvent() error {
 		return err
 	}
 
-	_, err = s.db.Exec("UPDATE players SET fighting_alliance_id = NULL, team_id = NULL")
+	_, err = s.db.Exec("UPDATE players SET fighting_alliance_id = NULL, team_id = NULL, battle_availability = 'Unavailable', tundra_availability = 'Unavailable'")
 	if err != nil {
 		return err
 	}
