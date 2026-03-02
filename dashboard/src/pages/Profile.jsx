@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
 import { startRegistration } from '@simplewebauthn/browser';
 import AdminLayout from '../components/layout/AdminLayout';
-import { KeyRound, Fingerprint, ShieldCheck, User } from 'lucide-react';
+import { KeyRound, Fingerprint, ShieldCheck, User, Trash2 } from 'lucide-react';
 
 export default function Profile() {
     const { user } = useAuth();
@@ -12,7 +12,6 @@ export default function Profile() {
     const [profile, setProfile] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    // Password Form State
     const [oldPassword, setOldPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -88,6 +87,20 @@ export default function Profile() {
         }
     };
 
+    const handleRemoveDevice = async (credentialId) => {
+        if (!window.confirm("Remove this device? You will no longer be able to log in with it.")) return;
+
+        try {
+            await client.delete('/admin/webauthn/device', {
+                data: { credential_id: credentialId }
+            });
+            toast.info("Device removed.");
+            await fetchProfile();
+        } catch (err) {
+            toast.error("Failed to remove device.");
+        }
+    };
+
     if (loading) return <AdminLayout title="My Profile"><div className="p-10 text-gray-500 font-mono animate-pulse">LOADING PROFILE...</div></AdminLayout>;
 
     return (
@@ -116,29 +129,49 @@ export default function Profile() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Security: Biometrics */}
-                    <div className="bg-gray-800 rounded-2xl border border-gray-700 p-6 shadow-lg flex flex-col">
+                    <div className="bg-gray-800 rounded-2xl border border-gray-700 p-6 shadow-lg flex flex-col h-full">
                         <div className="flex items-center gap-3 mb-4 border-b border-gray-700 pb-4">
                             <Fingerprint className="text-purple-400 w-6 h-6" />
                             <h3 className="text-lg font-bold text-white tracking-wide">Device Security</h3>
                         </div>
                         <p className="text-sm text-gray-400 mb-6 flex-1">
-                            Use your device's built-in authenticator (Face ID, Touch ID, or Windows Hello) to log in securely without needing a 6-digit code.
+                            Use your device's built-in authenticator (Face ID, Touch ID, or Windows Hello) to log in securely. You can register multiple devices for convenience.
                         </p>
 
-                        {profile?.has_webauthn ? (
-                            <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 text-center">
-                                <Fingerprint className="w-8 h-8 text-green-400 mx-auto mb-2" />
-                                <p className="text-sm font-bold text-green-400">Biometric Login Enabled</p>
-                                <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-widest">Device is registered</p>
+                        {/* Show status if they have at least one device */}
+                        {profile?.devices && profile.devices.length > 0 && (
+                            <div className="space-y-2 mb-6">
+                                {profile.devices.map((deviceId, index) => (
+                                    <div key={deviceId} className="flex items-center justify-between bg-black/40 border border-gray-700 rounded-xl p-3">
+                                        <div className="flex items-center gap-3">
+                                            <ShieldCheck className="w-5 h-5 text-green-400" />
+                                            <div>
+                                                <p className="text-xs font-bold text-gray-200">Registered Device {index + 1}</p>
+                                                <p className="text-[9px] text-gray-500 font-mono truncate w-32 md:w-48">
+                                                    ID: {deviceId.substring(0, 12)}...
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => handleRemoveDevice(deviceId)}
+                                            className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+                                            title="Remove Device"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+                                ))}
                             </div>
-                        ) : (
-                            <button
-                                onClick={handleRegisterDevice}
-                                className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-black uppercase tracking-widest shadow-lg transition-all flex items-center justify-center gap-2"
-                            >
-                                <Fingerprint size={18} /> Register This Device
-                            </button>
                         )}
+
+                        {/* Always show the button, just change the text contextually */}
+                        <button
+                            onClick={handleRegisterDevice}
+                            className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-black uppercase tracking-widest shadow-lg transition-all flex items-center justify-center gap-2"
+                        >
+                            <Fingerprint size={18} />
+                            {profile?.has_webauthn ? 'Add Another Device' : 'Register This Device'}
+                        </button>
                     </div>
 
                     {/* Security: Password */}

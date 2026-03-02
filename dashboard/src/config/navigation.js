@@ -12,16 +12,16 @@ export const navLinks = [
         description: 'System overview and redemption launcher.'
     },
     {
+        name: 'Roster',
+        path: '/roster',
+        icon: List,
+        requiredRoles: ['admin', 'moderator'],
+        description: 'Full player database and attribute editing.'
+    },
+    {
         name: 'War Room',
         path: '/war-room',
         icon: Swords,
-        requiredRoles: ['admin', 'moderator'],
-        description: 'Event deployment and troop assignments.'
-    },
-    {
-        name: 'Strategy',
-        path: '/strategy',
-        icon: Crown,
         requiredRoles: ['admin', 'moderator'],
         description: 'Event deployment and troop assignments.'
     },
@@ -31,6 +31,13 @@ export const navLinks = [
         icon: Users,
         requiredRoles: ['admin', 'moderator'],
         description: 'Manage specialized squad formations.'
+    },
+    {
+        name: 'Strategy',
+        path: '/strategy',
+        icon: Crown,
+        requiredRoles: ['admin', 'moderator'],
+        description: 'Event deployment and troop assignments.'
     },
     {
         name: 'Ministry',
@@ -52,13 +59,6 @@ export const navLinks = [
         icon: LayoutGrid,
         requiredRoles: ['admin', 'moderator'],
         description: 'Fortress and Stronghold season planning.'
-    },
-    {
-        name: 'Roster',
-        path: '/roster',
-        icon: List,
-        requiredRoles: ['admin', 'moderator'],
-        description: 'Full player database and attribute editing.'
     },
     {
         name: 'Alliances',

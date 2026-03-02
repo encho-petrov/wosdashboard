@@ -30,6 +30,8 @@ export default function TransferManager() {
     const [bulkFids, setBulkFids] = useState('');
     const [newSeason, setNewSeason] = useState({ name: '', powerCap: 200000000, leading: false, specials: 3 });
     const [showMfaModal, setShowMfaModal] = useState(false);
+    const [selectedMobileRecordId, setSelectedMobileRecordId] = useState(null);
+    const activeMobileRecord = useMemo(() => records.find(r => r.id === selectedMobileRecordId), [records, selectedMobileRecordId]);
 
     useEffect(() => { void fetchData(); }, []);
 
@@ -168,32 +170,32 @@ export default function TransferManager() {
     };
 
     const transferActions = (
-        <div className="flex gap-3">
+        <div className="flex flex-wrap justify-end gap-2 md:gap-3">
             {viewingHistory ? (
-                <button onClick={() => setViewingHistory(false)} className="flex items-center gap-2 px-4 py-1.5 bg-blue-600 text-white rounded font-bold shadow hover:bg-blue-500 transition-colors">
-                    <Activity size={16} /> Active Season
+                <button onClick={() => setViewingHistory(false)} className="flex items-center gap-2 px-3 md:px-4 py-1.5 bg-blue-600 text-white rounded font-bold shadow hover:bg-blue-500 transition-colors text-xs md:text-sm">
+                    <Activity size={16} /> <span className="hidden sm:inline">Active Season</span>
                 </button>
             ) : (
                 <>
-                    <button onClick={handleViewHistory} className="flex items-center gap-2 px-4 py-1.5 bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700 hover:text-white rounded font-bold transition-colors shadow">
-                        <History size={16} /> History
+                    <button onClick={handleViewHistory} className="flex items-center gap-2 px-3 md:px-4 py-1.5 bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700 hover:text-white rounded font-bold transition-colors shadow text-xs md:text-sm">
+                        <History size={16} /> <span className="hidden sm:inline">History</span>
                     </button>
 
                     {isAdmin && season && (
                         <>
-                            <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 px-4 py-1.5 bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700 hover:text-white rounded font-bold transition-colors shadow">
-                                <Plus size={16} /> Add
+                            <button onClick={() => setShowAddModal(true)} className="flex items-center gap-2 px-3 md:px-4 py-1.5 bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700 hover:text-white rounded font-bold transition-colors shadow text-xs md:text-sm">
+                                <Plus size={16} /> <span className="hidden sm:inline">Add</span>
                             </button>
 
                             {season.status === 'Planning' && (
-                                <button onClick={() => handleUpdateSeasonStatus('Active')} className="flex items-center gap-2 px-4 py-1.5 bg-blue-600/20 text-blue-400 border border-blue-800/50 hover:bg-blue-600/40 rounded font-bold shadow transition-colors">
-                                    <Play size={16} /> Open
+                                <button onClick={() => handleUpdateSeasonStatus('Active')} className="flex items-center gap-2 px-3 md:px-4 py-1.5 bg-blue-600/20 text-blue-400 border border-blue-800/50 hover:bg-blue-600/40 rounded font-bold shadow transition-colors text-xs md:text-sm">
+                                    <Play size={16} /> <span className="hidden sm:inline">Open</span>
                                 </button>
                             )}
 
                             {(season.status === 'Planning' || season.status === 'Active') && (
-                                <button onClick={() => handleUpdateSeasonStatus('Closed')} className="flex items-center gap-2 px-4 py-1.5 bg-red-600/20 text-red-400 border border-red-800/50 hover:bg-red-600/40 rounded font-bold shadow transition-colors">
-                                    <Archive size={16} /> Close
+                                <button onClick={() => handleUpdateSeasonStatus('Closed')} className="flex items-center gap-2 px-3 md:px-4 py-1.5 bg-red-600/20 text-red-400 border border-red-800/50 hover:bg-red-600/40 rounded font-bold shadow transition-colors text-xs md:text-sm">
+                                    <Archive size={16} /> <span className="hidden sm:inline">Close</span>
                                 </button>
                             )}
                         </>
@@ -211,96 +213,157 @@ export default function TransferManager() {
     if (viewingHistory) {
         return (
             <AdminLayout title={pageTitle} actions={transferActions}>
-                <div className="p-6 flex gap-6 h-full bg-gray-950 overflow-hidden">
+                {/* 1. Flex layout shifts from col on mobile to row on desktop */}
+                <div className="p-4 xl:p-6 flex flex-col xl:flex-row gap-4 xl:gap-6 h-full bg-gray-950 overflow-hidden">
                     {loading ? (
                         <div className="flex-1 flex items-center justify-center text-gray-500 font-black uppercase tracking-widest animate-pulse">
                             Synchronizing Ledger...
                         </div>
                     ) : (
-                    <div className="w-1/4 bg-gray-900 p-4 rounded-xl border border-gray-800 h-full overflow-y-auto custom-scrollbar shadow-lg">
-                        <h2 className="text-xs font-black text-gray-500 mb-4 uppercase tracking-widest px-2 flex items-center gap-2">
-                            <History size={14} /> Season Archive
-                        </h2>
-                        {historySeasons.length === 0 && <p className="text-gray-600 text-xs px-2 italic">No closed seasons found.</p>}
-                        <div className="space-y-2">
-                            {historySeasons.map(s => (
-                                <button
-                                    key={s.id}
-                                    onClick={() => handleSelectPastSeason(s)}
-                                    className={`w-full text-left p-3 rounded-xl border transition-all ${selectedPastSeason?.id === s.id ? 'bg-blue-900/20 border-blue-500 text-blue-100' : 'bg-gray-800/50 border-gray-800 text-gray-400 hover:bg-gray-800'}`}
-                                >
-                                    <div className="font-bold text-sm">{s.name}</div>
-                                    <div className="text-[10px] opacity-60 font-mono tracking-tighter">Cap: {s.powerCap.toLocaleString()}</div>
-                                </button>
-                            ))}
+                        /* 2. Season Sidebar: Horizontal scroll on mobile, Vertical on desktop */
+                        <div className="w-full xl:w-1/4 bg-gray-900 p-4 rounded-xl border border-gray-800 flex flex-col h-auto xl:h-full overflow-hidden shadow-lg shrink-0">
+                            <h2 className="text-xs font-black text-gray-500 mb-4 uppercase tracking-widest px-2 flex items-center gap-2 shrink-0">
+                                <History size={14} /> Season Archive
+                            </h2>
+                            {historySeasons.length === 0 && <p className="text-gray-600 text-xs px-2 italic">No closed seasons found.</p>}
+                            <div className="flex xl:flex-col gap-3 overflow-x-auto xl:overflow-y-auto custom-scrollbar pb-2 xl:pb-0">
+                                {historySeasons.map(s => (
+                                    <button
+                                        key={s.id}
+                                        onClick={() => handleSelectPastSeason(s)}
+                                        className={`shrink-0 xl:w-full min-w-[160px] text-left p-3 rounded-xl border transition-all ${selectedPastSeason?.id === s.id ? 'bg-blue-900/20 border-blue-500 text-blue-100 shadow-md' : 'bg-gray-800/50 border-gray-800 text-gray-400 hover:bg-gray-800'}`}
+                                    >
+                                        <div className="font-bold text-sm truncate">{s.name}</div>
+                                        <div className="text-[10px] opacity-60 font-mono tracking-tighter">Cap: {s.powerCap.toLocaleString()}</div>
+                                    </button>
+                                ))}
+                            </div>
                         </div>
-                    </div>
                     )}
 
-                    <div className="w-3/4 bg-gray-900 rounded-xl border border-gray-800 shadow-2xl overflow-hidden flex flex-col">
+                    <div className="flex-1 bg-gray-900 rounded-xl border border-gray-800 shadow-2xl overflow-hidden flex flex-col min-w-0">
                         {selectedPastSeason ? (
                             <>
-                                <div className="p-4 border-b border-gray-800 bg-gray-900 flex justify-between items-center">
+                                <div className="p-4 border-b border-gray-800 bg-gray-900 flex justify-between items-center shrink-0">
                                     <div>
                                         <h3 className="text-sm font-black text-white uppercase tracking-tighter">Final Ledger: {selectedPastSeason.name}</h3>
-
-                                        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Closed on {new Date(selectedPastSeason.closedAt).toLocaleDateString()}</p>
-                                    </div>
-                                    <span className="px-3 py-1 bg-gray-800 text-gray-500 border border-gray-700 text-[10px] font-black uppercase tracking-widest rounded-lg">Archived</span>
+                                        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">
+                                            Closed on {selectedPastSeason.closedAt ? new Date(selectedPastSeason.closedAt).toLocaleDateString() : 'Unknown Date'}
+                                        </p>                                    </div>
+                                    <span className="hidden sm:inline-block px-3 py-1 bg-gray-800 text-gray-500 border border-gray-700 text-[10px] font-black uppercase tracking-widest rounded-lg">Archived</span>
                                 </div>
-                                <div className="flex-1 overflow-y-auto custom-scrollbar">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead>
-                                        <tr className="bg-gray-950 sticky top-0 border-b border-gray-800 text-gray-500 text-[10px] font-black uppercase tracking-widest">
-                                            <th className="p-4 pl-6">Candidate</th>
-                                            <th className="p-4">Source</th>
-                                            <th className="p-4">Power</th>
-                                            <th className="p-4">Type</th>
-                                            <th className="p-4 text-right pr-6">Status</th>
-                                        </tr>
-                                        </thead>
-                                        <tbody className="text-xs">
+
+                                <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col">
+                                    {/* 🖥️ DESKTOP TABLE (Hidden on Mobile) */}
+                                    <div className="hidden xl:block">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                            <tr className="bg-gray-950 sticky top-0 border-b border-gray-800 text-gray-500 text-[10px] font-black uppercase tracking-widest">
+                                                <th className="p-4 pl-6">Candidate</th>
+                                                <th className="p-4">Source</th>
+                                                <th className="p-4">Power</th>
+                                                <th className="p-4">Type</th>
+                                                <th className="p-4 text-right pr-6">Status</th>
+                                            </tr>
+                                            </thead>
+                                            <tbody className="text-xs">
+                                            {historyRecords.length === 0 && (
+                                                <tr><td colSpan="5" className="p-20 text-center text-gray-600 italic">No records for this season.</td></tr>
+                                            )}
+                                            {historyRecords.map(r => {
+                                                const isConfirmed = r.status === 'Confirmed';
+                                                const isDeclined = r.status === 'Declined';
+                                                return (
+                                                    <tr key={r.id} className={`border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors ${isConfirmed ? 'bg-green-900/5 opacity-80' : isDeclined ? 'bg-red-900/5 opacity-60' : ''}`}>
+                                                        <td className="p-4 pl-6 flex items-center gap-4">
+                                                            <div className="relative">
+                                                                <img src={r.avatar || 'https://via.placeholder.com/40'} alt="av" className="w-10 h-10 rounded-full border border-gray-700 shadow-inner" />
+                                                                {r.furnaceImage && <img src={r.furnaceImage} alt="f" className="w-4 h-4 absolute -bottom-1 -right-1 drop-shadow-md" />}
+                                                            </div>
+                                                            <div>
+                                                                <div className="font-bold text-gray-200">{r.nickname}</div>
+                                                                <div className="text-[10px] text-gray-500 font-mono tracking-tighter">{r.fid}</div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-4 text-gray-400 font-bold">{r.sourceState}</td>
+                                                        <td className="p-4 text-yellow-600 font-mono text-[11px] font-bold">{r.power.toLocaleString()}</td>
+                                                        <td className="p-4">
+                                                            {r.inviteType !== 'None' ? (
+                                                                <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter border ${r.inviteType === 'Normal' ? 'bg-blue-900/20 border-blue-800 text-blue-400' : 'bg-purple-900/20 border-purple-800 text-purple-400'}`}>
+                                                                        {r.inviteType}
+                                                                    </span>
+                                                            ) : <span className="text-gray-700 text-[10px] font-black">-</span>}
+                                                        </td>
+                                                        <td className="p-4 text-right font-black pr-6 text-[10px] uppercase">
+                                                            {isConfirmed && <span className="text-green-500 flex justify-end items-center gap-1.5"><Shield size={12}/> Confirmed</span>}
+                                                            {isDeclined && <span className="text-red-500">Declined</span>}
+                                                            {r.status === 'Pending' && <span className="text-gray-600">Abandoned</span>}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <div className="flex xl:hidden flex-col gap-3 p-4">
                                         {historyRecords.length === 0 && (
-                                            <tr><td colSpan="5" className="p-20 text-center text-gray-600 italic">No records for this season.</td></tr>
+                                            <div className="p-10 text-center text-gray-600 font-black uppercase tracking-widest">No records for this season.</div>
                                         )}
                                         {historyRecords.map(r => {
                                             const isConfirmed = r.status === 'Confirmed';
                                             const isDeclined = r.status === 'Declined';
+                                            const isNormal = r.inviteType === 'Normal';
+                                            const isSpecial = r.inviteType === 'Special';
+
                                             return (
-                                                <tr key={r.id} className={`border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors ${isConfirmed ? 'bg-green-900/5 opacity-80' : isDeclined ? 'bg-red-900/5 opacity-60 grayscale' : ''}`}>
-                                                    <td className="p-4 pl-6 flex items-center gap-4">
-                                                        <div className="relative">
-                                                            <img src={r.avatar || 'https://via.placeholder.com/40'} alt="av" className="w-10 h-10 rounded-full border border-gray-700 shadow-inner" />
-                                                            {r.furnaceImage && <img src={r.furnaceImage} alt="f" className="w-4 h-4 absolute -bottom-1 -right-1 drop-shadow-md" />}
+                                                <div
+                                                    key={r.id}
+                                                    className={`border rounded-xl p-4 flex items-center justify-between transition-all ${
+                                                        isNormal ? 'border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.15)]' :
+                                                        isSpecial ? 'border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.15)]' :
+                                                        isConfirmed ? 'border-green-800/50 shadow-md' :
+                                                        isDeclined ? 'border-red-800/50 shadow-md' : 'border-gray-800 shadow-md'
+                                                    } ${
+                                                        isConfirmed ? 'bg-green-900/10' :
+                                                        isDeclined ? 'bg-red-900/10 opacity-60' : 'bg-gray-900'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="relative shrink-0">
+                                                            <img src={r.avatar || 'https://via.placeholder.com/40'} alt="av" className="w-12 h-12 rounded-full border border-gray-700 shadow-md" />
+                                                            {r.furnaceImage && <img src={r.furnaceImage} alt="f" className="w-5 h-5 absolute -bottom-1 -right-1 drop-shadow-xl" />}
                                                         </div>
                                                         <div>
-                                                            <div className="font-bold text-gray-200">{r.nickname}</div>
-                                                            <div className="text-[10px] text-gray-500 font-mono tracking-tighter">{r.fid}</div>
+                                                            <div className="font-bold text-gray-100">{r.nickname}</div>
+                                                            <div className="text-[10px] text-gray-500 font-mono tracking-tighter">{r.sourceState}</div>
                                                         </div>
-                                                    </td>
-                                                    <td className="p-4 text-gray-400 font-bold">{r.sourceState}</td>
-                                                    <td className="p-4 text-yellow-600 font-mono text-[11px] font-bold">{r.power.toLocaleString()}</td>
-                                                    <td className="p-4">
-                                                        {r.inviteType !== 'None' ? (
-                                                            <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter border ${r.inviteType === 'Normal' ? 'bg-blue-900/20 border-blue-800 text-blue-400' : 'bg-purple-900/20 border-purple-800 text-purple-400'}`}>
-                                                                    {r.inviteType}
-                                                                </span>
-                                                        ) : <span className="text-gray-700 text-[10px] font-black">-</span>}
-                                                    </td>
-                                                    <td className="p-4 text-right font-black pr-6 text-[10px] uppercase">
-                                                        {isConfirmed && <span className="text-green-500 flex justify-end items-center gap-1.5"><Shield size={12}/> Confirmed</span>}
-                                                        {isDeclined && <span className="text-red-500">Declined</span>}
-                                                        {r.status === 'Pending' && <span className="text-gray-600">Abandoned</span>}
-                                                    </td>
-                                                </tr>
+                                                    </div>
+
+                                                    <div className="flex flex-col items-end gap-1.5">
+                                                        <div className="text-yellow-500 font-mono text-[11px] font-bold">
+                                                            {r.power >= 1000000 ? (r.power / 1000000).toFixed(1) + 'M' : r.power.toLocaleString()}
+                                                        </div>
+
+                                                        <div className="flex items-center gap-1.5">
+                                                            {/* Glowing Dots */}
+                                                            {isNormal && <span className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]"></span>}
+                                                            {isSpecial && <span className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.8)]"></span>}
+
+                                                            {/* Read-Only Status Text/Icons */}
+                                                            {isConfirmed && <Shield size={14} className="text-green-500 ml-1" />}
+                                                            {isDeclined && <span className="text-[9px] uppercase font-black tracking-widest text-red-500 ml-1">Rejected</span>}
+                                                            {r.status === 'Pending' && <span className="text-[9px] uppercase font-black tracking-widest text-gray-600 ml-1">Abandoned</span>}
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             );
                                         })}
-                                        </tbody>
-                                    </table>
+                                    </div>
                                 </div>
                             </>
                         ) : (
-                            <div className="flex flex-col items-center justify-center h-full text-gray-600 space-y-4">
+                            <div className="flex flex-col items-center justify-center h-full text-gray-600 space-y-4 py-20">
                                 <Archive size={48} className="opacity-10" />
                                 <p className="text-xs font-black uppercase tracking-widest">Select a season archive</p>
                             </div>
@@ -383,31 +446,31 @@ export default function TransferManager() {
             <div className="p-6 flex flex-col h-full bg-gray-950 overflow-hidden">
 
                 {/* Status Bar */}
-                <div className="flex flex-wrap items-center gap-6 mb-6 px-4 py-3 bg-gray-900 border border-gray-800 rounded-2xl shadow-xl shrink-0">
-                    <div className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-full border ${
+                <div className="flex flex-col md:flex-row items-start md:items-center gap-4 md:gap-6 mb-6 px-4 py-4 bg-gray-900 border border-gray-800 rounded-2xl shadow-xl shrink-0">
+                    <div className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-full border self-start ${
                         season.status === 'Planning' ? 'bg-yellow-900/20 text-yellow-500 border-yellow-700/50' : 'bg-green-900/20 text-green-500 border-green-700/50'
                     }`}>
                         {season.status} Mode
                     </div>
 
-                    <div className="flex gap-8 text-[11px] font-black uppercase tracking-widest divide-x divide-gray-800">
-                        <div className="flex gap-3 items-center">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-8 w-full md:w-auto text-[11px] font-black uppercase tracking-widest sm:divide-x divide-gray-800">
+                        <div className="flex justify-between sm:justify-start gap-3 items-center">
                             <span className="text-gray-500">Power Limit:</span>
                             <span className="text-yellow-500 font-mono tracking-tighter">{season.powerCap.toLocaleString()}</span>
                         </div>
-                        <div className="flex gap-3 items-center pl-8">
+                        <div className="flex justify-between sm:justify-start gap-3 items-center sm:pl-8">
                             <span className="text-gray-500">Normal Slots:</span>
                             <span className={`${stats.normalUsed >= stats.normalMax ? 'text-red-500' : 'text-blue-400'} font-mono`}>{stats.normalUsed} / {stats.normalMax}</span>
                         </div>
-                        <div className="flex gap-3 items-center pl-8">
-                            <span className="text-gray-500">Special Invitations:</span>
+                        <div className="flex justify-between sm:justify-start gap-3 items-center sm:pl-8">
+                            <span className="text-gray-500">Special Invites:</span>
                             <span className={`${stats.specialUsed >= stats.specialMax ? 'text-red-500' : 'text-purple-400'} font-mono`}>{stats.specialUsed} / {stats.specialMax}</span>
                         </div>
                     </div>
                 </div>
 
                 {/* Ledger Table */}
-                <div className="flex-1 bg-gray-900 rounded-2xl border border-gray-800 shadow-2xl overflow-hidden flex flex-col">
+                <div className="hidden xl:flex flex-1 bg-gray-900 rounded-2xl border border-gray-800 shadow-2xl overflow-hidden flex flex-col">
                     <div className="flex-1 overflow-y-auto custom-scrollbar">
                         <table className="w-full text-left border-collapse">
                             <thead>
@@ -430,7 +493,7 @@ export default function TransferManager() {
                                 const isOverPower = r.power > season.powerCap && !isConfirmed && !isDeclined;
 
                                 return (
-                                    <tr key={r.id} className={`border-b border-gray-800/50 hover:bg-gray-800 transition-colors ${isConfirmed ? 'bg-green-900/10 opacity-80' : isDeclined ? 'bg-red-900/10 opacity-50 grayscale' : ''}`}>
+                                    <tr key={r.id} className={`border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors ${isConfirmed ? 'bg-green-900/5 opacity-80' : isDeclined ? 'bg-red-900/5 opacity-60' : ''}`}>
                                         <td className="p-4 pl-6 flex items-center gap-4">
                                             <div className="relative shrink-0">
                                                 <img src={r.avatar || 'https://via.placeholder.com/40'} alt="av" className="w-10 h-10 rounded-full border border-gray-700 shadow-md" />
@@ -530,6 +593,61 @@ export default function TransferManager() {
                         </table>
                     </div>
                 </div>
+                <div className="flex xl:hidden flex-col gap-3 flex-1 overflow-y-auto custom-scrollbar pb-6">
+                    {records.length === 0 && (
+                        <div className="p-10 text-center text-gray-600 font-black uppercase tracking-widest">No candidates drafted</div>
+                    )}
+                    {records.map(r => {
+                        const isConfirmed = r.status === 'Confirmed';
+                        const isDeclined = r.status === 'Declined';
+
+                        // Define our invite types for the glow logic
+                        const isNormal = r.inviteType === 'Normal';
+                        const isSpecial = r.inviteType === 'Special';
+
+                        return (
+                            <div
+                                key={r.id}
+                                className={`border rounded-xl p-4 flex items-center justify-between transition-all ${
+                                    isNormal ? 'border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.15)]' :
+                                    isSpecial ? 'border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.15)]' :
+                                    isConfirmed ? 'border-green-800/50 shadow-md' :
+                                    isDeclined ? 'border-red-800/50 shadow-md' : 'border-gray-800 shadow-md'
+                                } ${
+                                    isConfirmed ? 'bg-green-900/10' :
+                                    isDeclined ? 'bg-red-900/10 opacity-60' : 'bg-gray-900'
+                                }`}
+                            >
+                                <div className="flex items-center gap-4">
+                                    <div className="relative shrink-0">
+                                        <img src={r.avatar || 'https://via.placeholder.com/40'} alt="av" className="w-12 h-12 rounded-full border border-gray-700 shadow-md" />
+                                        {r.furnaceImage && <img src={r.furnaceImage} alt="f" className="w-5 h-5 absolute -bottom-1 -right-1 drop-shadow-xl" />}
+                                    </div>
+                                    <div>
+                                        <div className="font-bold text-gray-100">{r.nickname}</div>
+                                        <div className="text-[10px] text-gray-500 font-mono tracking-tighter">{r.sourceState}</div>
+                                    </div>
+                                </div>
+
+                                <div className="flex flex-col items-end gap-1.5">
+                                    <div className="text-yellow-500 font-mono text-[11px] font-bold">
+                                        {r.power >= 1000000 ? (r.power / 1000000).toFixed(1) + 'M' : r.power.toLocaleString()}
+                                    </div>
+
+                                    <div className="flex items-center gap-1.5">
+                                        {/* Tiny glowing dot indicator for quick scanning */}
+                                        {isNormal && <span className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]"></span>}
+                                        {isSpecial && <span className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.8)]"></span>}
+
+                                        {/* Status Icons */}
+                                        {isConfirmed && <Check size={16} className="text-green-500 ml-1" />}
+                                        {isDeclined && <X size={16} className="text-red-500 ml-1" />}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
 
                 {/* Bulk Add Modal */}
                 {showAddModal && (
@@ -568,6 +686,87 @@ export default function TransferManager() {
                 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #4B5563; }
             `}</style>
         {showMfaModal && <MfaSetupModal onClose={() => setShowMfaModal(false)} isForced={sessionStorage.getItem('mfa_enabled') === 'false'} />}
+        {activeMobileRecord && (
+            <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[60] p-4">
+                <div className="bg-gray-900 p-6 rounded-3xl w-full max-w-sm border border-gray-700 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
+                    <button onClick={() => setSelectedMobileRecordId(null)} className="absolute top-4 right-4 text-gray-500 hover:text-white p-2">
+                        <X size={20} />
+                    </button>
+
+                    <div className="flex items-center gap-4 mb-6 pb-6 border-b border-gray-800">
+                        <img src={activeMobileRecord.avatar || 'https://via.placeholder.com/40'} alt="av" className="w-16 h-16 rounded-full border-2 border-gray-700 shadow-md" />
+                        <div>
+                            <h3 className="font-black text-white text-lg">{activeMobileRecord.nickname}</h3>
+                            <p className="text-[10px] text-gray-500 font-mono tracking-widest uppercase">FID: {activeMobileRecord.fid}</p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-5">
+                        <div>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-1">Destination Alliance</label>
+                            <select
+                                disabled={!isAdmin || activeMobileRecord.status === 'Confirmed' || activeMobileRecord.status === 'Declined'}
+                                value={activeMobileRecord.targetAllianceId || ''}
+                                onChange={(e) => handleUpdateRecord(activeMobileRecord.id, 'targetAllianceId', e.target.value)}
+                                className="w-full bg-black border border-gray-800 rounded-xl p-3 text-xs font-bold text-gray-300 outline-none focus:border-blue-500"
+                            >
+                                <option value="">Pending...</option>
+                                {alliances.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-1">Update Power</label>
+                            <input
+                                type="number"
+                                disabled={!isAdmin || activeMobileRecord.status === 'Confirmed' || activeMobileRecord.status === 'Declined'}
+                                defaultValue={activeMobileRecord.power}
+                                onBlur={(e) => handleUpdateRecord(activeMobileRecord.id, 'power', e.target.value)}
+                                className="w-full bg-black border border-gray-800 rounded-xl p-3 text-xs font-mono text-yellow-500 outline-none focus:border-yellow-500"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-2">Invite Type</label>
+                            <div className="flex gap-2">
+                                {['Normal', 'Special'].map((type) => (
+                                    <button
+                                        key={type}
+                                        disabled={!isAdmin || activeMobileRecord.status === 'Confirmed' || activeMobileRecord.status === 'Declined'}
+                                        onClick={() => handleToggleInvite(activeMobileRecord.id, activeMobileRecord.inviteType, type)}
+                                        className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                            activeMobileRecord.inviteType === type
+                                                ? (type === 'Normal' ? 'bg-blue-600 text-white shadow-lg' : 'bg-purple-600 text-white shadow-lg')
+                                                : 'bg-gray-800 text-gray-500 border border-gray-700'
+                                        }`}
+                                    >
+                                        {type}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {activeMobileRecord.status === 'Pending' && isAdmin && activeMobileRecord.direction === 'Inbound' && (
+                            <div className="pt-4 border-t border-gray-800 flex gap-3">
+                                <button
+                                    onClick={() => { handleConfirmInbound(activeMobileRecord); setSelectedMobileRecordId(null); }}
+                                    disabled={season.status !== 'Active'}
+                                    className="flex-1 py-3 bg-green-600 hover:bg-green-500 text-white rounded-xl font-black uppercase tracking-widest text-[10px] transition-all disabled:opacity-30 disabled:bg-gray-800 disabled:text-gray-500"
+                                >
+                                    Accept
+                                </button>
+                                <button
+                                    onClick={() => { handleUpdateRecord(activeMobileRecord.id, 'status', 'Declined'); setSelectedMobileRecordId(null); }}
+                                    className="flex-1 py-3 bg-red-900/40 hover:bg-red-600 text-red-500 hover:text-white border border-red-800/50 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all"
+                                >
+                                    Reject
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        )}
         </AdminLayout>
     );
 }

@@ -1,6 +1,7 @@
 package db
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -187,4 +188,27 @@ func (s *Store) ResetUserMFA(userID int) error {
 	}
 
 	return tx.Commit()
+}
+
+func (s *Store) GetUserWebAuthnDevices(userID int) ([]string, error) {
+	var credIDs [][]byte
+	query := `SELECT credential_id FROM webauthn_credentials WHERE user_id = ?`
+	err := s.db.Select(&credIDs, query, userID)
+
+	var devices []string
+	for _, id := range credIDs {
+		devices = append(devices, base64.StdEncoding.EncodeToString(id))
+	}
+	return devices, err
+}
+
+func (s *Store) DeleteWebAuthnCredential(userID int, base64CredID string) error {
+	credID, err := base64.StdEncoding.DecodeString(base64CredID)
+	if err != nil {
+		return err
+	}
+
+	query := `DELETE FROM webauthn_credentials WHERE user_id = ? AND credential_id = ?`
+	_, err = s.db.Exec(query, userID, credID)
+	return err
 }

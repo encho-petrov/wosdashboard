@@ -753,12 +753,14 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 			}
 
 			hasWebAuthn := store.HasWebAuthn(user.ID)
+			devices, _ := store.GetUserWebAuthnDevices(user.ID)
 
 			c.JSON(http.StatusOK, gin.H{
 				"username":     user.Username,
 				"role":         user.Role,
 				"mfa_enabled":  user.MFAEnabled,
 				"has_webauthn": hasWebAuthn,
+				"devices":      devices,
 			})
 		})
 
@@ -1304,6 +1306,27 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 
 			engine.Redis.DeleteWebAuthnSession(username)
 			c.JSON(http.StatusOK, gin.H{"message": "Biometric login enabled successfully!"})
+		})
+
+		admin.DELETE("/webauthn/device", func(c *gin.Context) {
+			username := c.GetString("username")
+			user, _ := store.GetUserByUsername(username)
+
+			var request struct {
+				CredentialID string `json:"credential_id"`
+			}
+
+			if err := c.BindJSON(&request); err != nil {
+				c.JSON(400, gin.H{"error": "Invalid request"})
+				return
+			}
+
+			if err := store.DeleteWebAuthnCredential(user.ID, request.CredentialID); err != nil {
+				c.JSON(500, gin.H{"error": "Failed to delete device"})
+				return
+			}
+
+			c.JSON(200, gin.H{"message": "Device removed successfully"})
 		})
 
 		admin.GET("/users", func(c *gin.Context) {
