@@ -71,7 +71,10 @@ func (c *GiftClient) RedeemGift(fid, code, captcha string) (int, string, string,
 	if err != nil {
 		return -1, "Request Creation Failed", "", err
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	for key, val := range GetRandomizedHeaders(c.BaseURL) {
+		req.Header.Set(key, val)
+	}
 
 	resp, err := c.HttpClient.Do(req)
 	if err != nil {

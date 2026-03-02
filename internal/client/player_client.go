@@ -45,7 +45,10 @@ func (c *PlayerClient) GetPlayerInfo(fid int64) (*models.PlayerInfoResponse, err
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	for key, val := range GetRandomizedHeaders(c.BaseURL) {
+		req.Header.Set(key, val)
+	}
 
 	resp, err := c.HttpClient.Do(req)
 	if err != nil {
@@ -79,7 +82,10 @@ func (c *PlayerClient) GetCaptcha(fid int64) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	for key, val := range GetRandomizedHeaders(c.BaseURL) {
+		req.Header.Set(key, val)
+	}
 
 	resp, err := c.HttpClient.Do(req)
 	if err != nil {
