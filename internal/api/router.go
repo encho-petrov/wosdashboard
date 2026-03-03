@@ -119,7 +119,7 @@ func SetupRouter(engine *processor.Processor, store *db.Store, cfg *config.Confi
 		token, _ := auth.GenerateToken(user.Username, user.Role)
 		refreshToken, _ := auth.GenerateRefreshToken(user.Username, user.Role)
 
-		c.SetCookie("refresh_token", refreshToken, int(1*30*time.Minute.Seconds()), "/", "", false, true)
+		c.SetCookie("refresh_token", refreshToken, cfg.Auth.RefreshTokenDuration, "/", "", false, true)
 
 		c.JSON(http.StatusOK, gin.H{
 			"token":       token,
@@ -155,13 +155,15 @@ func SetupRouter(engine *processor.Processor, store *db.Store, cfg *config.Confi
 		token, _ := auth.GenerateToken(user.Username, user.Role)
 		refreshToken, _ := auth.GenerateRefreshToken(user.Username, user.Role)
 
-		c.SetCookie("refresh_token", refreshToken, int(1*30*time.Minute.Seconds()), "/", "", false, true)
+		c.SetCookie("refresh_token", refreshToken, cfg.Auth.RefreshTokenDuration*60, "/", "", false, true)
 
-		if user.AllianceID != nil {
-			c.JSON(http.StatusOK, gin.H{"token": token, "role": user.Role})
-		} else {
-			c.JSON(http.StatusOK, gin.H{"token": token, "role": user.Role, "allianceId": user.AllianceID})
-		}
+		c.JSON(http.StatusOK, gin.H{
+			"token":       token,
+			"role":        user.Role,
+			"mfa_enabled": user.MFAEnabled,
+			"allianceId":  user.AllianceID,
+			"username":    user.Username,
+		})
 	})
 
 	r.POST("/api/login/player", func(c *gin.Context) {
@@ -207,7 +209,7 @@ func SetupRouter(engine *processor.Processor, store *db.Store, cfg *config.Confi
 		token, _ := auth.GenerateToken(fidStr, "player")
 		refreshToken, _ := auth.GenerateRefreshToken(fidStr, "player")
 
-		c.SetCookie("refresh_token", refreshToken, int(1*30*time.Minute.Seconds()), "/", "", false, true)
+		c.SetCookie("refresh_token", refreshToken, cfg.Auth.RefreshTokenDuration*60, "/", "", false, true)
 
 		c.JSON(200, gin.H{"token": token, "role": "player", "nickname": info.Data.Nickname})
 	})
@@ -309,12 +311,17 @@ func SetupRouter(engine *processor.Processor, store *db.Store, cfg *config.Confi
 		engine.Redis.DeleteWebAuthnSession(tempToken)
 
 		token, _ := auth.GenerateToken(user.Username, user.Role)
+		refreshToken, _ := auth.GenerateRefreshToken(user.Username, user.Role)
 
-		if user.AllianceID != nil {
-			c.JSON(http.StatusOK, gin.H{"token": token, "role": user.Role, "allianceId": user.AllianceID})
-		} else {
-			c.JSON(http.StatusOK, gin.H{"token": token, "role": user.Role})
-		}
+		c.SetCookie("refresh_token", refreshToken, cfg.Auth.RefreshTokenDuration*60, "/", "", false, true)
+
+		c.JSON(http.StatusOK, gin.H{
+			"token":       token,
+			"role":        user.Role,
+			"mfa_enabled": user.MFAEnabled,
+			"allianceId":  user.AllianceID,
+			"username":    user.Username,
+		})
 	})
 
 	playerGroup := r.Group("/api/player")
@@ -1013,15 +1020,55 @@ func SetupRouter(engine *processor.Processor, store *db.Store, cfg *config.Confi
 
 		authorized.POST("/war-room/reset", func(c *gin.Context) {
 			if c.GetString("role") != "admin" {
-				c.JSON(403, gin.H{"error": "Only Admins can reset the event"})
+				c.JSON(http.StatusForbidden, gin.H{"error": "Only Admins can reset the event"})
 				return
 			}
 
-			if err := store.ResetEvent(); err != nil {
-				c.JSON(500, gin.H{"error": "Reset failed"})
+			var input struct {
+				Notes string `json:"notes"`
+			}
+			_ = c.ShouldBindJSON(&input)
+
+			adminUsername := c.GetString("username")
+
+			if err := store.ArchiveAndResetEvent(adminUsername, input.Notes); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Archive and Reset failed"})
 				return
 			}
-			c.JSON(200, gin.H{"message": "Event reset! All troops returned to reserve."})
+
+			c.JSON(http.StatusOK, gin.H{"message": "Event archived and reset! All troops returned to reserve."})
+		})
+
+		authorized.GET("/war-room/history", func(c *gin.Context) {
+			events, err := store.GetEventHistoryList()
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch history list"})
+				return
+			}
+			if events == nil {
+				events = []db.EventSnapshot{}
+			}
+			c.JSON(http.StatusOK, events)
+		})
+
+		authorized.GET("/war-room/history/:id", func(c *gin.Context) {
+			eventIDStr := c.Param("id")
+			eventID, err := strconv.Atoi(eventIDStr)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID"})
+				return
+			}
+
+			teams, players, err := store.GetEventSnapshotDetails(eventID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch snapshot details"})
+				return
+			}
+
+			c.JSON(http.StatusOK, gin.H{
+				"teams":   teams,
+				"players": players,
+			})
 		})
 
 		authorized.GET("/squads/:allianceId", func(c *gin.Context) {

@@ -33,7 +33,8 @@ func AuthMiddleware(store *db.Store) gin.HandlerFunc {
 
 		user, err := store.GetUserByUsername(claims.Username)
 		if err == nil {
-			c.Set("userId", int64(user.ID)) // Store the ID for audit logs
+			c.Set("userId", int64(user.ID))
+			c.Set("allianceId", user.AllianceID)
 		}
 
 		c.Set("username", claims.Username)

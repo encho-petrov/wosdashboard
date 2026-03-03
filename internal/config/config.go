@@ -45,6 +45,11 @@ type Config struct {
 		ApplicationDomain string `mapstructure:"ApplicationDomain"`
 		ApplicationURL    string `mapstructure:"ApplicationUrl"`
 	} `mapstructure:"BioID"`
+
+	Auth struct {
+		AccessTokenDuration  int `mapstructure:"AccessTokenDuration"`
+		RefreshTokenDuration int `mapstructure:"RefreshTokenDuration"`
+	} `mapstructure:"Auth"`
 }
 
 func LoadConfig() (*Config, error) {

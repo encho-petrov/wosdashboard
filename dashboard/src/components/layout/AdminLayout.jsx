@@ -13,9 +13,6 @@ export default function AdminLayout({ children, title, actions }) {
     const location = useLocation();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-    // ==========================================
-    // TAB SUSPENSION RECOVERY
-    // ==========================================
     useEffect(() => {
         let lastSleepTime = Date.now();
 
@@ -45,9 +42,13 @@ export default function AdminLayout({ children, title, actions }) {
         navigate('/login');
     };
 
-    const filteredLinks = navLinks.filter(link =>
-        link.requiredRoles.includes(user?.role)
-    );
+    const filteredLinks = navLinks.filter(link => {
+        const hasRole = link.requiredRoles.includes(user?.role)
+        if (link.requiresAlliance && !user?.allianceId) {
+            return false;
+        }
+        return hasRole;
+    });
 
     const isMfaRequired = user && !user.mfaEnabled;
 

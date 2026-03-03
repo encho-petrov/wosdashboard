@@ -69,13 +69,25 @@ export default function WarRoom() {
 
     const handleReset = async () => {
         if (!isAdmin) return;
+
         if (!window.confirm("Are you sure you want to reset the event? This will clear all War Room and Squad assignments.")) return;
+
+        const eventName = window.prompt("Name this event for the History logs (e.g., 'SVS vs State 390').\nLeave blank and click OK to save without a name, or Cancel to abort the reset.");
+
+        if (eventName === null) return;
+
         try {
-            await client.post('/moderator/war-room/reset');
-            toast.success("Event data reset successfully.");
+            await client.post('/moderator/war-room/reset', {
+                notes: eventName
+            });
+
+            toast.success("Event archived and reset successfully.");
+
             void fetchData(true);
             await refreshGlobalData(true);
-        } catch (err) { toast.error("Failed to reset event data."); }
+        } catch (err) {
+            toast.error("Failed to reset event data.");
+        }
     };
 
     const toggleLock = async (allianceId, currentLock) => {

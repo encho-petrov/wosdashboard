@@ -85,7 +85,7 @@ func main() {
 		log.Fatalf("Could not load config: %v", err)
 	}
 
-	auth.Init(cfg.ApiSecrets.JwtSecret)
+	auth.Init(cfg)
 
 	err = auth.InitWebAuthn(cfg.BioID.ApplicationName, cfg.BioID.ApplicationDomain, cfg.BioID.ApplicationURL)
 	if err != nil {

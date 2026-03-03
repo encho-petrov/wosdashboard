@@ -3,6 +3,7 @@ package auth
 import (
 	"errors"
 	"fmt"
+	"gift-redeemer/internal/config"
 	"log"
 	"time"
 
@@ -13,12 +14,16 @@ import (
 )
 
 var jwtSecret []byte
+var accessTokenDuration = 10
+var refreshTokenDuration = 30
 
-func Init(secret string) {
-	if secret == "" {
+func Init(cfg *config.Config) {
+	if cfg.ApiSecrets.JwtSecret == "" {
 		log.Fatal("FATAL: JwtSecret is missing in appsettings.json")
 	}
-	jwtSecret = []byte(secret)
+	jwtSecret = []byte(cfg.ApiSecrets.JwtSecret)
+	accessTokenDuration = cfg.Auth.AccessTokenDuration
+	refreshTokenDuration = cfg.Auth.RefreshTokenDuration
 }
 
 type Claims struct {
@@ -38,7 +43,7 @@ func CheckPassword(password, hash string) bool {
 }
 
 func GenerateToken(username, role string) (string, error) {
-	expirationTime := time.Now().Add(1 * 10 * time.Minute)
+	expirationTime := time.Now().Add(time.Duration(accessTokenDuration) * time.Minute)
 	claims := &Claims{
 		Username: username,
 		Role:     role,
@@ -92,7 +97,7 @@ func InitWebAuthn(rpDisplayName, rpID, rpOrigin string) error {
 }
 
 func GenerateRefreshToken(username, role string) (string, error) {
-	expirationTime := time.Now().Add(1 * 30 * time.Minute)
+	expirationTime := time.Now().Add(time.Duration(refreshTokenDuration) * time.Minute)
 	claims := &Claims{
 		Username: username,
 		Role:     role,

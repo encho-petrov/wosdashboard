@@ -19,7 +19,8 @@ import TransferManager from "./pages/TransferManager.jsx";
 import MinistryReservations from "./pages/MinistryReservations.jsx";
 import Profile from './pages/Profile.jsx';
 import Strategy from './pages/StrategyMeta.jsx';
-import NotFound from './pages/NotFound';
+import NotFound from './pages/NotFound.jsx';
+import EventHistory from './pages/EventHistory.jsx';
 
 const Home = () => {
   const { user } = useAuth();
@@ -125,6 +126,12 @@ function App() {
               <ProtectedRoute>
                 <Strategy />
               </ProtectedRoute>
+            }
+            />
+            <Route path="/event-history" element={
+              <EventHistory>
+                <Strategy />
+              </EventHistory>
             }
             />
             <Route path="*" element={<NotFound />} />

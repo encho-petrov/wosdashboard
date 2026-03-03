@@ -41,6 +41,30 @@ type Squad struct {
 	TotalPower  int64  `db:"total_power" json:"totalPower"`
 }
 
+type EventSnapshot struct {
+	ID        int    `db:"id" json:"id"`
+	EventDate string `db:"event_date" json:"eventDate"`
+	CreatedBy string `db:"created_by" json:"createdBy"`
+	Notes     string `db:"notes" json:"notes"`
+}
+
+type HistoryTeam struct {
+	ID                 int    `db:"id" json:"id"`
+	OriginalTeamID     int    `db:"original_team_id" json:"originalTeamId"`
+	Name               string `db:"name" json:"name"`
+	CaptainFID         *int64 `db:"captain_fid" json:"captainFid"`
+	FightingAllianceID *int   `db:"fighting_alliance_id" json:"fightingAllianceId"`
+}
+
+type HistoryPlayer struct {
+	ID                 int    `db:"id" json:"id"`
+	PlayerID           int64  `db:"player_id" json:"playerId"`
+	Nickname           string `db:"nickname" json:"nickname"`
+	AllianceID         *int   `db:"alliance_id" json:"allianceId"`
+	TeamID             *int   `db:"team_id" json:"teamId"`
+	FightingAllianceID *int   `db:"fighting_alliance_id" json:"fightingAllianceId"`
+}
+
 func (s *Store) GetTeams() ([]TeamOption, error) {
 	var list []TeamOption
 	err := s.db.Select(&list, "SELECT id, name, alliance_id FROM teams ORDER BY name ASC")
@@ -79,21 +103,55 @@ func (s *Store) ToggleAllianceLock(allianceID int, isLocked bool) error {
 	_, err := s.db.Exec("UPDATE alliances SET is_locked = ? WHERE id = ?", isLocked, allianceID)
 	return err
 }
+func (s *Store) ArchiveAndResetEvent(adminUsername string, notes string) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
 
-func (s *Store) ResetEvent() error {
-	_, err := s.db.Exec("UPDATE alliances SET is_locked = FALSE")
+	res, err := tx.Exec("INSERT INTO event_snapshots (created_by, notes) VALUES (?, ?)", adminUsername, notes)
+	if err != nil {
+		return err
+	}
+	eventID, _ := res.LastInsertId()
+
+	_, err = tx.Exec(`
+        INSERT INTO history_teams (event_id, original_team_id, name, captain_fid, fighting_alliance_id)
+        SELECT ?, id, name, captain_fid, fighting_alliance_id 
+        FROM teams 
+        WHERE fighting_alliance_id IS NOT NULL
+    `, eventID)
 	if err != nil {
 		return err
 	}
 
-	_, err = s.db.Exec("UPDATE players SET fighting_alliance_id = NULL, team_id = NULL, battle_availability = 'Unavailable', tundra_availability = 'Unavailable'")
+	_, err = tx.Exec(`
+        INSERT INTO history_players (event_id, player_id, nickname, alliance_id, team_id, fighting_alliance_id)
+        SELECT ?, player_id, nickname, alliance_id, team_id, fighting_alliance_id 
+        FROM players 
+        WHERE fighting_alliance_id IS NOT NULL OR team_id IS NOT NULL
+    `, eventID)
 	if err != nil {
 		return err
 	}
 
-	_, err = s.db.Exec("DELETE FROM teams WHERE fighting_alliance_id IS NOT NULL")
+	_, err = tx.Exec("UPDATE alliances SET is_locked = FALSE")
+	if err != nil {
+		return err
+	}
 
-	return err
+	_, err = tx.Exec("UPDATE players SET fighting_alliance_id = NULL, team_id = NULL, battle_availability = 'Unavailable', tundra_availability = 'Unavailable'")
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec("DELETE FROM teams WHERE fighting_alliance_id IS NOT NULL")
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 func (s *Store) PromoteCaptain(fid int64, fightingAllianceID int) error {
@@ -199,4 +257,27 @@ func (s *Store) GetRosterStats() (RosterStats, error) {
 	stats.TundraAvailability, err = getEnumOptions("tundra_availability")
 
 	return stats, err
+}
+
+func (s *Store) GetEventHistoryList() ([]EventSnapshot, error) {
+	var events []EventSnapshot
+	err := s.db.Select(&events, "SELECT id, event_date, created_by, notes FROM event_snapshots ORDER BY event_date DESC")
+	return events, err
+}
+
+func (s *Store) GetEventSnapshotDetails(eventID int) ([]HistoryTeam, []HistoryPlayer, error) {
+	var teams []HistoryTeam
+	var players []HistoryPlayer
+
+	err := s.db.Select(&teams, "SELECT id, original_team_id, name, captain_fid, fighting_alliance_id FROM history_teams WHERE event_id = ?", eventID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	err = s.db.Select(&players, "SELECT id, player_id, nickname, alliance_id, team_id, fighting_alliance_id FROM history_players WHERE event_id = ?", eventID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return teams, players, nil
 }
