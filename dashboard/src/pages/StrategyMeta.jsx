@@ -6,7 +6,7 @@ import { Swords, Shield, Save, Users, PawPrint, Send, X } from 'lucide-react';
 import AdminLayout from '../components/layout/AdminLayout';
 
 const HeroSlot = ({ label, slotIndex, selectedId, heroes, onChange }) => {
-    const selectedHero = heroes.find(h => h.id === parseInt(selectedId));
+    const selectedHero = (heroes || []).find(h => h.id === parseInt(selectedId));
 
     return (
         <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700 flex flex-col items-center gap-3">
@@ -33,7 +33,7 @@ const HeroSlot = ({ label, slotIndex, selectedId, heroes, onChange }) => {
                 className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2 py-2 text-xs font-bold text-center outline-none focus:border-blue-500 text-gray-200"
             >
                 <option value="">Select Hero...</option>
-                {heroes.map(h => (
+                {(heroes || []).map(h => (
                     <option key={h.id} value={h.id}>{h.name} ({h.troopType})</option>
                 ))}
             </select>
@@ -80,10 +80,10 @@ export default function Strategy() {
     }, [isAdmin]);
 
     useEffect(() => {
-        if (fightDate) {
-            void fetchSavedPetSchedule();
+        if (activeTab === 'Pet Schedule') {
+            void fetchPetSchedule(fightDate);
         }
-    }, [fightDate]);
+    }, [activeTab, fightDate]);
 
     const fetchInitialData = async () => {
         try {
@@ -109,12 +109,25 @@ export default function Strategy() {
         }
     };
 
-    const fetchSavedPetSchedule = async () => {
+    const fetchPetSchedule = async (targetDate) => {
         try {
-            const res = await client.get(`/moderator/strategy/pets?date=${fightDate}`);
-            setSchedule(res.data || { 1: [], 2: [], 3: [] });
+            const res = await client.get(`/moderator/strategy/pets?date=${targetDate}`);
+
+            // Backend should return { date: '2026-03-07', schedule: {...} }
+            if (res.data) {
+                if (!targetDate && res.data.date) {
+                    setFightDate(res.data.date);
+                }
+                setSchedule(res.data.schedule || { 1: [], 2: [], 3: [] });
+            }
         } catch (err) {
             console.error("No saved schedule for this date.");
+
+            // If no upcoming schedule exists, just default the calendar to today so it isn't blank
+            if (!targetDate) {
+                const today = new Date().toISOString().split('T')[0];
+                setFightDate(today);
+            }
             setSchedule({ 1: [], 2: [], 3: [] });
         }
     };
@@ -343,7 +356,8 @@ export default function Strategy() {
                                             {/* Render ONLY the explicitly assigned captains */}
                                             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                                                 {(schedule[slot.id] || []).map(fid => {
-                                                    const cap = captains.find(c => c.fid === fid);
+                                                    // FIX: Safe search on captains
+                                                    const cap = (captains || []).find(c => c.fid === fid);
                                                     if (!cap) return null;
 
                                                     return (
@@ -379,7 +393,7 @@ export default function Strategy() {
                                                 className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-400 outline-none focus:border-yellow-500 w-full md:w-auto"
                                             >
                                                 <option value="">+ Assign Captain to this slot...</option>
-                                                {captains
+                                                {(captains || [])
                                                     .filter(cap => !(schedule[slot.id] || []).includes(cap.fid)) // Don't show already added captains
                                                     .map(cap => (
                                                         <option key={cap.fid} value={cap.fid}>

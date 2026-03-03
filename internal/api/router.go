@@ -38,7 +38,7 @@ func logAction(c *gin.Context, store *db.Store, action string, details string) {
 	})
 }
 
-func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, apiKey string, pClient *client.PlayerClient, redisStore *cache.RedisStore) *gin.Engine {
+func SetupRouter(engine *processor.Processor, store *db.Store, cfg *config.Config, pClient *client.PlayerClient, redisStore *cache.RedisStore) *gin.Engine {
 
 	r := gin.Default()
 	r.Use(func(c *gin.Context) {
@@ -58,7 +58,8 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 	}
 
 	r.Use(func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Origin", cfg.BioID.ApplicationURL)
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, X-API-Key")
 		if c.Request.Method == "OPTIONS" {
@@ -116,6 +117,10 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 		}
 
 		token, _ := auth.GenerateToken(user.Username, user.Role)
+		refreshToken, _ := auth.GenerateRefreshToken(user.Username, user.Role)
+
+		c.SetCookie("refresh_token", refreshToken, int(1*30*time.Minute.Seconds()), "/", "", false, true)
+
 		c.JSON(http.StatusOK, gin.H{
 			"token":       token,
 			"role":        user.Role,
@@ -148,6 +153,9 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 
 		engine.Redis.DeleteMfaSession(input.TempToken)
 		token, _ := auth.GenerateToken(user.Username, user.Role)
+		refreshToken, _ := auth.GenerateRefreshToken(user.Username, user.Role)
+
+		c.SetCookie("refresh_token", refreshToken, int(1*30*time.Minute.Seconds()), "/", "", false, true)
 
 		if user.AllianceID != nil {
 			c.JSON(http.StatusOK, gin.H{"token": token, "role": user.Role})
@@ -175,7 +183,7 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 			return
 		}
 
-		if info.Data.KID != targetState {
+		if info.Data.KID != cfg.Game.TargetState {
 			c.JSON(403, gin.H{
 				"error": fmt.Sprintf("Access Denied. This tool is for State 391 only. You are in State %d.", info.Data.KID),
 			})
@@ -197,8 +205,37 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 
 		fidStr := fmt.Sprintf("%d", input.FID)
 		token, _ := auth.GenerateToken(fidStr, "player")
+		refreshToken, _ := auth.GenerateRefreshToken(fidStr, "player")
+
+		c.SetCookie("refresh_token", refreshToken, int(1*30*time.Minute.Seconds()), "/", "", false, true)
 
 		c.JSON(200, gin.H{"token": token, "role": "player", "nickname": info.Data.Nickname})
+	})
+
+	r.POST("/api/refresh", func(c *gin.Context) {
+		refreshTokenStr, err := c.Cookie("refresh_token")
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Refresh token missing"})
+			return
+		}
+
+		claims, err := auth.ValidateToken(refreshTokenStr)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid refresh token"})
+			return
+		}
+
+		user, err := store.GetUserByUsername(claims.Username)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "User no longer exists"})
+			return
+		}
+
+		newToken, _ := auth.GenerateToken(user.Username, user.Role)
+
+		c.JSON(http.StatusOK, gin.H{
+			"token": newToken,
+		})
 	})
 
 	r.GET("/api/shared-assets/heroes/:filename", func(c *gin.Context) {
@@ -321,7 +358,6 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 				ministries = make([]db.PlayerMinistrySlot, 0)
 			}
 
-			cfg, _ := config.LoadConfig()
 			liveSeason, liveWeek := services.GetRotationState(cfg.Rotation.SeasonReferenceDate, cfg.Rotation.AnchorSeason)
 			forts := make([]db.RotationEntryExtended, 0)
 
@@ -407,18 +443,36 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 		})
 
 		authorized.GET("/strategy/pets", func(c *gin.Context) {
-			date := c.Query("date")
-			if date == "" {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Date required"})
-				return
+			dateParam := c.Query("date")
+
+			if dateParam == "" {
+				upcomingDate, err := store.GetUpcomingPetScheduleDate()
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check upcoming schedules"})
+					return
+				}
+
+				if upcomingDate == "" {
+					c.JSON(http.StatusOK, gin.H{
+						"date":     "",
+						"schedule": map[string][]int64{"1": {}, "2": {}, "3": {}},
+					})
+					return
+				}
+
+				dateParam = upcomingDate
 			}
 
-			schedule, err := store.GetPetScheduleByDate(date)
+			schedule, err := store.GetPetScheduleByDate(dateParam)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
 			}
-			c.JSON(http.StatusOK, schedule)
+
+			c.JSON(http.StatusOK, gin.H{
+				"date":     dateParam,
+				"schedule": schedule,
+			})
 		})
 
 		authorized.POST("/strategy/notify", func(c *gin.Context) {
@@ -431,7 +485,6 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 				return
 			}
 
-			cfg, _ := config.LoadConfig()
 			if cfg.Discord.WebhookURL == "" {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Webhook not configured"})
 				return
@@ -595,7 +648,7 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 		})
 
 		authorized.GET("/captcha-balance", func(c *gin.Context) {
-			url := fmt.Sprintf("https://2captcha.com/res.php?key=%s&action=getbalance&json=1", apiKey)
+			url := fmt.Sprintf("https://2captcha.com/res.php?key=%s&action=getbalance&json=1", cfg.ApiSecrets.CaptchaApiKey)
 
 			resp, err := http.Get(url)
 			if err != nil {
@@ -1653,7 +1706,6 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 			})
 
 			rotation.GET("/seasons", func(c *gin.Context) {
-				cfg, _ := config.LoadConfig()
 
 				liveSeason, _ := services.GetRotationState(
 					cfg.Rotation.SeasonReferenceDate,
@@ -1695,7 +1747,6 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 					return
 				}
 
-				cfg, _ := config.LoadConfig()
 				if err := services.SendDiscordRotation(cfg.Discord.WebhookURL, seasonId, week, entries); err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 					return
@@ -1716,7 +1767,6 @@ func SetupRouter(engine *processor.Processor, store *db.Store, targetState int, 
 					return
 				}
 
-				cfg, _ := config.LoadConfig()
 				if cfg.Discord.WebhookURL == "" {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": "Webhook not configured"})
 					return

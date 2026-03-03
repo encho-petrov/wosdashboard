@@ -130,7 +130,7 @@ func main() {
 	engine := processor.NewProcessor(pClient, gClient, store, solver, redisStore)
 
 	go engine.StartWorkers()
-	router := api.SetupRouter(engine, store, cfg.Game.TargetState, cfg.ApiSecrets.CaptchaApiKey, pClient, redisStore)
+	router := api.SetupRouter(engine, store, cfg, pClient, redisStore)
 
 	if cfg.Discord.WebhookURL != "" {
 		c := cron.New(cron.WithLocation(time.UTC))
@@ -150,7 +150,6 @@ func main() {
 				return
 			}
 
-			// Pass Season to the service so it appears in the Discord title
 			if err := services.SendDiscordRotation(cfg.Discord.WebhookURL, liveSeason, liveWeek, entries); err != nil {
 				log.Printf("CRON Error: %v", err)
 			}

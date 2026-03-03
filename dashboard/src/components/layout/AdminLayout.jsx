@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { navLinks } from '../../config/navigation';
 import { LogOut, Activity, Menu, ChevronRight } from 'lucide-react';
 
+import PullToRefresh from '../PullToRefresh';
 import MfaSetupModal from '../MfaSetupModal';
 
 export default function AdminLayout({ children, title, actions }) {
@@ -29,16 +30,10 @@ export default function AdminLayout({ children, title, actions }) {
     return (
         <div className="flex h-screen bg-gray-950 text-gray-100 font-sans overflow-hidden relative">
 
-            {/*
-                If MFA is required, the modal mounts here. Because the modal
-                has `fixed inset-0 z-50`, it will cover the entire layout below it
-                and blur the sidebar/header.
-            */}
+            {/* MFA OVERLAY */}
             {isMfaRequired && (
                 <>
                     <MfaSetupModal isForced={true} />
-
-                    {/* Escape Hatch: Sits above the modal's z-50 overlay */}
                     <div className="fixed top-4 right-4 z-[60]">
                         <button
                             onClick={handleLogout}
@@ -50,7 +45,7 @@ export default function AdminLayout({ children, title, actions }) {
                 </>
             )}
 
-            {/* MOBILE OVERLAY */}
+            {/* MOBILE SIDEBAR OVERLAY */}
             {isSidebarOpen && (
                 <div className="fixed inset-0 bg-black/80 z-40 lg:hidden backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)} />
             )}
@@ -58,7 +53,7 @@ export default function AdminLayout({ children, title, actions }) {
             {/* SIDEBAR DRAWER */}
             <aside className={`
                 fixed lg:static inset-y-0 left-0 z-50 w-64 bg-gray-900 border-r border-gray-800 
-                transform transition-transform duration-300 ease-in-out flex flex-col
+                transform transition-transform duration-300 ease-in-out flex flex-col shrink-0
                 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
             `}>
                 <div className="h-16 flex items-center px-6 border-b border-gray-800 shrink-0">
@@ -89,9 +84,9 @@ export default function AdminLayout({ children, title, actions }) {
                     })}
                 </nav>
 
-                <div className="p-4 border-t border-gray-800 bg-gray-900/50">
+                <div className="p-4 border-t border-gray-800 bg-gray-900/50 shrink-0">
                     <div className="flex items-center gap-3 px-4 py-3 bg-gray-950 rounded-xl border border-gray-800 mb-3">
-                        <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-black text-xs text-white">
+                        <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-black text-xs text-white shrink-0">
                             {user?.username?.charAt(0).toUpperCase()}
                         </div>
                         <div className="min-w-0">
@@ -106,7 +101,7 @@ export default function AdminLayout({ children, title, actions }) {
             </aside>
 
             {/* MAIN CONTENT AREA */}
-            <div className="flex-1 flex flex-col min-w-0">
+            <div className="flex-1 flex flex-col min-w-0 h-screen">
                 <header className="h-16 bg-gray-900/50 border-b border-gray-800 px-4 lg:px-6 flex justify-between items-center shrink-0">
                     <div className="flex items-center gap-4">
                         <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 text-gray-400 hover:text-white bg-gray-800 rounded-lg">
@@ -119,12 +114,14 @@ export default function AdminLayout({ children, title, actions }) {
                     <div className="flex items-center gap-2">{actions}</div>
                 </header>
 
-                <main className="flex-1 overflow-y-auto bg-gray-950 relative custom-scrollbar">
-                    {/* If MFA is required, we pass null instead of children.
-                        This prevents the page components from making API calls behind the modal.
-                    */}
-                    {isMfaRequired ? null : children}
-                </main>
+                {/* WRAP ONLY THE MAIN SCROLLABLE CONTENT */}
+                <div className="flex-1 relative overflow-hidden">
+                    <PullToRefresh>
+                        <main className="h-full overflow-y-auto bg-gray-950 custom-scrollbar">
+                            {isMfaRequired ? null : children}
+                        </main>
+                    </PullToRefresh>
+                </div>
             </div>
         </div>
     );

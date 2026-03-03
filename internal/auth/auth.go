@@ -38,7 +38,7 @@ func CheckPassword(password, hash string) bool {
 }
 
 func GenerateToken(username, role string) (string, error) {
-	expirationTime := time.Now().Add(2 * time.Hour)
+	expirationTime := time.Now().Add(1 * 10 * time.Minute)
 	claims := &Claims{
 		Username: username,
 		Role:     role,
@@ -89,4 +89,18 @@ func InitWebAuthn(rpDisplayName, rpID, rpOrigin string) error {
 		return fmt.Errorf("failed to create WebAuthn instance: %v", err)
 	}
 	return nil
+}
+
+func GenerateRefreshToken(username, role string) (string, error) {
+	expirationTime := time.Now().Add(1 * 30 * time.Minute)
+	claims := &Claims{
+		Username: username,
+		Role:     role,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expirationTime),
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(jwtSecret)
 }

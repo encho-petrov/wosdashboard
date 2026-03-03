@@ -1,6 +1,8 @@
 package db
 
 import (
+	"database/sql"
+	"errors"
 	"gift-redeemer/internal/models"
 	"strconv"
 )
@@ -219,4 +221,22 @@ func (s *Store) GetPetScheduleByDate(date string) (map[string][]int64, error) {
 	}
 
 	return result, nil
+}
+
+func (s *Store) GetUpcomingPetScheduleDate() (string, error) {
+	var fightDate string
+
+	query := "SELECT fight_date FROM pet_skill_schedule WHERE fight_date >= CURRENT_DATE ORDER BY fight_date ASC LIMIT 1"
+
+	err := s.db.Get(&fightDate, query)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	} else if err != nil {
+		return "", err
+	}
+
+	if len(fightDate) > 10 {
+		return fightDate[:10], nil
+	}
+	return fightDate, nil
 }
