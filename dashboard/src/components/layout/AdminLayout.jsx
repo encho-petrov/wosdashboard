@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { navLinks } from '../../config/navigation';
@@ -13,6 +13,33 @@ export default function AdminLayout({ children, title, actions }) {
     const location = useLocation();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+    // ==========================================
+    // TAB SUSPENSION RECOVERY
+    // ==========================================
+    useEffect(() => {
+        let lastSleepTime = Date.now();
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'hidden') {
+                lastSleepTime = Date.now();
+            } else if (document.visibilityState === 'visible') {
+                const timeAsleep = Date.now() - lastSleepTime;
+
+                if (timeAsleep > 120000) {
+                    window.location.reload(true);
+                } else {
+                    window.dispatchEvent(new Event('resize'));
+                }
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, []);
+
     const handleLogout = () => {
         logout();
         navigate('/login');
@@ -22,14 +49,10 @@ export default function AdminLayout({ children, title, actions }) {
         link.requiredRoles.includes(user?.role)
     );
 
-    // ==========================================
-    // SECURITY CHECK
-    // ==========================================
     const isMfaRequired = user && !user.mfaEnabled;
 
     return (
         <div className="flex h-screen bg-gray-950 text-gray-100 font-sans overflow-hidden relative">
-
             {/* MFA OVERLAY */}
             {isMfaRequired && (
                 <>
@@ -56,6 +79,7 @@ export default function AdminLayout({ children, title, actions }) {
                 transform transition-transform duration-300 ease-in-out flex flex-col shrink-0
                 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
             `}>
+                {/* ... Sidebar contents remain unchanged ... */}
                 <div className="h-16 flex items-center px-6 border-b border-gray-800 shrink-0">
                     <Activity className="text-blue-500 w-6 h-6 mr-3" />
                     <span className="font-black text-lg tracking-tighter text-white uppercase">Command Console</span>
@@ -114,7 +138,6 @@ export default function AdminLayout({ children, title, actions }) {
                     <div className="flex items-center gap-2">{actions}</div>
                 </header>
 
-                {/* WRAP ONLY THE MAIN SCROLLABLE CONTENT */}
                 <div className="flex-1 relative overflow-hidden">
                     <PullToRefresh>
                         <main className="h-full overflow-y-auto bg-gray-950 custom-scrollbar">
