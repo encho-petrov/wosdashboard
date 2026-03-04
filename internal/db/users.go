@@ -9,6 +9,11 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 )
 
+type UpdateUserRequest struct {
+	Role       string `json:"role"`
+	AllianceID *int   `json:"allianceId"`
+}
+
 type UserSafe struct {
 	ID          int    `db:"id" json:"id"`
 	Username    string `db:"username" json:"username"`
@@ -210,5 +215,10 @@ func (s *Store) DeleteWebAuthnCredential(userID int, base64CredID string) error 
 
 	query := `DELETE FROM webauthn_credentials WHERE user_id = ? AND credential_id = ?`
 	_, err = s.db.Exec(query, userID, credID)
+	return err
+}
+
+func (s *Store) UpdateUserAccess(userID int, role string, allianceID *int) error {
+	_, err := s.db.Exec("UPDATE users SET role = ?, alliance_id = ? WHERE id = ?", role, allianceID, userID)
 	return err
 }

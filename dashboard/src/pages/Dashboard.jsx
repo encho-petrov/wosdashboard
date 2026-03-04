@@ -89,7 +89,7 @@ export default function Dashboard() {
         <div className="p-6 space-y-8 max-w-[1600px] mx-auto">
           {/* 1. DYNAMIC NAVIGATION GRID */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {navLinks.filter(l => l.path !== '/' && l.requiredRoles.includes(user?.role)).map(link => {
+            {navLinks.filter(l => l.path !== '/' && l.requiredRoles.includes(user?.role) && (!l.requiresAlliance || user?.allianceId)).map(link => {
               const Icon = link.icon;
               return (
                   <Link key={link.path} to={link.path} className="bg-gray-900 border border-gray-800 p-5 rounded-2xl hover:border-blue-500 transition-all group relative overflow-hidden">

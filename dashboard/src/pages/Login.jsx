@@ -65,7 +65,7 @@ export default function Login() {
 
       const finishRes = await client.post(`/webauthn/login/finish?temp_token=${token}`, asseResp);
 
-      await login(finishRes.data.token, finishRes.data.role, formData.username, true);
+      await login(finishRes.data.token, finishRes.data.role, formData.username, true, finishRes.data.allianceId);
       navigate('/');
     } catch (err) {
       setError(err.response?.data?.error || 'Biometric login failed.');

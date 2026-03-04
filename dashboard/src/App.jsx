@@ -21,6 +21,8 @@ import Profile from './pages/Profile.jsx';
 import Strategy from './pages/StrategyMeta.jsx';
 import NotFound from './pages/NotFound.jsx';
 import EventHistory from './pages/EventHistory.jsx';
+import Foundry from './pages/Foundry.jsx';
+import RequireAlliance from './components/RequireAlliance.jsx';
 
 const Home = () => {
   const { user } = useAuth();
@@ -129,9 +131,17 @@ function App() {
             }
             />
             <Route path="/event-history" element={
-              <EventHistory>
-                <Strategy />
-              </EventHistory>
+              <ProtectedRoute>
+                <EventHistory />
+              </ProtectedRoute>
+            }
+            />
+            <Route path="/foundry" element={
+              <ProtectedRoute>
+                <RequireAlliance>
+                  <Foundry />
+                </RequireAlliance>
+              </ProtectedRoute>
             }
             />
             <Route path="*" element={<NotFound />} />

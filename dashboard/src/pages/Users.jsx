@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import client from '../api/client';
 import { toast } from 'react-toastify';
-import { Trash2, UserPlus, Shield, User, Fingerprint, ShieldAlert } from 'lucide-react';
+import { Trash2, UserPlus, Shield, User, Fingerprint, ShieldAlert, Edit, X } from 'lucide-react';
 import AdminLayout from '../components/layout/AdminLayout';
 
 export default function Users() {
@@ -10,11 +10,14 @@ export default function Users() {
   const [alliances, setAlliances] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Form State
+  // Create Form State
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('moderator');
   const [selectedAlliance, setSelectedAlliance] = useState('');
+
+  // Edit Modal State
+  const [editingUser, setEditingUser] = useState(null);
 
   useEffect(() => {
     void fetchData();
@@ -45,14 +48,30 @@ export default function Users() {
         username,
         password,
         role,
-        allianceId: role === 'moderator' ? parseInt(selectedAlliance) || null : null
+        allianceId: parseInt(selectedAlliance) || null
       });
       toast.success("User created!");
       setUsername('');
       setPassword('');
+      setSelectedAlliance('');
       await fetchData();
     } catch (err) {
       toast.error(err.response?.data?.error || "Failed to create user");
+    }
+  };
+
+  const handleUpdate = async (e) => {
+    e.preventDefault();
+    try {
+      await client.put(`/admin/users/${editingUser.id}`, {
+        role: editingUser.role,
+        allianceId: parseInt(editingUser.allianceId) || null
+      });
+      toast.success("User updated!");
+      setEditingUser(null);
+      await fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Failed to update user");
     }
   };
 
@@ -81,15 +100,15 @@ export default function Users() {
   const getAllianceName = (id) => {
     if (!id) return 'None';
     const a = alliances.find(a => a.id === id);
-    return a ? a.name : id;
+    return a ? a.name : `ID: ${id}`;
   };
 
   return (
       <AdminLayout title="User Management">
-        <div className="p-4 lg:p-6 flex flex-col lg:flex-row gap-6 lg:h-[calc(100vh-80px)] overflow-y-auto lg:overflow-hidden">
+        <div className="p-4 lg:p-6 flex flex-col lg:flex-row gap-6 lg:h-[calc(100vh-80px)] overflow-y-auto lg:overflow-hidden relative">
 
           {/* CREATE USER FORM */}
-          <div className="w-full lg:w-80 shrink-0 bg-gray-800 p-6 rounded-xl border border-gray-700 h-fit shadow-lg">
+          <div className="w-full lg:w-80 shrink-0 bg-gray-800 p-6 rounded-xl border border-gray-700 h-fit shadow-lg z-10">
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-700">
               <UserPlus className="text-blue-500 w-6 h-6" />
               <h2 className="text-lg font-bold text-white tracking-wide">New Account</h2>
@@ -123,20 +142,19 @@ export default function Users() {
                 </select>
               </div>
 
-              {role === 'moderator' && (
-                  <div className="pt-2 animate-in fade-in slide-in-from-top-2">
-                    <label className="block text-xs font-bold text-gray-400 uppercase mb-1.5">Alliance Assignment</label>
-                    <select
-                        className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-white focus:border-blue-500 outline-none"
-                        value={selectedAlliance} onChange={e => setSelectedAlliance(e.target.value)}
-                    >
-                      <option value="">None (Global Viewer)</option>
-                      {alliances.map(a => (
-                          <option key={a.id} value={a.id}>{a.name}</option>
-                      ))}
-                    </select>
-                  </div>
-              )}
+              {/* Alliance dropdown now always visible */}
+              <div className="pt-2">
+                <label className="block text-xs font-bold text-gray-400 uppercase mb-1.5">Alliance Assignment</label>
+                <select
+                    className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-white focus:border-blue-500 outline-none"
+                    value={selectedAlliance} onChange={e => setSelectedAlliance(e.target.value)}
+                >
+                  <option value="">None (Global Access)</option>
+                  {alliances.map(a => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
+              </div>
 
               <button type="submit" className="w-full mt-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold shadow-md transition-colors flex items-center justify-center gap-2">
                 <Shield size={18} /> Provision Access
@@ -145,7 +163,7 @@ export default function Users() {
           </div>
 
           {/* USERS TABLE */}
-          <div className="flex-1 bg-gray-800 rounded-xl border border-gray-700 flex flex-col shadow-lg overflow-hidden min-h-[500px] lg:min-h-0">
+          <div className="flex-1 bg-gray-800 rounded-xl border border-gray-700 flex flex-col shadow-lg overflow-hidden min-h-[500px] lg:min-h-0 z-10">
             <div className="p-4 border-b border-gray-700 bg-gray-900/50 flex justify-between items-center shrink-0">
               <h2 className="text-lg font-bold text-white flex items-center gap-2">
                 <User className="text-purple-400" /> Active Personnel
@@ -172,7 +190,6 @@ export default function Users() {
                     {users.map(u => (
                         <tr key={u.id} className="hover:bg-gray-700/30 transition-colors group">
 
-                          {/* Operator Column with Security Badges */}
                           <td className="p-4 pl-6">
                             <div className="font-bold text-gray-200 text-sm tracking-wide">{u.username}</div>
                             {(u.mfa_enabled || u.has_webauthn) && (
@@ -180,18 +197,17 @@ export default function Users() {
                                   {u.has_webauthn && (
                                       <span className="inline-flex items-center gap-1 bg-green-500/10 text-green-400 border border-green-500/30 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest" title="Biometric / Passkey Enabled">
                                             <Fingerprint size={10} /> Bio
-                                        </span>
+                                      </span>
                                   )}
                                   {u.mfa_enabled && (
                                       <span className="inline-flex items-center gap-1 bg-blue-500/10 text-blue-400 border border-blue-500/30 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest" title="TOTP Authenticator Enabled">
                                             <Shield size={10} /> TOTP
-                                        </span>
+                                      </span>
                                   )}
                                 </div>
                             )}
                           </td>
 
-                          {/* Role Column */}
                           <td className="p-4">
                             <span className={`inline-flex items-center px-2 py-1 rounded text-[9px] font-black tracking-widest border ${
                                 u.role === 'admin'
@@ -202,18 +218,25 @@ export default function Users() {
                             </span>
                           </td>
 
-                          {/* Alliance Column */}
+                          {/* Updated Alliance Display Logic */}
                           <td className="p-4">
-                            {u.role === 'admin' ? (
-                                <span className="text-gray-600 text-[10px] font-black tracking-widest uppercase italic">Global Access</span>
-                            ) : (
+                            {u.allianceId ? (
                                 <span className="text-gray-300 font-bold text-sm tracking-tight">{getAllianceName(u.allianceId)}</span>
+                            ) : (
+                                <span className="text-gray-600 text-[10px] font-black tracking-widest uppercase italic">Global Access</span>
                             )}
                           </td>
 
-                          {/* Actions Column */}
                           <td className="p-4 pr-6 text-right space-x-2">
-                            {/* Reset Security Button */}
+                            {/* Edit Button */}
+                            <button
+                                onClick={() => setEditingUser({ ...u, allianceId: u.allianceId || '' })}
+                                className="p-2 text-blue-500/70 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-all border border-transparent hover:border-blue-500/30 lg:opacity-0 lg:group-hover:opacity-100 opacity-100"
+                                title="Edit Role & Alliance"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+
                             <button
                                 onClick={() => handleResetMFA(u.id, u.username)}
                                 className={`p-2 rounded-lg transition-all ${
@@ -227,7 +250,6 @@ export default function Users() {
                               <ShieldAlert className="w-4 h-4" />
                             </button>
 
-                            {/* Delete Button */}
                             {u.id !== 1 && (
                                 <button
                                     onClick={() => handleDelete(u.id)}
@@ -245,6 +267,59 @@ export default function Users() {
               )}
             </div>
           </div>
+
+          {/* EDIT USER MODAL OVERLAY */}
+          {editingUser && (
+              <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4 backdrop-blur-sm">
+                <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 w-full max-w-sm shadow-2xl relative animate-in zoom-in-95 duration-200">
+                  <button
+                      onClick={() => setEditingUser(null)}
+                      className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+
+                  <h3 className="text-lg font-black text-white mb-6 uppercase tracking-widest border-b border-gray-800 pb-3">
+                    Edit Access: <span className="text-blue-400">{editingUser.username}</span>
+                  </h3>
+
+                  <form onSubmit={handleUpdate} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-400 uppercase mb-1.5">Access Level</label>
+                      <select
+                          className="w-full bg-black border border-gray-700 rounded-lg p-2.5 text-white focus:border-blue-500 outline-none font-bold"
+                          value={editingUser.role} onChange={e => setEditingUser({...editingUser, role: e.target.value})}
+                      >
+                        <option value="moderator">Moderator</option>
+                        <option value="admin">Administrator</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-gray-400 uppercase mb-1.5">Alliance Assignment</label>
+                      <select
+                          className="w-full bg-black border border-gray-700 rounded-lg p-2.5 text-white focus:border-blue-500 outline-none"
+                          value={editingUser.allianceId} onChange={e => setEditingUser({...editingUser, allianceId: e.target.value})}
+                      >
+                        <option value="">None (Global Access)</option>
+                        {alliances.map(a => (
+                            <option key={a.id} value={a.id}>{a.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="pt-4 flex gap-3">
+                      <button type="button" onClick={() => setEditingUser(null)} className="flex-1 py-3 bg-gray-800 hover:bg-gray-700 text-white rounded-lg font-bold transition-colors">
+                        Cancel
+                      </button>
+                      <button type="submit" className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold shadow-md transition-colors">
+                        Save Changes
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+          )}
         </div>
       </AdminLayout>
   );

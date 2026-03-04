@@ -1,7 +1,7 @@
 import {
     LayoutDashboard, Swords, Users, Calendar, Crown,
     Send, Shield, Terminal, List, LayoutGrid, UserCircle,
-    History
+    History, Boxes
 } from 'lucide-react';
 
 export const navLinks = [
@@ -84,6 +84,14 @@ export const navLinks = [
         requiredRoles: ['admin'],
         description: 'Configure state alliance entities.',
         requiresAlliance: false
+    },
+    {
+        name: 'Foundry',
+        path: '/foundry',
+        icon: Boxes,
+        requiredRoles: ['admin','moderator'],
+        description: 'Configure Foundry and Canyon Clash legions.',
+        requiresAlliance: true
     },
     {
         name: 'Audit Logs',

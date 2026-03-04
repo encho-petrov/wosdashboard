@@ -151,6 +151,12 @@ func (s *Store) ArchiveAndResetEvent(adminUsername string, notes string) error {
 		return err
 	}
 
+	// EP: change this logic if we decided to keep a history
+	_, err = tx.Exec("DELETE FROM pet_skill_schedule")
+	if err != nil {
+		return err
+	}
+
 	return tx.Commit()
 }
 

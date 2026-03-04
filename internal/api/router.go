@@ -38,6 +38,19 @@ func logAction(c *gin.Context, store *db.Store, action string, details string) {
 	})
 }
 
+func getAllianceID(c *gin.Context) (int, error) {
+	rawId, exists := c.Get("allianceId")
+	if !exists {
+		return 0, fmt.Errorf("not in context")
+	}
+
+	allianceIdPtr, ok := rawId.(*int)
+	if !ok || allianceIdPtr == nil {
+		return 0, fmt.Errorf("no alliance assigned")
+	}
+	return *allianceIdPtr, nil
+}
+
 func SetupRouter(engine *processor.Processor, store *db.Store, cfg *config.Config, pClient *client.PlayerClient, redisStore *cache.RedisStore) *gin.Engine {
 
 	r := gin.Default()
@@ -1344,6 +1357,129 @@ func SetupRouter(engine *processor.Processor, store *db.Store, cfg *config.Confi
 				c.JSON(http.StatusOK, schedule)
 			})
 		}
+
+		foundry := authorized.Group("/foundry")
+		{
+			foundry.GET("/state", func(c *gin.Context) {
+				allianceID, err := getAllianceID(c)
+				if err != nil {
+					c.JSON(http.StatusForbidden, gin.H{"error": "Alliance required"})
+					return
+				}
+
+				eventType := c.Query("eventType")
+				if eventType == "" {
+					eventType = "Foundry"
+				}
+
+				legions, roster, err := store.GetAllianceEventState(allianceID, eventType)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load state"})
+					return
+				}
+
+				c.JSON(http.StatusOK, gin.H{"legions": legions, "roster": roster})
+			})
+
+			foundry.POST("/deploy", func(c *gin.Context) {
+				allianceID, err := getAllianceID(c)
+				if err != nil {
+					c.JSON(http.StatusForbidden, gin.H{"error": "Alliance required"})
+					return
+				}
+
+				var req struct {
+					EventType string `json:"eventType" binding:"required"`
+					PlayerID  int64  `json:"playerId" binding:"required"`
+					LegionID  *int   `json:"legionId"`
+					IsSub     bool   `json:"isSub"`
+				}
+				if err := c.ShouldBindJSON(&req); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					return
+				}
+
+				err = store.DeployAllianceEventPlayer(allianceID, req.EventType, req.PlayerID, req.LegionID, req.IsSub)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to deploy"})
+					return
+				}
+				c.JSON(http.StatusOK, gin.H{"message": "Deployed successfully"})
+			})
+
+			foundry.POST("/lock", func(c *gin.Context) {
+				allianceID, err := getAllianceID(c)
+				if err != nil {
+					c.JSON(http.StatusForbidden, gin.H{"error": "Alliance required"})
+					return
+				}
+
+				var req struct {
+					EventType string `json:"eventType" binding:"required"`
+					LegionID  int    `json:"legionId" binding:"required"`
+					IsLocked  bool   `json:"isLocked"`
+				}
+				if err := c.ShouldBindJSON(&req); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					return
+				}
+
+				err = store.ToggleAllianceEventLock(allianceID, req.EventType, req.LegionID, req.IsLocked)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to lock/unlock"})
+					return
+				}
+				c.JSON(http.StatusOK, gin.H{"message": "Lock updated"})
+			})
+
+			foundry.POST("/attendance", func(c *gin.Context) {
+				allianceID, err := getAllianceID(c)
+				if err != nil {
+					c.JSON(http.StatusForbidden, gin.H{"error": "Alliance required"})
+					return
+				}
+
+				var req struct {
+					EventType  string `json:"eventType" binding:"required"`
+					PlayerID   int64  `json:"playerId" binding:"required"`
+					Attendance string `json:"attendance" binding:"required"`
+				}
+				if err := c.ShouldBindJSON(&req); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					return
+				}
+
+				err = store.UpdateAllianceEventAttendance(allianceID, req.EventType, req.PlayerID, req.Attendance)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update attendance"})
+					return
+				}
+				c.JSON(http.StatusOK, gin.H{"message": "Attendance updated"})
+			})
+
+			foundry.POST("/reset", func(c *gin.Context) {
+				allianceID, err := getAllianceID(c)
+				if err != nil {
+					c.JSON(http.StatusForbidden, gin.H{"error": "Alliance required"})
+					return
+				}
+
+				var req struct {
+					EventType string `json:"eventType" binding:"required"`
+					Notes     string `json:"notes"`
+				}
+				_ = c.ShouldBindJSON(&req)
+
+				adminUsername := c.GetString("username")
+
+				err = store.ArchiveAllianceEvent(allianceID, req.EventType, adminUsername, req.Notes)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to archive"})
+					return
+				}
+				c.JSON(http.StatusOK, gin.H{"message": "Event archived and reset successfully"})
+			})
+		}
 	}
 
 	admin := r.Group("/api/admin")
@@ -1463,6 +1599,34 @@ func SetupRouter(engine *processor.Processor, store *db.Store, cfg *config.Confi
 				return
 			}
 			c.JSON(201, gin.H{"message": "User created successfully"})
+		})
+
+		admin.PUT("/users/:id", func(c *gin.Context) {
+			idParam := c.Param("id")
+			id, _ := strconv.Atoi(idParam)
+
+			if id == 1 {
+				c.JSON(http.StatusForbidden, gin.H{"error": "The master admin account cannot be modified."})
+				return
+			}
+
+			var input struct {
+				Role       string `json:"role" binding:"required"`
+				AllianceID *int   `json:"allianceId"`
+			}
+
+			if err := c.ShouldBindJSON(&input); err != nil {
+				c.JSON(400, gin.H{"error": err.Error()})
+				return
+			}
+
+			if err := store.UpdateUserAccess(id, input.Role, input.AllianceID); err != nil {
+				c.JSON(500, gin.H{"error": "Failed to modify user"})
+				return
+			}
+
+			logAction(c, store, "EDIT_USER", fmt.Sprintf("Modified user ID: %d", id))
+			c.JSON(200, gin.H{"message": "User modified successfully"})
 		})
 
 		admin.POST("/sync-roster", func(c *gin.Context) {
@@ -1782,6 +1946,7 @@ func SetupRouter(engine *processor.Processor, store *db.Store, cfg *config.Confi
 				})
 			})
 		}
+
 		discord := authorized.Group("/discord")
 		{
 			discord.POST("/rotation/:seasonId/:week", func(c *gin.Context) {
