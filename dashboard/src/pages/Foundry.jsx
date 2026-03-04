@@ -178,7 +178,7 @@ export default function AllianceWarRoom() {
                             {p.nickname}
                         </p>
                         <p className={`text-[9px] font-mono font-bold uppercase ${isSelected ? 'text-blue-200' : 'text-gray-500'}`}>
-                            {(p.power || p.tundraPower || 0).toFixed(1)}
+                            {(p.power || p.tundraPower || 0)}
                         </p>
                     </div>
                 </div>
@@ -238,7 +238,7 @@ export default function AllianceWarRoom() {
                         <div>
                             <h4 className="text-sm font-black text-white uppercase tracking-tighter">Legion {legionId}</h4>
                             <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest">
-                                {actives.length}/30 ACTIVE • {totalPower.toFixed(0)} POWER
+                                {actives.length}/30 ACTIVE • {totalPower} POWER
                             </p>
                         </div>
                     </div>
