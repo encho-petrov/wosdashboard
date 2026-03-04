@@ -1479,6 +1479,43 @@ func SetupRouter(engine *processor.Processor, store *db.Store, cfg *config.Confi
 				}
 				c.JSON(http.StatusOK, gin.H{"message": "Event archived and reset successfully"})
 			})
+
+			foundry.GET("/history", func(c *gin.Context) {
+				allianceID, err := getAllianceID(c)
+				if err != nil {
+					c.JSON(403, gin.H{"error": "Alliance required"})
+					return
+				}
+
+				eventType := c.Query("eventType")
+				if eventType == "" {
+					eventType = "Foundry"
+				}
+
+				list, err := store.GetAllianceHistoryList(allianceID, eventType)
+				if err != nil {
+					c.JSON(500, gin.H{"error": "Failed to load history list"})
+					return
+				}
+				c.JSON(200, list)
+			})
+
+			foundry.GET("/history/:id", func(c *gin.Context) {
+				allianceID, err := getAllianceID(c)
+				if err != nil {
+					c.JSON(403, gin.H{"error": "Alliance required"})
+					return
+				}
+
+				historyID, _ := strconv.Atoi(c.Param("id"))
+				players, err := store.GetAllianceHistorySnapshot(historyID, allianceID)
+				if err != nil {
+					c.JSON(500, gin.H{"error": "Failed to load snapshot details"})
+					return
+				}
+
+				c.JSON(200, players)
+			})
 		}
 	}
 
@@ -1563,6 +1600,23 @@ func SetupRouter(engine *processor.Processor, store *db.Store, cfg *config.Confi
 			}
 
 			c.JSON(200, gin.H{"message": "Device removed successfully"})
+		})
+
+		admin.GET("/auth/me", AuthMiddleware(store), func(c *gin.Context) {
+			username := c.GetString("username")
+
+			user, err := store.GetUserByUsername(username)
+			if err != nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": "User profile not found"})
+				return
+			}
+
+			c.JSON(http.StatusOK, gin.H{
+				"username":    user.Username,
+				"role":        user.Role,
+				"mfa_enabled": user.MFAEnabled,
+				"allianceId":  user.AllianceID,
+			})
 		})
 
 		admin.GET("/users", func(c *gin.Context) {

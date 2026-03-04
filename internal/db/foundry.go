@@ -12,6 +12,22 @@ type AllianceEventLegion struct {
 	IsLocked bool `db:"is_locked" json:"isLocked"`
 }
 
+type AllianceEventHistory struct {
+	ID        int    `db:"id" json:"id"`
+	EventDate string `db:"event_date" json:"eventDate"`
+	CreatedBy string `db:"created_by" json:"createdBy"`
+	Notes     string `db:"notes" json:"notes"`
+}
+
+type AllianceEventHistoryPlayer struct {
+	ID         int    `db:"id" json:"id"`
+	PlayerID   int64  `db:"player_id" json:"playerId"`
+	Nickname   string `db:"nickname" json:"nickname"`
+	LegionID   int    `db:"legion_id" json:"legionId"`
+	IsSub      bool   `db:"is_sub" json:"isSub"`
+	Attendance string `db:"attendance" json:"attendance"`
+}
+
 func (s *Store) GetAllianceEventState(allianceID int, eventType string) ([]AllianceEventLegion, []AllianceEventPlayer, error) {
 	var legions []AllianceEventLegion
 	var roster []AllianceEventPlayer
@@ -91,4 +107,27 @@ func (s *Store) ArchiveAllianceEvent(allianceID int, eventType string, adminUser
 	}
 
 	return tx.Commit()
+}
+
+func (s *Store) GetAllianceHistoryList(allianceID int, eventType string) ([]AllianceEventHistory, error) {
+	var list []AllianceEventHistory
+	err := s.db.Select(&list, "SELECT id, event_date, created_by, notes FROM alliance_event_history WHERE alliance_id = ? AND event_type = ? ORDER BY event_date DESC", allianceID, eventType)
+	if list == nil {
+		list = []AllianceEventHistory{}
+	}
+	return list, err
+}
+
+func (s *Store) GetAllianceHistorySnapshot(historyID int, allianceID int) ([]AllianceEventHistoryPlayer, error) {
+	var players []AllianceEventHistoryPlayer
+	err := s.db.Select(&players, `
+        SELECT p.id, p.player_id, p.nickname, p.legion_id, p.is_sub, p.attendance
+        FROM alliance_event_history_players p
+        JOIN alliance_event_history h ON p.history_id = h.id
+        WHERE p.history_id = ? AND h.alliance_id = ?
+    `, historyID, allianceID)
+	if players == nil {
+		players = []AllianceEventHistoryPlayer{}
+	}
+	return players, err
 }
