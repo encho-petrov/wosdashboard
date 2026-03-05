@@ -1,0 +1,2 @@
+UPDATE players SET tundra_availability = 'Unavailable' WHERE tundra_availability = 'Partial';
+ALTER TABLE players CHANGE tundra_availability tundra_availability ENUM('Full','4h+','3-4h','2-3h','<2h','Unavailable');
