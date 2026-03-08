@@ -36,7 +36,7 @@ type PlayerRow struct {
 	Nickname    string `db:"nickname" json:"nickname"`
 	Avatar      string `db:"avatar_image" json:"avatar"`
 	StoveLv     int    `db:"stove_lv" json:"stoveLv"`
-	Power       int64  `db:"tundra_power" json:"power"`
+	Power       int64  `db:"tundra_power" json:"tundraPower"`
 	NormalPower int64  `db:"normal_power" json:"normalPower"`
 	TroopType   string `db:"troop_type" json:"troopType"`
 
