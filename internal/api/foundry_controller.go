@@ -35,13 +35,13 @@ func (fc *FoundryController) GetEventState(c *gin.Context) {
 		eventType = "Foundry"
 	}
 
-	legions, roster, err := fc.store.GetAllianceEventState(allianceID, eventType)
+	legions, roster, stats, err := fc.store.GetAllianceEventState(allianceID, eventType)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load state"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"legions": legions, "roster": roster})
+	c.JSON(http.StatusOK, gin.H{"legions": legions, "roster": roster, "stats": stats})
 }
 
 func (fc *FoundryController) DeployPlayer(c *gin.Context) {

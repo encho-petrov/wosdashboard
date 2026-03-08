@@ -20,6 +20,7 @@ export default function AllianceWarRoom() {
 
     const [legionLocks, setLegionLocks] = useState([]);
     const [deployedPlayers, setDeployedPlayers] = useState([]);
+    const [attendanceStats, setAttendanceStats] = useState({});
     const [filterText, setFilterText] = useState('');
     const [selectedPlayer, setSelectedPlayer] = useState(null);
     const [mobileTab, setMobileTab] = useState('bench');
@@ -38,6 +39,12 @@ export default function AllianceWarRoom() {
                 const res = await client.get(`/moderator/foundry/state?eventType=${eventType}`);
                 setLegionLocks(res.data.legions || []);
                 setDeployedPlayers(res.data.roster || []);
+
+                const statsMap = {};
+                (res.data.stats || []).forEach(s => {
+                    statsMap[s.playerId] = s.score;
+                });
+                setAttendanceStats(statsMap);
             } catch (err) {
                 toast.error(`Failed to load live data`);
             } finally {
@@ -211,8 +218,8 @@ export default function AllianceWarRoom() {
         const pFid = p.fid || p.playerId;
         const isSelected = selectedPlayer?.fid === pFid;
 
-        // Determine which power to show based on the active tab
         const displayPower = eventType === 'Foundry' ? (p.power || p.tundraPower || 0) : (p.normalPower || 0);
+        const reliability = attendanceStats[pFid];
 
         return (
             <div
@@ -243,6 +250,15 @@ export default function AllianceWarRoom() {
                         <p className={`text-[11px] font-black truncate leading-tight ${isSelected ? 'text-white' : 'text-gray-200'}`}>
                             {p.nickname}
                         </p>
+                        {reliability !== undefined && (
+                            <span className={`text-[8px] px-1.5 py-0.5 rounded font-black tracking-widest ${
+                                reliability >= 80 ? 'bg-green-900/40 text-green-400 border border-green-800/50' :
+                                    reliability >= 50 ? 'bg-yellow-900/40 text-yellow-500 border border-yellow-800/50' :
+                                        'bg-red-900/40 text-red-400 border border-red-800/50'
+                            }`}>
+                                    {reliability}%
+                                </span>
+                        )}
                         <p className={`text-[9px] font-mono font-bold uppercase flex items-center gap-1 ${
                             isSelected ? 'text-blue-200' : eventType === 'Foundry' ? 'text-yellow-500' : 'text-blue-400'
                         }`}>

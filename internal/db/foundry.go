@@ -28,18 +28,41 @@ type AllianceEventHistoryPlayer struct {
 	Attendance string `db:"attendance" json:"attendance"`
 }
 
-func (s *Store) GetAllianceEventState(allianceID int, eventType string) ([]AllianceEventLegion, []AllianceEventPlayer, error) {
+type AttendanceStat struct {
+	PlayerID int64 `db:"player_id" json:"playerId"`
+	Score    int   `db:"score" json:"score"`
+}
+
+func (s *Store) GetAllianceEventState(allianceID int, eventType string) ([]AllianceEventLegion, []AllianceEventPlayer, []AttendanceStat, error) {
 	var legions []AllianceEventLegion
 	var roster []AllianceEventPlayer
+	var stats []AttendanceStat
 
 	err := s.db.Select(&legions, "SELECT legion_id, is_locked FROM alliance_event_legions WHERE alliance_id = ? AND event_type = ?", allianceID, eventType)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	err = s.db.Select(&roster, "SELECT aer.player_id, aer.legion_id, aer.is_sub, aer.attendance FROM alliance_event_roster aer LEFT JOIN players p ON aer.player_id = p.player_id WHERE aer.alliance_id = ? AND aer.event_type = ? ORDER BY p.tundra_power DESC", allianceID, eventType)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 
-	return legions, roster, err
+	statsQuery := `
+        SELECT 
+            hp.player_id, 
+            CAST(ROUND(
+                SUM(CASE WHEN hp.attendance = 'Attended' THEN 1 ELSE 0 END) * 100.0 / 
+                NULLIF(SUM(CASE WHEN hp.attendance IN ('Attended', 'Missed') THEN 1 ELSE 0 END), 0)
+            , 0) AS SIGNED) as score
+        FROM alliance_event_history_players hp
+        JOIN alliance_event_history h ON hp.history_id = h.id
+        WHERE h.event_type = ?
+        GROUP BY hp.player_id
+    `
+	_ = s.db.Select(&stats, statsQuery, eventType)
+
+	return legions, roster, stats, nil
 }
 
 func (s *Store) DeployAllianceEventPlayer(allianceID int, eventType string, playerID int64, targetLegion *int, isSub bool) error {
