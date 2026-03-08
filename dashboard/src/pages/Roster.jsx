@@ -176,7 +176,6 @@ export default function Roster() {
       setEditingId(null);
       await refreshGlobalData(true);
     } catch (err) {
-      console.error("Backend Save Error:", err.response?.data || err);
       toast.error(err.response?.data?.error || "Update failed");
     }
   };
