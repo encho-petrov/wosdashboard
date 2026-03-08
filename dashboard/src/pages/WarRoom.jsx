@@ -334,9 +334,9 @@ export default function WarRoom() {
                                         </div>
 
                                         <div className="flex items-center gap-2 pt-0.5">
-                                            <span className="text-[9px] text-blue-400 font-mono" title="Base Power">⚡ {((p.normalPower || 0) / 1000000).toFixed(1)}M</span>
+                                            <span className="text-[9px] text-blue-400 font-mono" title="Base Power">⚡ ⚡ {formatPower(p.normalPower)}</span>
                                             <span className="text-[9px] text-gray-600">|</span>
-                                            <span className="text-[9px] text-yellow-500 font-mono" title="Tundra Power">⚔️ {((p.power || 0) / 1000000).toFixed(1)}M</span>
+                                            <span className="text-[9px] text-yellow-500 font-mono" title="Tundra Power">⚔️ {formatPower(p.power)}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -405,9 +405,9 @@ export default function WarRoom() {
                                                     <div className="flex-1 min-w-0">
                                                         <div className="text-[11px] font-bold text-gray-300 truncate tracking-tighter group-hover:text-white">{m.nickname}</div>
                                                         <div className="flex items-center gap-1.5 mt-0.5">
-                                                            <span className="text-[9px] text-blue-400 font-mono" title="Base Power">⚡ {((m.normalPower || 0) / 1000000).toFixed(1)}M</span>
+                                                            <span className="text-[9px] text-blue-400 font-mono" title="Base Power">⚡ {formatPower(m.normalPower)}</span>
                                                             <span className="text-[9px] text-gray-600">|</span>
-                                                            <span className="text-[9px] text-yellow-500 font-mono" title="Tundra Power">⚔️ {((m.power || 0) / 1000000).toFixed(1)}M</span>
+                                                            <span className="text-[9px] text-yellow-500 font-mono" title="Tundra Power">⚔️ {formatPower(m.power)}</span>
                                                         </div>
                                                     </div>
                                                 </div>

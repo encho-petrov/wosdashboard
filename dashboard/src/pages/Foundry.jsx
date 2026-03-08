@@ -85,6 +85,7 @@ export default function AllianceWarRoom() {
     // --- COMPUTED DATA (Dynamically sorted by relevant power) ---
     const localBench = useMemo(() => {
         if (!roster) return [];
+        if (roster.length > 0) console.log("REACT SEES THIS PLAYER:", roster[0]);
         return roster.filter(p => {
             const inMyAlliance = p.allianceId === user?.allianceId;
             const notDeployed = !deployedPlayers.find(dp => dp.fid === p.playerId || dp.fid === p.fid);
@@ -103,6 +104,14 @@ export default function AllianceWarRoom() {
     const formatDate = (dateString) => new Date(dateString).toLocaleDateString('en-US', {
         weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
     });
+
+    const formatPower = (num) => {
+        if (!num) return "0";
+        if (num >= 1000000000) return (num / 1000000000).toFixed(2) + 'B';
+        if (num >= 1000000) return (num / 1000000).toFixed(2) + 'M';
+        if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+        return num.toString();
+    };
 
     const handleDeploy = async (fid, legionId, isSub) => {
         if (!isAdmin) return toast.warning("Read-only access.");
@@ -238,7 +247,7 @@ export default function AllianceWarRoom() {
                             isSelected ? 'text-blue-200' : eventType === 'Foundry' ? 'text-yellow-500' : 'text-blue-400'
                         }`}>
                             {eventType === 'Foundry' ? <Sword size={10} /> : <Zap size={10} />}
-                            {(displayPower / 1000000).toFixed(1)}M
+                            {formatPower(displayPower)}
                         </p>
                     </div>
                 </div>
