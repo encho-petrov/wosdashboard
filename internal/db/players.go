@@ -7,7 +7,7 @@ type PlayerProfile struct {
 	StoveLv      int     `db:"stove_lv" json:"stoveLv"`
 	StoveImg     string  `db:"stove_lv_content" json:"stoveImg"`
 	TroopType    string  `db:"troop_type" json:"troopType"`
-	TundraPower  int64   `db:"tundra_power" json:"tundraPower"`
+	TundraPower  int64   `db:"tundra_power" json:"power"`
 	NormalPower  int64   `db:"normal_power" json:"normalPower"`
 	Avail0200    bool    `db:"avail_0200" json:"avail_0200"`
 	Avail1200    bool    `db:"avail_1200" json:"avail_1200"`
