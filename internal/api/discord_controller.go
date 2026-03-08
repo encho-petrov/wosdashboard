@@ -117,11 +117,11 @@ func (dc *DiscordController) CallbackHandler(c *gin.Context) {
 
 	err = dc.store.UpsertDiscordGuild(guildID, guildName, claims.AllianceID)
 	if err != nil {
-		c.Redirect(http.StatusTemporaryRedirect, frontendURL+"/discord-config?error=database_error")
+		c.Redirect(http.StatusTemporaryRedirect, frontendURL+"/discord?error=database_error")
 		return
 	}
 
-	c.Redirect(http.StatusTemporaryRedirect, frontendURL+"/discord-config?success=true")
+	c.Redirect(http.StatusTemporaryRedirect, frontendURL+"/discord?success=true")
 }
 
 func (dc *DiscordController) GetRoutes(c *gin.Context) {
