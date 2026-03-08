@@ -103,6 +103,14 @@ export default function WarRoom() {
         }
     };
 
+    const formatPower = (num) => {
+        if (!num) return "0";
+        if (num >= 1000000000) return (num / 1000000000).toFixed(2) + 'B';
+        if (num >= 1000000) return (num / 1000000).toFixed(2) + 'M';
+        if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+        return num.toString();
+    };
+
     const handleReset = async () => {
         if (!isAdmin) return;
 
@@ -373,7 +381,9 @@ export default function WarRoom() {
                                             <div>
                                                 <h4 className="text-sm font-black text-white uppercase tracking-tighter">{alliance.name}</h4>
                                                 <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest mt-0.5">
-                                                    {roster.length} PLAYERS • <span className="text-blue-400">⚡ {(totalBasePower / 1000000).toFixed(0)}M</span> • <span className="text-yellow-500">⚔️ {(totalTundraPower / 1000000).toFixed(0)}M</span>
+                                                    {roster.length} PLAYERS •
+                                                    <span className="text-blue-400"> ⚡ {formatPower(totalBasePower)}</span> •
+                                                    <span className="text-yellow-500"> ⚔️ {formatPower(totalTundraPower)}</span>
                                                 </p>
                                             </div>
                                         </div>

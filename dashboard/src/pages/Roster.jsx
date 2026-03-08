@@ -63,6 +63,8 @@ export default function Roster() {
 
   const [activeTab, setActiveTab] = useState(isMod ? user.allianceId : 'all');
 
+  const [sortConfig, setSortConfig] = useState({ key: 'normalPower', direction: 'desc' });
+
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [showAddModal, setShowAddModal] = useState(false);
@@ -96,15 +98,25 @@ export default function Roster() {
     }
   };
 
+  const handleSort = (key) => {
+    let direction = 'desc';
+    if (sortConfig.key === key && sortConfig.direction === 'desc') {
+      direction = 'asc';
+    }
+    setSortConfig({ key, direction });
+  };
+
   const filteredPlayers = useMemo(() => {
     let result = players || [];
 
+    // Filter by Tab
     if (isMod) {
       result = result.filter(p => Number(p.allianceId) === Number(user.allianceId));
     } else if (activeTab !== 'all') {
       result = result.filter(p => p.allianceId === activeTab);
     }
 
+    // Filter by Search
     if (searchTerm) {
       const lower = searchTerm.toLowerCase();
       result = result.filter(p =>
@@ -112,8 +124,25 @@ export default function Roster() {
           (p.fid || '').toString().includes(lower)
       );
     }
-    return result;
-  }, [searchTerm, players, activeTab, isMod, user.allianceId]);
+
+    // Sort the Results dynamically
+    return result.sort((a, b) => {
+      let aVal = a[sortConfig.key];
+      let bVal = b[sortConfig.key];
+
+      // String comparison (Names, Troop Types)
+      if (typeof aVal === 'string' || typeof bVal === 'string') {
+        const aStr = (aVal || '').toString().toLowerCase();
+        const bStr = (bVal || '').toString().toLowerCase();
+        return sortConfig.direction === 'asc' ? aStr.localeCompare(bStr) : bStr.localeCompare(aStr);
+      }
+
+      // Numeric comparison (Power, Stove Level)
+      aVal = aVal || 0;
+      bVal = bVal || 0;
+      return sortConfig.direction === 'asc' ? aVal - bVal : bVal - aVal;
+    });
+  }, [searchTerm, players, activeTab, isMod, user?.allianceId, sortConfig]);
 
   const handleSync = async () => {
     if (!isAdmin) return;
@@ -135,8 +164,8 @@ export default function Roster() {
     try {
       const payload = {
         ...editForm,
-        power: parseInt(editForm.power) || 0, // Tundra Power
-        normalPower: parseInt(editForm.normalPower) || 0, // NEW: Base Power
+        power: parseInt(editForm.power) || 0,
+        normalPower: parseInt(editForm.normalPower) || 0,
         allianceId: editForm.allianceId ? parseInt(editForm.allianceId) : null,
         fightingAllianceId: editForm.fightingAllianceId ? parseInt(editForm.fightingAllianceId) : null,
         teamId: editForm.teamId ? parseInt(editForm.teamId) : null
@@ -203,6 +232,24 @@ export default function Roster() {
     if (val === 'Full' || val === '4h+') return 'text-green-400 font-bold';
     if (val === 'Unavailable') return 'text-gray-500';
     return 'text-yellow-500';
+  };
+
+  // Helper component for clickable table headers
+  const SortHeader = ({ label, sortKey, align = 'left' }) => {
+    const isActive = sortConfig.key === sortKey;
+    return (
+        <th
+            className={`p-4 cursor-pointer hover:bg-gray-800/50 transition-colors select-none ${align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left'}`}
+            onClick={() => handleSort(sortKey)}
+        >
+          <div className={`flex items-center gap-1.5 ${align === 'center' ? 'justify-center' : align === 'right' ? 'justify-end' : ''} ${isActive ? 'text-blue-400' : ''}`}>
+            {label}
+            {isActive && (
+                <span className="text-[10px]">{sortConfig.direction === 'asc' ? '▲' : '▼'}</span>
+            )}
+          </div>
+        </th>
+    );
   };
 
   return (
@@ -278,17 +325,17 @@ export default function Roster() {
                 <thead className="bg-black text-gray-600 text-[10px] font-black uppercase tracking-widest border-b border-gray-800">
                 <tr>
                   <th className="p-4 w-16 text-center"></th>
-                  <th className="p-4">Identity</th>
-                  <th className="p-4 text-center">Furnace</th>
-                  {/* NEW POWER COLUMNS */}
-                  <th className="p-4">Base Power</th>
-                  <th className="p-4">Tundra Power</th>
-                  <th className="p-4">Troop Type</th>
-                  <th className="p-4 w-32">Battle</th>
+                  <SortHeader label="Identity" sortKey="nickname" />
+                  <SortHeader label="Furnace" sortKey="stove_lv" align="center" />
+                  <SortHeader label="Base Power" sortKey="normalPower" />
+                  <SortHeader label="Tundra Power" sortKey="power" />
+                  <SortHeader label="Troop Type" sortKey="troopType" />
+                  <SortHeader label="Battle" sortKey="battleAvailability" />
+                  {/* Tundra slots are arrays/booleans, so we keep this one static */}
                   <th className="p-4 w-32">Tundra</th>
-                  <th className="p-4">Alliance</th>
-                  <th className="p-4 text-red-500/80">War Deployment</th>
-                  <th className="p-4">Squad</th>
+                  <SortHeader label="Alliance" sortKey="allianceName" />
+                  <SortHeader label="War Deployment" sortKey="fightingAllianceName" />
+                  <SortHeader label="Squad" sortKey="teamName" />
                   <th className="p-4 text-right pr-6">Command</th>
                 </tr>
                 </thead>
@@ -322,14 +369,12 @@ export default function Roster() {
                           )}
                         </td>
 
-                        {/* BASE POWER */}
                         <td className="p-4">
                           {isEditing ? (
                               <input type="number" className="bg-black border border-gray-700 rounded-lg px-2 py-1 w-24 text-blue-400 font-mono outline-none" value={editForm.normalPower || ''} onChange={e => setEditForm({...editForm, normalPower: e.target.value})} />
                           ) : <span className="font-mono text-blue-400 font-bold">{p.normalPower?.toLocaleString() || '-'}</span>}
                         </td>
 
-                        {/* TUNDRA POWER */}
                         <td className="p-4">
                           {isEditing ? (
                               <input type="number" className="bg-black border border-gray-700 rounded-lg px-2 py-1 w-24 text-yellow-500 font-mono outline-none" value={editForm.power || ''} onChange={e => setEditForm({...editForm, power: e.target.value})} />
