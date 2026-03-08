@@ -189,7 +189,7 @@ func (dc *DiscordController) GetChannels(c *gin.Context) {
 
 	if err := json.NewDecoder(resp.Body).Decode(&allChannels); err == nil {
 		for _, ch := range allChannels {
-			if ch.Type == 0 {
+			if ch.Type == 0 || ch.Type == 5 {
 				textChannels = append(textChannels, ch)
 			}
 		}
@@ -631,7 +631,10 @@ func (dc *DiscordController) DisconnectServer(c *gin.Context) {
 		req, _ := http.NewRequest("DELETE", "https://discord.com/api/v10/users/@me/guilds/"+guildID, nil)
 		req.Header.Set("Authorization", "Bot "+dc.cfg.Discord.BotToken)
 		client := &http.Client{}
-		_, _ = client.Do(req)
+		resp, err := client.Do(req)
+		if err == nil && resp != nil {
+			resp.Body.Close()
+		}
 	}
 
 	if err := dc.store.DisconnectDiscordServer(allianceID); err != nil {

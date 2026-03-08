@@ -24,31 +24,6 @@ type DiscordPayload struct {
 	Embeds  []DiscordEmbed `json:"embeds,omitempty"`
 }
 
-//func SendRawDiscordPayload(botToken, channelID string, payload []byte) error {
-//	url := fmt.Sprintf("%s/channels/%s/messages", discordAPIBase, channelID)
-//
-//	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payload))
-//	if err != nil {
-//		return err
-//	}
-//
-//	req.Header.Set("Authorization", "Bot "+botToken)
-//	req.Header.Set("Content-Type", "application/json")
-//
-//	client := &http.Client{}
-//	resp, err := client.Do(req)
-//	if err != nil {
-//		return err
-//	}
-//	defer resp.Body.Close()
-//
-//	if resp.StatusCode >= 400 {
-//		bodyBytes, _ := io.ReadAll(resp.Body)
-//		return fmt.Errorf("discord API error (%d): %s", resp.StatusCode, string(bodyBytes))
-//	}
-//	return nil
-//}
-
 func SendCustomDiscordEmbed(botToken, channelID, title, description string, color int, content string) error {
 
 	payload := map[string]interface{}{
