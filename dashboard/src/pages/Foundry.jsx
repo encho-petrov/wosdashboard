@@ -4,8 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
 import { toast } from 'react-toastify';
 import {
-    Shield, Lock, Unlock, RotateCcw, X, Search,
-    ChevronRight, History as HistoryIcon, Clock, CalendarDays, ChevronDown
+    Shield, Lock, Unlock, RotateCcw, X, Search, Megaphone,
+    ChevronRight, History as HistoryIcon, Clock, CalendarDays, ChevronDown, Zap, Sword
 } from 'lucide-react';
 import AdminLayout from '../components/layout/AdminLayout';
 
@@ -14,26 +14,22 @@ export default function AllianceWarRoom() {
     const isAdmin = user?.role === 'admin';
     const { roster, globalLoading } = useApp();
 
-    // Master States
-    const [viewMode, setViewMode] = useState('live'); // 'live' or 'history'
-    const [eventType, setEventType] = useState('Foundry'); // 'Foundry' or 'Canyon'
+    const [viewMode, setViewMode] = useState('live');
+    const [eventType, setEventType] = useState('Foundry');
     const [loading, setLoading] = useState(true);
 
-    // Live Board States
     const [legionLocks, setLegionLocks] = useState([]);
     const [deployedPlayers, setDeployedPlayers] = useState([]);
     const [filterText, setFilterText] = useState('');
     const [selectedPlayer, setSelectedPlayer] = useState(null);
     const [mobileTab, setMobileTab] = useState('bench');
 
-    // History States
     const [historyList, setHistoryList] = useState([]);
     const [selectedHistoryId, setSelectedHistoryId] = useState(null);
     const [historySnapshot, setHistorySnapshot] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [isMobileTimelineOpen, setIsMobileTimelineOpen] = useState(false);
 
-    // --- EFFECT: Fetch Live State ---
     useEffect(() => {
         if (viewMode !== 'live' || !user?.allianceId) return;
         const fetchState = async () => {
@@ -48,10 +44,9 @@ export default function AllianceWarRoom() {
                 setLoading(false);
             }
         };
-        fetchState();
+        void fetchState();
     }, [eventType, user?.allianceId, viewMode]);
 
-    // --- EFFECT: Fetch History Timeline ---
     useEffect(() => {
         if (viewMode !== 'history' || !user?.allianceId) return;
         const fetchHistoryList = async () => {
@@ -71,10 +66,9 @@ export default function AllianceWarRoom() {
                 setHistoryLoading(false);
             }
         };
-        fetchHistoryList();
+        void fetchHistoryList();
     }, [viewMode, eventType, user?.allianceId]);
 
-    // --- EFFECT: Fetch History Snapshot ---
     useEffect(() => {
         if (viewMode !== 'history' || !selectedHistoryId) return;
         const fetchSnapshot = async () => {
@@ -85,10 +79,10 @@ export default function AllianceWarRoom() {
                 toast.error("Failed to load snapshot details");
             }
         };
-        fetchSnapshot();
+        void fetchSnapshot();
     }, [selectedHistoryId, viewMode]);
 
-    // --- COMPUTED DATA ---
+    // --- COMPUTED DATA (Dynamically sorted by relevant power) ---
     const localBench = useMemo(() => {
         if (!roster) return [];
         return roster.filter(p => {
@@ -96,14 +90,20 @@ export default function AllianceWarRoom() {
             const notDeployed = !deployedPlayers.find(dp => dp.fid === p.playerId || dp.fid === p.fid);
             const matchesText = (p.nickname || '').toLowerCase().includes(filterText.toLowerCase());
             return inMyAlliance && notDeployed && matchesText;
-        }).sort((a, b) => (b.power || b.tundraPower || 0) - (a.power || a.tundraPower || 0));
-    }, [roster, deployedPlayers, user?.allianceId, filterText]);
+        }).sort((a, b) => {
+            // Sort by the power metric relevant to the current event
+            if (eventType === 'Foundry') {
+                return (b.power || b.tundraPower || 0) - (a.power || a.tundraPower || 0);
+            } else {
+                return (b.normalPower || 0) - (a.normalPower || 0);
+            }
+        });
+    }, [roster, deployedPlayers, user?.allianceId, filterText, eventType]);
 
     const formatDate = (dateString) => new Date(dateString).toLocaleDateString('en-US', {
         weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
     });
 
-    // --- API HANDLERS (Live Mode) ---
     const handleDeploy = async (fid, legionId, isSub) => {
         if (!isAdmin) return toast.warning("Read-only access.");
         if (legionId !== null) {
@@ -157,12 +157,24 @@ export default function AllianceWarRoom() {
             toast.success("Event archived!");
             setDeployedPlayers([]);
             setLegionLocks([]);
-            // Optionally auto-switch to history to see the new archive
             setViewMode('history');
         } catch (err) { toast.error("Failed to reset event."); }
     };
 
-    // --- UI HELPERS ---
+    const handleAnnounceDiscord = async (e, legionId) => {
+        if (e) e.preventDefault();
+        try {
+            await client.post(`/moderator/foundry/announce`, {
+                eventName: eventType,
+                message: `The roster for **Legion ${legionId}** in the upcoming **${eventType}** has been locked and finalized. Please check the portal for deployment details.`
+            });
+            toast.success(`Legion ${legionId} announced to Discord!`);
+        } catch (err) {
+            console.error("Discord Announce Error:", err.response || err);
+            toast.error(err.response?.data?.error || 'Failed to announce to Discord.');
+        }
+    };
+
     const onDragStart = (e, fid) => {
         if (!isAdmin) return e.preventDefault();
         e.dataTransfer.setData("playerFid", fid);
@@ -185,10 +197,13 @@ export default function AllianceWarRoom() {
         if (window.innerWidth < 1024) setMobileTab('alliances');
     };
 
-    // --- SHARED COMPONENT: UNIFIED PLAYER CARD ---
+    // --- SHARED COMPONENT: UNIFIED PLAYER CARD (Dynamically handles Power) ---
     const renderPlayerCard = (p, isBench = false, isLocked = false, isHistory = false) => {
         const pFid = p.fid || p.playerId;
         const isSelected = selectedPlayer?.fid === pFid;
+
+        // Determine which power to show based on the active tab
+        const displayPower = eventType === 'Foundry' ? (p.power || p.tundraPower || 0) : (p.normalPower || 0);
 
         return (
             <div
@@ -212,15 +227,18 @@ export default function AllianceWarRoom() {
                             alt=""
                         />
                         {p.stoveImg && (
-                            <img src={p.stoveImg} className="absolute -bottom-1 -right-1 w-4 h-4 drop-shadow-md" alt="" />
+                            <img src={p.stoveImg} className="absolute -bottom-1 -right-1 w-4 h-4 drop-shadow-md object-contain" alt="" />
                         )}
                     </div>
                     <div className="min-w-0">
                         <p className={`text-[11px] font-black truncate leading-tight ${isSelected ? 'text-white' : 'text-gray-200'}`}>
                             {p.nickname}
                         </p>
-                        <p className={`text-[9px] font-mono font-bold uppercase ${isSelected ? 'text-blue-200' : 'text-gray-500'}`}>
-                            {(p.power || p.tundraPower || 0)}
+                        <p className={`text-[9px] font-mono font-bold uppercase flex items-center gap-1 ${
+                            isSelected ? 'text-blue-200' : eventType === 'Foundry' ? 'text-yellow-500' : 'text-blue-400'
+                        }`}>
+                            {eventType === 'Foundry' ? <Sword size={10} /> : <Zap size={10} />}
+                            {(displayPower / 1000000).toFixed(1)}M
                         </p>
                     </div>
                 </div>
@@ -237,14 +255,14 @@ export default function AllianceWarRoom() {
                                 {p.attendance || 'UNKNOWN'}
                             </span>
                         ) : !isLocked && isAdmin ? (
-                            <button onClick={() => handleDeploy(pFid, null, false)} className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors">
+                            <button onClick={() => handleDeploy(pFid, null, false)} className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors shrink-0">
                                 <X size={14} />
                             </button>
                         ) : isLocked && isAdmin ? (
                             <select
                                 value={p.attendance}
                                 onChange={(e) => handleAttendanceChange(pFid, e.target.value)}
-                                className={`text-[10px] font-black uppercase rounded px-1.5 py-1 outline-none border cursor-pointer ${
+                                className={`text-[10px] font-black uppercase rounded px-1.5 py-1 outline-none border cursor-pointer shrink-0 ${
                                     p.attendance === 'Attended' ? 'bg-green-900/30 text-green-400 border-green-800' :
                                         p.attendance === 'Missed' ? 'bg-red-900/30 text-red-400 border-red-800' :
                                             p.attendance === 'Exempt' ? 'bg-gray-800 text-gray-400 border-gray-600' :
@@ -263,8 +281,7 @@ export default function AllianceWarRoom() {
         );
     };
 
-    // --- SUB-RENDER: LEGION ZONE ---
-    // Works for both Live data and Historical Snapshot data
+    // --- SUB-RENDER: LEGION ZONE (Dynamically Calculates Total Power) ---
     const renderLegionZone = (legionId, playersData, isHistory = false) => {
         const isLocked = isHistory ? true : (legionLocks.find(l => l.legionId === legionId)?.isLocked || false);
         const actives = playersData.filter(p => p.legionId === legionId && !p.isSub);
@@ -278,7 +295,12 @@ export default function AllianceWarRoom() {
 
         const activePlayers = mapToRoster(actives);
         const subPlayers = mapToRoster(subs);
-        const totalPower = activePlayers.reduce((sum, p) => sum + (p.power || p.tundraPower || 0), 0);
+
+        // Dynamic Power Calculation for the Legion Header
+        const totalPower = activePlayers.reduce((sum, p) => {
+            const val = eventType === 'Foundry' ? (p.power || p.tundraPower || 0) : (p.normalPower || 0);
+            return sum + val;
+        }, 0);
 
         return (
             <div className={`bg-gray-900 rounded-3xl border transition-all flex flex-col overflow-hidden ${isLocked && !isHistory ? 'border-red-900/50 bg-red-950/5' : 'border-gray-800 shadow-2xl'}`}>
@@ -287,16 +309,32 @@ export default function AllianceWarRoom() {
                         <Shield size={20} className={isLocked && !isHistory ? 'text-red-500' : 'text-blue-500'} />
                         <div>
                             <h4 className="text-sm font-black text-white uppercase tracking-tighter">Legion {legionId}</h4>
-                            <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest">
-                                {actives.length}/30 ACTIVE • {totalPower} POWER
+                            <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest flex items-center gap-1.5 mt-0.5">
+                                {actives.length}/30 ACTIVE •
+                                <span className={eventType === 'Foundry' ? 'text-yellow-500' : 'text-blue-400'}>
+                                    {(totalPower / 1000000).toFixed(0)}M POWER
+                                </span>
                             </p>
                         </div>
                     </div>
-                    {isAdmin && !isHistory && (
-                        <button onClick={() => toggleLock(legionId, isLocked)} className={`p-2 rounded-xl border transition-all ${isLocked ? 'bg-red-500 text-white border-red-400' : 'bg-gray-800 text-gray-500 hover:text-white border-gray-700'}`}>
-                            {isLocked ? <Lock size={16} /> : <Unlock size={16} />}
-                        </button>
-                    )}
+
+                    <div className="flex items-center gap-2">
+                        {isAdmin && !isHistory && isLocked && (
+                            <button
+                                onClick={(e) => handleAnnounceDiscord(e, legionId)}
+                                className="px-3 py-1.5 bg-[#5865F2] hover:bg-[#4752C4] text-white text-xs font-bold rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-[#5865F2]/20"
+                                title="Announce to Discord"
+                            >
+                                <Megaphone size={14} />
+                                <span className="hidden sm:inline">Announce</span>
+                            </button>
+                        )}
+                        {isAdmin && !isHistory && (
+                            <button onClick={() => toggleLock(legionId, isLocked)} className={`p-2 rounded-xl border transition-all ${isLocked ? 'bg-red-500 text-white border-red-400 shadow-lg shadow-red-500/20' : 'bg-gray-800 text-gray-500 hover:text-white border-gray-700'}`}>
+                                {isLocked ? <Lock size={16} /> : <Unlock size={16} />}
+                            </button>
+                        )}
+                    </div>
                 </div>
 
                 <div className="flex flex-col md:flex-row flex-1 p-2 gap-2 min-h-[400px]">
@@ -337,7 +375,6 @@ export default function AllianceWarRoom() {
     // --- MAIN RENDER ---
     const headerActions = (
         <div className="flex gap-2 items-center">
-            {/* View Mode Toggle */}
             <button
                 onClick={() => setViewMode(prev => prev === 'live' ? 'history' : 'live')}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all border ${viewMode === 'history' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white'}`}
@@ -345,13 +382,11 @@ export default function AllianceWarRoom() {
                 <HistoryIcon size={14} /> <span className="hidden xs:inline">{viewMode === 'history' ? 'Live Board' : 'Archives'}</span>
             </button>
 
-            {/* Desktop Event Toggle */}
             <div className="hidden sm:flex bg-gray-900 border border-gray-800 rounded-lg overflow-hidden mr-2">
                 <button onClick={() => setEventType('Foundry')} className={`px-4 py-1.5 text-xs font-black uppercase transition-colors ${eventType === 'Foundry' ? 'bg-orange-600 text-white' : 'text-gray-500 hover:bg-gray-800'}`}>Foundry</button>
                 <button onClick={() => setEventType('Canyon')} className={`px-4 py-1.5 text-xs font-black uppercase transition-colors ${eventType === 'Canyon' ? 'bg-purple-600 text-white' : 'text-gray-500 hover:bg-gray-800'}`}>Canyon</button>
             </div>
 
-            {/* Archive Reset Button (Only visible in live mode) */}
             {isAdmin && viewMode === 'live' && (
                 <button onClick={handleReset} className="flex items-center gap-2 px-3 py-1.5 bg-red-900/20 text-red-400 border border-red-800/50 rounded-lg text-[10px] font-black uppercase transition-all hover:bg-red-900/40">
                     <RotateCcw size={14} /> <span className="hidden xs:inline">Reset</span>
@@ -368,7 +403,6 @@ export default function AllianceWarRoom() {
         <AdminLayout title="Alliance Events" actions={headerActions}>
             <div className="flex flex-col lg:flex-row h-[calc(100dvh-64px)] lg:h-full overflow-hidden bg-gray-950 relative">
 
-                {/* MOBILE SECONDARY HEADER: Foundry/Canyon Toggle (Fixes Squashing) */}
                 <div className="sm:hidden flex flex-col bg-gray-900 border-b border-gray-800 shrink-0 z-20">
                     <div className="flex p-2 gap-2">
                         <button onClick={() => setEventType('Foundry')} className={`flex-1 py-3 text-xs font-black uppercase rounded-xl transition-all border ${eventType === 'Foundry' ? 'bg-orange-600 border-orange-500 text-white shadow-lg shadow-orange-900/20' : 'bg-gray-800 border-gray-700 text-gray-500'}`}>Foundry</button>
@@ -377,15 +411,12 @@ export default function AllianceWarRoom() {
                 </div>
 
                 {viewMode === 'live' ? (
-                    // ================= LIVE BOARD VIEW =================
                     <>
-                        {/* Mobile Tab Toggle */}
                         <div className="lg:hidden flex bg-gray-900 p-2 border-b border-gray-800 shrink-0 gap-2 z-20">
                             <button onClick={() => setMobileTab('bench')} className={`flex-1 py-2.5 text-xs font-black uppercase rounded-lg transition-all ${mobileTab === 'bench' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 bg-gray-800'}`}>Bench ({localBench.length})</button>
                             <button onClick={() => setMobileTab('alliances')} className={`flex-1 py-2.5 text-xs font-black uppercase rounded-lg transition-all ${mobileTab === 'alliances' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 bg-gray-800'}`}>Legions</button>
                         </div>
 
-                        {/* SIDEBAR: BENCH */}
                         <aside className={`w-full lg:w-80 bg-gray-900 border-b lg:border-r border-gray-800 shrink-0 overflow-hidden z-10 ${mobileTab === 'bench' ? 'flex flex-col' : 'hidden lg:flex lg:flex-col h-full'}`}>
                             <div className="p-4 bg-gray-900/50 border-b border-gray-800">
                                 <div className="relative">
@@ -403,7 +434,6 @@ export default function AllianceWarRoom() {
                             </div>
                         </aside>
 
-                        {/* MAIN GRID: LEGIONS */}
                         <main className={`flex-1 overflow-y-auto p-4 lg:p-6 custom-scrollbar bg-gray-950 z-10 ${selectedPlayer ? 'pb-40' : 'pb-12'} lg:pb-6 ${mobileTab === 'alliances' ? 'block' : 'hidden lg:block'}`}>
                             <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 max-w-7xl mx-auto">
                                 {renderLegionZone(1, deployedPlayers, false)}
@@ -411,7 +441,6 @@ export default function AllianceWarRoom() {
                             </div>
                         </main>
 
-                        {/* MOBILE FLOATING ACTION BAR */}
                         {selectedPlayer && (
                             <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] lg:hidden animate-in slide-in-from-bottom-5 w-11/12 max-w-sm bg-gray-900 border border-blue-500 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-3 flex flex-col gap-2">
                                 <div className="flex justify-between items-center px-2">
@@ -430,9 +459,7 @@ export default function AllianceWarRoom() {
                         )}
                     </>
                 ) : (
-                    // ================= HISTORY VIEW =================
                     <>
-                        {/* TIMELINE SIDEBAR */}
                         <div className="w-full md:w-80 bg-gray-900 md:border-r border-gray-800 flex flex-col shrink-0 z-20">
                             <div className="hidden md:flex p-4 border-b border-gray-800 items-center gap-2 text-gray-400 font-black uppercase text-xs tracking-widest">
                                 <Clock size={16} /> Timeline
@@ -485,7 +512,6 @@ export default function AllianceWarRoom() {
                             )}
                         </div>
 
-                        {/* SNAPSHOT VIEWER */}
                         <main className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar bg-gray-950 z-10">
                             {!selectedHistoryId ? (
                                 <div className="h-full flex items-center justify-center text-gray-600 uppercase font-black tracking-widest text-xs">Select an archived event</div>

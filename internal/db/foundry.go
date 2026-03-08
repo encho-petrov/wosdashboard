@@ -37,7 +37,7 @@ func (s *Store) GetAllianceEventState(allianceID int, eventType string) ([]Allia
 		return nil, nil, err
 	}
 
-	err = s.db.Select(&roster, "SELECT player_id, legion_id, is_sub, attendance FROM alliance_event_roster WHERE alliance_id = ? AND event_type = ?", allianceID, eventType)
+	err = s.db.Select(&roster, "SELECT aer.player_id, aer.legion_id, aer.is_sub, aer.attendance FROM alliance_event_roster aer LEFT JOIN players p ON aer.player_id = p.player_id WHERE aer.alliance_id = ? AND aer.event_type = ? ORDER BY p.tundra_power DESC", allianceID, eventType)
 
 	return legions, roster, err
 }

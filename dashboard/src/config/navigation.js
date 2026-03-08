@@ -1,8 +1,11 @@
 import {
     LayoutDashboard, Swords, Users, Calendar, Crown,
     Send, Shield, Terminal, List, LayoutGrid, UserCircle,
-    History, Boxes
+    History
 } from 'lucide-react';
+
+import { FaDiscord } from 'react-icons/fa';
+import { FoundryIcon } from "../components/CustomIcon.jsx";
 
 export const navLinks = [
     {
@@ -88,9 +91,17 @@ export const navLinks = [
     {
         name: 'Foundry',
         path: '/foundry',
-        icon: Boxes,
+        icon: FoundryIcon,
         requiredRoles: ['admin','moderator'],
         description: 'Configure Foundry and Canyon Clash legions.',
+        requiresAlliance: true
+    },
+    {
+        name: 'Discord',
+        path: '/discord',
+        icon: FaDiscord,
+        requiredRoles: ['admin','moderator'],
+        description: 'Configure Discord integrations.',
         requiresAlliance: true
     },
     {

@@ -23,6 +23,7 @@ import NotFound from './pages/NotFound.jsx';
 import EventHistory from './pages/EventHistory.jsx';
 import Foundry from './pages/Foundry.jsx';
 import RequireAlliance from './components/RequireAlliance.jsx';
+import Discord from './pages/DiscordConfig.jsx';
 
 const Home = () => {
   const { user } = useAuth();
@@ -140,6 +141,14 @@ function App() {
               <ProtectedRoute>
                 <RequireAlliance>
                   <Foundry />
+                </RequireAlliance>
+              </ProtectedRoute>
+            }
+            />
+            <Route path="/discord" element={
+              <ProtectedRoute>
+                <RequireAlliance>
+                  <Discord />
                 </RequireAlliance>
               </ProtectedRoute>
             }

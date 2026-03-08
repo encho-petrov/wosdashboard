@@ -32,22 +32,25 @@ func (v JsonNullTime) MarshalJSON() ([]byte, error) {
 }
 
 type PlayerRow struct {
-	FID       int64  `db:"player_id" json:"fid"`
-	Nickname  string `db:"nickname" json:"nickname"`
-	Avatar    string `db:"avatar_image" json:"avatar"`
-	StoveLv   int    `db:"stove_lv" json:"stoveLv"`
-	Power     int64  `db:"tundra_power" json:"power"`
-	TroopType string `db:"troop_type" json:"troopType"`
+	FID         int64  `db:"player_id" json:"fid"`
+	Nickname    string `db:"nickname" json:"nickname"`
+	Avatar      string `db:"avatar_image" json:"avatar"`
+	StoveLv     int    `db:"stove_lv" json:"stoveLv"`
+	Power       int64  `db:"tundra_power" json:"power"`
+	NormalPower int64  `db:"normal_power" json:"normalPower"`
+	TroopType   string `db:"troop_type" json:"troopType"`
 
 	AllianceID   *int    `db:"alliance_id" json:"allianceId"`
 	AllianceName *string `db:"alliance_name" json:"allianceName"`
 	TeamID       *int    `db:"team_id" json:"teamId"`
 	TeamName     *string `db:"team_name" json:"teamName"`
 
-	StoveImg           string  `db:"stove_lv_content" json:"stoveImg"`
-	BattleAvailability *string `db:"battle_availability" json:"battleAvailability"`
-	TundraAvailability *string `db:"tundra_availability" json:"tundraAvailability"`
-
+	StoveImg             string  `db:"stove_lv_content" json:"stoveImg"`
+	BattleAvailability   *string `db:"battle_availability" json:"battleAvailability"`
+	Avail0200            bool    `db:"avail_0200" json:"avail_0200"`
+	Avail1200            bool    `db:"avail_1200" json:"avail_1200"`
+	Avail1400            bool    `db:"avail_1400" json:"avail_1400"`
+	Avail1900            bool    `db:"avail_1900" json:"avail_1900"`
 	FightingAllianceID   *int    `db:"fighting_alliance_id" json:"fightingAllianceId"`
 	FightingAllianceName *string `db:"fighting_alliance_name" json:"fightingAllianceName"`
 }

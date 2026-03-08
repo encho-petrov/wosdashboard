@@ -2,10 +2,26 @@ package services
 
 import (
 	"gift-redeemer/internal/db"
+	"log"
 	"time"
 )
 
-func CheckMinistrySchedule(store *db.Store, webhookURL string) {
+func GetRotationState(anchorDateStr string, anchorSeason int) (int, int) {
+	referenceDate, _ := time.Parse("2006-01-02", anchorDateStr)
+	daysSince := int(time.Since(referenceDate).Hours() / 24)
+	seasonOffset := daysSince / 56
+	currentSeason := anchorSeason + seasonOffset
+	currentWeek := ((daysSince / 7) % 8) + 1
+	return currentSeason, currentWeek
+}
+
+func CheckMinistrySchedule(store *db.Store, botToken string) {
+	// GET ALL TARGETS
+	targets := store.GetBroadcastTargets("ministry_alert", "general_announcements")
+	if len(targets) == 0 {
+		return
+	}
+
 	event, err := store.GetActiveMinistryEvent()
 	if err != nil || event == nil || event.Status != "Active" || !event.AnnounceEnabled {
 		return
@@ -19,7 +35,9 @@ func CheckMinistrySchedule(store *db.Store, webhookURL string) {
 
 		if day != nil {
 			slots, _ := store.GetMinistrySlots(day.ID)
-			_ = SendMinistryManifest(webhookURL, day, slots)
+			for _, route := range targets {
+				_ = SendMinistryManifest(botToken, route.ChannelID, day, slots)
+			}
 		}
 	}
 
@@ -36,28 +54,22 @@ func CheckMinistrySchedule(store *db.Store, webhookURL string) {
 
 			slot, _ := store.GetMinistrySlotByIndex(day.ID, slotIndex)
 			if slot != nil && slot.PlayerFID != nil {
-				_ = SendMinistryPing(webhookURL, day.BuffName, *slot.Nickname, *slot.AllianceName)
+				for _, route := range targets {
+					pingStr := FormatDiscordPing(route.PingRoleID)
+					_ = SendMinistryPing(botToken, route.ChannelID, day.BuffName, *slot.Nickname, *slot.AllianceName, pingStr)
+				}
 			}
 		}
 	}
 }
 
-func GetRotationState(anchorDateStr string, anchorSeason int) (int, int) {
-	referenceDate, _ := time.Parse("2006-01-02", anchorDateStr)
+func CheckPetSchedule(store *db.Store, botToken string) {
+	targets := store.GetBroadcastTargets("pet_alert", "general_announcements")
+	if len(targets) == 0 {
+		return
+	}
 
-	daysSince := int(time.Since(referenceDate).Hours() / 24)
-
-	seasonOffset := daysSince / 56
-	currentSeason := anchorSeason + seasonOffset
-
-	currentWeek := ((daysSince / 7) % 8) + 1
-
-	return currentSeason, currentWeek
-}
-
-func CheckPetSchedule(store *db.Store, webhookURL string) {
 	now := time.Now().UTC()
-
 	var slotId int
 	var buffTime string
 
@@ -78,6 +90,37 @@ func CheckPetSchedule(store *db.Store, webhookURL string) {
 	captains, err := store.GetCaptainsForPetSlot(today, slotId)
 
 	if err == nil && len(captains) > 0 {
-		_ = SendPetPing(webhookURL, buffTime, captains)
+		for _, route := range targets {
+			pingStr := FormatDiscordPing(route.PingRoleID)
+			_ = SendPetPing(botToken, route.ChannelID, buffTime, captains, pingStr)
+		}
+	}
+}
+
+func TriggerRotationCron(store *db.Store, botToken string, anchorDate string, anchorSeason int) {
+	targets := store.GetBroadcastTargets("fortress_rotation", "general_announcements")
+	if len(targets) == 0 {
+		log.Println("CRON: No Discord targets configured for rotation. Skipping.")
+		return
+	}
+
+	liveSeason, liveWeek := GetRotationState(anchorDate, anchorSeason)
+	entries, err := store.GetRotationForWeek(liveSeason, liveWeek)
+
+	if err != nil || len(entries) == 0 {
+		log.Printf("CRON: No rotation data found for S%d W%d. Skipping.", liveSeason, liveWeek)
+		return
+	}
+
+	for _, route := range targets {
+		pingStr := FormatDiscordPing(route.PingRoleID)
+		msg := "🚨 Fortress Rotation Updated!"
+		if pingStr != "" {
+			msg = pingStr + "\n" + msg
+		}
+
+		if err := SendDiscordRotation(botToken, route.ChannelID, liveSeason, liveWeek, entries, msg); err != nil {
+			log.Printf("CRON Error sending to %s: %v", route.ChannelID, err)
+		}
 	}
 }

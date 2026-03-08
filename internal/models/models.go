@@ -67,13 +67,6 @@ type RedeemJob struct {
 	Targets     []PlayerData
 }
 
-//type DiscordConfig struct {
-//	WebhookURL      string `json:"webhookUrl"`
-//	ChannelID       string `json:"channelId"`
-//	AnnounceTimeUTC string `json:"announceTimeUtc"`
-//	AnnounceDay     string `json:"announceDay"`
-//}
-
 type Hero struct {
 	ID             int    `json:"id" db:"id"`
 	Name           string `json:"name" db:"name"`

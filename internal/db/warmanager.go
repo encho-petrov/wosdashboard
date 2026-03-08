@@ -141,7 +141,7 @@ func (s *Store) ArchiveAndResetEvent(adminUsername string, notes string) error {
 		return err
 	}
 
-	_, err = tx.Exec("UPDATE players SET fighting_alliance_id = NULL, team_id = NULL, battle_availability = 'Unavailable', tundra_availability = 'Unavailable'")
+	_, err = tx.Exec("UPDATE players SET fighting_alliance_id = NULL, team_id = NULL, battle_availability = 'Unavailable', avail_0200 = FALSE, avail_1200 = FALSE, avail_1400 = FALSE, avail_1900 = FALSE")
 	if err != nil {
 		return err
 	}
@@ -230,7 +230,7 @@ func (s *Store) GetWarRoomFilterOptions() (FilterOptions, error) {
 		return opts, err
 	}
 
-	err = s.db.Select(&opts.TundraAvailability, "SELECT DISTINCT COALESCE(tundra_availability, 'Unavailable') FROM players")
+	opts.TundraAvailability = []string{"02:00", "12:00", "14:00", "19:00"}
 
 	return opts, err
 }
@@ -260,7 +260,7 @@ func (s *Store) GetRosterStats() (RosterStats, error) {
 	var err error
 	stats.TroopTypes, err = getEnumOptions("troop_type")
 	stats.BattleAvailability, err = getEnumOptions("battle_availability")
-	stats.TundraAvailability, err = getEnumOptions("tundra_availability")
+	stats.TundraAvailability = []string{"02:00", "12:00", "14:00", "19:00"}
 
 	return stats, err
 }
@@ -286,4 +286,15 @@ func (s *Store) GetEventSnapshotDetails(eventID int) ([]HistoryTeam, []HistoryPl
 	}
 
 	return teams, players, nil
+}
+
+func (s *Store) GetWarRoomBroadcastRoutes() ([]DiscordRoute, error) {
+	var routes []DiscordRoute
+	query := "SELECT * FROM discord_routes WHERE event_type IN ('global_war_room', 'war_room_deploy')"
+	err := s.db.Select(&routes, query)
+
+	if routes == nil {
+		routes = []DiscordRoute{}
+	}
+	return routes, err
 }

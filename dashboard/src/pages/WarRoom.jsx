@@ -5,9 +5,58 @@ import { useApp } from '../context/AppContext';
 import { toast } from 'react-toastify';
 import {
     Shield, Lock, Unlock,
-    Megaphone, RotateCcw, Search, UserPlus, X, ChevronRight
+    Megaphone, RotateCcw, Search, UserPlus, X, ChevronRight,
+    ChevronDown, CheckSquare, Square
 } from 'lucide-react';
 import AdminLayout from '../components/layout/AdminLayout';
+
+const MultiSelectDropdown = ({ options, selected, onChange, placeholder, activeColorClass }) => {
+    const [isOpen, setIsOpen] = useState(false);
+
+    const toggleOption = (opt) => {
+        if (selected.includes(opt)) {
+            onChange(selected.filter(v => v !== opt));
+        } else {
+            onChange([...selected, opt]);
+        }
+    };
+
+    return (
+        <div className="relative">
+            <div
+                onClick={() => setIsOpen(!isOpen)}
+                className={`bg-black border rounded-lg p-2 text-[10px] outline-none cursor-pointer flex justify-between items-center transition-colors ${selected.length > 0 ? activeColorClass : 'border-gray-800 text-gray-400 hover:border-gray-700'}`}
+            >
+                <span className="truncate font-black uppercase tracking-widest">
+                    {selected.length === 0 ? placeholder : `${selected.length} Selected`}
+                </span>
+                <ChevronDown size={12} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+            </div>
+
+            {isOpen && <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />}
+
+            {isOpen && (
+                <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl overflow-hidden">
+                    <div className="max-h-48 overflow-y-auto custom-scrollbar p-1.5 flex flex-col gap-1">
+                        {options.map(opt => {
+                            const isSelected = selected.includes(opt);
+                            return (
+                                <button
+                                    key={opt}
+                                    onClick={() => toggleOption(opt)}
+                                    className={`flex items-center gap-2 px-2 py-2 text-[10px] rounded-md transition-colors w-full text-left font-bold uppercase tracking-widest ${isSelected ? 'bg-gray-800 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'}`}
+                                >
+                                    {isSelected ? <CheckSquare size={14} className="text-blue-500 shrink-0" /> : <Square size={14} className="opacity-50 shrink-0" />}
+                                    <span className="truncate">{opt}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
 
 export default function WarRoom() {
     const { user } = useAuth();
@@ -26,8 +75,8 @@ export default function WarRoom() {
 
     const [filterText, setFilterText] = useState('');
     const [filterTroops, setFilterTroops] = useState('All');
-    const [filterAvail, setFilterAvail] = useState('All');
-    const [filterTundra, setFilterTundra] = useState('All');
+    const [filterAvail, setFilterAvail] = useState([]);
+    const [filterTundra, setFilterTundra] = useState([]);
     const [sortBy, setSortBy] = useState('Power');
     const [selectedPlayer, setSelectedPlayer] = useState(null);
 
@@ -52,19 +101,6 @@ export default function WarRoom() {
         } finally {
             if (!silent) setLoading(false);
         }
-    };
-
-    // --- LOGIC: MUTUALLY EXCLUSIVE FILTERS ---
-    const handleBattleFilterChange = (val) => {
-        setFilterAvail(val);
-        if (val !== 'All') setFilterTundra('All'); // Reset Tundra
-        setDisplayLimit(30);
-    };
-
-    const handleTundraFilterChange = (val) => {
-        setFilterTundra(val);
-        if (val !== 'All') setFilterAvail('All'); // Reset Battle
-        setDisplayLimit(30);
     };
 
     const handleReset = async () => {
@@ -117,11 +153,16 @@ export default function WarRoom() {
     const handleAnnounceWarRoom = async () => {
         if (!isAdmin) return;
         let description = "Here are the confirmed deployments for the upcoming battle:\n\n";
+
         stats.forEach(alliance => {
             const members = (players || []).filter(p => p.fightingAllianceId === alliance.id);
             if (members.length > 0) {
                 description += `**🛡️ ${alliance.name} (${members.length} Members)**\n`;
-                members.forEach(m => { description += `• ${m.nickname} - *${m.troopType}*\n`; });
+                members.forEach(m => {
+                    // Format: • [AllianceName] Nickname
+                    const allianceTag = m.allianceName ? `[${m.allianceName}]` : '[None]';
+                    description += `• ${allianceTag} ${m.nickname}\n`;
+                });
                 description += `\n`;
             }
         });
@@ -140,11 +181,20 @@ export default function WarRoom() {
         return (players || []).filter(p => {
             const matchesText = (p.nickname || '').toLowerCase().includes(filterText.toLowerCase()) ||
                 (p.fid || '').toString().includes(filterText);
-            const matchesTroops = filterTroops === 'All' || p.troopType === filterTroops;
 
-            // Logic: Only one of these will ever be active at a time due to handlers
-            const matchesAvail = filterAvail === 'All' || p.battleAvailability === filterAvail;
-            const matchesTundra = filterTundra === 'All' || p.tundraAvailability === filterTundra;
+            const matchesTroops = filterTroops === 'All' || p.troopType === filterTroops;
+            const matchesAvail = filterAvail.length === 0 || filterAvail.includes(p.battleAvailability);
+
+            let matchesTundra = true;
+            if (filterTundra.length > 0) {
+                matchesTundra = filterTundra.some(slot => {
+                    if (slot === '02:00') return p.avail_0200;
+                    if (slot === '12:00') return p.avail_1200;
+                    if (slot === '14:00') return p.avail_1400;
+                    if (slot === '19:00') return p.avail_1900;
+                    return false;
+                });
+            }
 
             return matchesText && matchesTroops && matchesAvail && matchesTundra && !p.fightingAllianceId;
         }).sort((a, b) => {
@@ -200,7 +250,6 @@ export default function WarRoom() {
     return (
         <AdminLayout title="War Room" actions={headerActions}>
             <div className="flex flex-col lg:flex-row h-[calc(100dvh-64px)] lg:h-full overflow-hidden bg-gray-950">
-                {/* --- MOBILE TOGGLE BAR --- */}
                 <div className="lg:hidden flex bg-gray-900 p-2 border-b border-gray-800 shrink-0 gap-2">
                     <button
                         onClick={() => setMobileTab('bench')}
@@ -216,7 +265,6 @@ export default function WarRoom() {
                     </button>
                 </div>
 
-                {/* 1. BENCH SIDEBAR */}
                 <aside className={`w-full lg:w-80 bg-gray-900 border-b lg:border-r border-gray-800 shrink-0 overflow-hidden ${mobileTab === 'bench' ? 'flex flex-col flex-1' : 'hidden lg:flex lg:flex-col h-full'}`}>
                     <div className="p-4 space-y-3 bg-gray-900/50 border-b border-gray-800">
                         <div className="relative">
@@ -231,29 +279,27 @@ export default function WarRoom() {
                             <select
                                 value={filterTroops}
                                 onChange={e => {setFilterTroops(e.target.value); setDisplayLimit(30);}}
-                                className="bg-black border border-gray-800 text-[10px] rounded-lg p-1 text-gray-400 outline-none"
+                                className="bg-black border border-gray-800 text-[10px] rounded-lg p-1 text-gray-400 outline-none font-black uppercase tracking-widest cursor-pointer"
                             >
                                 <option value="All">All Troops</option>
                                 {(filterOptions.troopTypes || []).map(o => <option key={o} value={o}>{o}</option>)}
                             </select>
 
-                            <select
-                                value={filterAvail}
-                                onChange={e => handleBattleFilterChange(e.target.value)}
-                                className={`bg-black border rounded-lg p-1 text-[10px] outline-none transition-colors ${filterAvail !== 'All' ? 'border-blue-500 text-blue-400' : 'border-gray-800 text-gray-400'}`}
-                            >
-                                <option value="All">Battle Availability</option>
-                                {(filterOptions.battleAvailability || []).map(o => <option key={o} value={o}>{o}</option>)}
-                            </select>
+                            <MultiSelectDropdown
+                                options={filterOptions.battleAvailability || []}
+                                selected={filterAvail}
+                                onChange={(newSelection) => { setFilterAvail(newSelection); setDisplayLimit(30); }}
+                                placeholder="Battle Avail"
+                                activeColorClass="border-blue-500 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.2)]"
+                            />
 
-                            <select
-                                value={filterTundra}
-                                onChange={e => handleTundraFilterChange(e.target.value)}
-                                className={`bg-black border rounded-lg p-1 text-[10px] outline-none transition-colors ${filterTundra !== 'All' ? 'border-purple-500 text-purple-400' : 'border-gray-800 text-gray-400'}`}
-                            >
-                                <option value="All">Tundra Availability</option>
-                                {(filterOptions.tundraAvailability || []).map(o => <option key={o} value={o}>{o}</option>)}
-                            </select>
+                            <MultiSelectDropdown
+                                options={filterOptions.tundraAvailability || []}
+                                selected={filterTundra}
+                                onChange={(newSelection) => { setFilterTundra(newSelection); setDisplayLimit(30); }}
+                                placeholder="Tundra Slots"
+                                activeColorClass="border-purple-500 text-purple-400 shadow-[0_0_10px_rgba(168,85,247,0.2)]"
+                            />
                         </div>
                     </div>
 
@@ -267,15 +313,23 @@ export default function WarRoom() {
                                 className={`p-3 rounded-2xl border transition-all select-none ${isMod ? 'cursor-default border-gray-800' : 'cursor-pointer'} ${selectedPlayer?.fid === p.fid ? 'bg-blue-600 border-blue-400 scale-95 shadow-lg' : 'bg-gray-950 border-gray-800 hover:border-gray-700'}`}
                             >
                                 <div className="flex items-center gap-3">
-                                    <div className="relative">
+                                    <div className="relative shrink-0">
                                         <img src={p.avatar} className="w-10 h-10 rounded-xl object-cover" alt="" />
-                                        {p.stoveImg && <img src={p.stoveImg} className="absolute -bottom-1 -right-1 w-5 h-5" alt="" />}
+                                        {p.stoveImg && <img src={p.stoveImg} className="absolute -bottom-1 -right-1 w-5 h-5 object-contain" alt="" />}
                                     </div>
-                                    <div className="min-w-0 flex-1 space-x-2">
-                                        <p className={`text-[11px] font-black ${selectedPlayer?.fid === p.fid ? 'text-white' : 'text-gray-200'}`}>{p.nickname}</p>
-                                        <div className={`mt-1 inline-block text-[8px] px-1.5 rounded-sm border font-black uppercase tracking-tighter ${getTroopColor(p.troopType)}`}>{p.troopType || 'NONE'}</div>
-                                        <div className={`mt-1 inline-block text-[8px] px-1.5 rounded-sm border font-black tracking-tighter text-gray-400 border-gray-700 bg-gray-800/40`}>{p.allianceName || 'NONE'}</div>
+                                    <div className="min-w-0 flex-1 space-y-1">
+                                        <p className={`text-[11px] font-black truncate ${selectedPlayer?.fid === p.fid ? 'text-white' : 'text-gray-200'}`}>{p.nickname}</p>
 
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                            <div className={`text-[8px] px-1.5 rounded-sm border font-black uppercase tracking-tighter ${getTroopColor(p.troopType)}`}>{p.troopType || 'NONE'}</div>
+                                            <div className={`text-[8px] px-1.5 rounded-sm border font-black tracking-tighter text-gray-400 border-gray-700 bg-gray-800/40`}>{p.allianceName || 'NONE'}</div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2 pt-0.5">
+                                            <span className="text-[9px] text-blue-400 font-mono" title="Base Power">⚡ {((p.normalPower || 0) / 1000000).toFixed(1)}M</span>
+                                            <span className="text-[9px] text-gray-600">|</span>
+                                            <span className="text-[9px] text-yellow-500 font-mono" title="Tundra Power">⚔️ {((p.power || 0) / 1000000).toFixed(1)}M</span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -292,12 +346,16 @@ export default function WarRoom() {
                     </div>
                 </aside>
 
-                {/* 2. DEPLOYMENT GRID */}
                 <main className={`flex-1 overflow-y-auto p-4 lg:p-6 custom-scrollbar bg-gray-950 ${selectedPlayer ? 'pb-32' : 'pb-12'} lg:pb-6 ${mobileTab === 'alliances' ? 'block' : 'hidden lg:block'}`}>
                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                         {(stats || []).map(alliance => {
+                            // Filter the frontend roster for real-time accuracy
                             const roster = (players || []).filter(p => p.fightingAllianceId === alliance.id);
                             const isLocked = alliance.isLocked;
+
+                            // Dynamically calculate totals based on deployed players
+                            const totalBasePower = roster.reduce((sum, p) => sum + (p.normalPower || 0), 0);
+                            const totalTundraPower = roster.reduce((sum, p) => sum + (p.power || 0), 0);
 
                             return (
                                 <div
@@ -314,7 +372,9 @@ export default function WarRoom() {
                                             <Shield size={20} className={isLocked ? 'text-red-500' : 'text-blue-500'} />
                                             <div>
                                                 <h4 className="text-sm font-black text-white uppercase tracking-tighter">{alliance.name}</h4>
-                                                <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest">{alliance.memberCount} PLAYERS • {(alliance.totalPower / 1000000).toFixed(0)}M</p>
+                                                <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest mt-0.5">
+                                                    {roster.length} PLAYERS • <span className="text-blue-400">⚡ {(totalBasePower / 1000000).toFixed(0)}M</span> • <span className="text-yellow-500">⚔️ {(totalTundraPower / 1000000).toFixed(0)}M</span>
+                                                </p>
                                             </div>
                                         </div>
                                         {isAdmin && (
@@ -329,15 +389,22 @@ export default function WarRoom() {
 
                                     <div className="flex-1 p-4 grid grid-cols-1 md:grid-cols-2 gap-2 content-start">
                                         {roster.map(m => (
-                                            <div key={m.fid} className="flex items-center justify-between p-2 bg-black/40 border border-gray-800 rounded-xl group transition-all hover:border-gray-600">
-                                                <div className="flex items-center gap-2 min-w-0">
-                                                    <img src={m.avatar} className="w-7 h-7 rounded-lg grayscale group-hover:grayscale-0 transition-all" alt="" />
-                                                    <span className="text-[11px] font-bold text-gray-300 truncate tracking-tighter group-hover:text-white">{m.nickname}</span>
+                                            <div key={m.fid} className="flex items-center justify-between p-2.5 bg-black/40 border border-gray-800 rounded-xl group transition-all hover:border-gray-600">
+                                                <div className="flex items-center gap-3 min-w-0">
+                                                    <img src={m.avatar} className="w-8 h-8 rounded-lg grayscale group-hover:grayscale-0 transition-all object-cover shrink-0" alt="" />
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="text-[11px] font-bold text-gray-300 truncate tracking-tighter group-hover:text-white">{m.nickname}</div>
+                                                        <div className="flex items-center gap-1.5 mt-0.5">
+                                                            <span className="text-[9px] text-blue-400 font-mono" title="Base Power">⚡ {((m.normalPower || 0) / 1000000).toFixed(1)}M</span>
+                                                            <span className="text-[9px] text-gray-600">|</span>
+                                                            <span className="text-[9px] text-yellow-500 font-mono" title="Tundra Power">⚔️ {((m.power || 0) / 1000000).toFixed(1)}M</span>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                                 {isAdmin && !isLocked && (
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); void handleDeploy(m.fid, null); }}
-                                                        className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 p-1 text-red-500 lg:hover:bg-red-500/10 rounded-lg transition-all"
+                                                        className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 p-1.5 text-red-500 lg:hover:bg-red-500/10 rounded-lg transition-all shrink-0"
                                                     >
                                                         <X size={14} />
                                                     </button>
@@ -357,7 +424,6 @@ export default function WarRoom() {
                     </div>
                 </main>
 
-                {/* Mobile Selected Player Floating Action Bar */}
                 {selectedPlayer && (
                     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] lg:hidden animate-in slide-in-from-bottom-5">
                         <div className="bg-blue-600 text-white pl-6 pr-2 py-2 rounded-full font-black text-xs tracking-widest shadow-2xl flex items-center gap-4 border border-blue-400">

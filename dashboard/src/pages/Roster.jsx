@@ -9,12 +9,46 @@ import {
 } from 'lucide-react';
 import AdminLayout from '../components/layout/AdminLayout';
 
+const TundraPills = ({ player, isEditing, onChange }) => {
+  const slots = [
+    { key: 'avail_0200', label: '02:00' },
+    { key: 'avail_1200', label: '12:00' },
+    { key: 'avail_1400', label: '14:00' },
+    { key: 'avail_1900', label: '19:00' }
+  ];
+
+  return (
+      <div className="flex items-center gap-1 flex-wrap w-24">
+        {slots.map(slot => {
+          const isActive = player[slot.key];
+          return (
+              <button
+                  key={slot.key}
+                  type="button"
+                  onClick={() => isEditing && onChange(slot.key, !isActive)}
+                  disabled={!isEditing}
+                  className={`
+                            px-1.5 py-0.5 text-[8px] font-black tracking-widest rounded transition-all
+                            ${isEditing ? 'cursor-pointer hover:scale-105' : 'cursor-default'}
+                            ${isActive
+                      ? 'bg-blue-600 text-white shadow-md border border-blue-500'
+                      : 'bg-gray-800 text-gray-500 border border-gray-700'
+                  }
+                        `}
+              >
+                {slot.label}
+              </button>
+          );
+        })}
+      </div>
+  );
+};
+
 export default function Roster() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const isMod = user?.role === 'moderator';
 
-  // 1. GLOBAL STATE & LOCAL REFRESH
   const { roster: players, globalLoading, refreshGlobalData } = useApp();
 
   const [options, setOptions] = useState({
@@ -38,7 +72,6 @@ export default function Roster() {
   const [activeSeason, setActiveSeason] = useState(null);
   const [outboundModal, setOutboundModal] = useState({ isOpen: false, player: null, destState: '' });
 
-  // MOBILE MODAL STATE
   const [selectedMobilePlayerId, setSelectedMobilePlayerId] = useState(null);
   const activeMobilePlayer = useMemo(() =>
           (players || []).find(p => p.fid === selectedMobilePlayerId),
@@ -100,16 +133,22 @@ export default function Roster() {
 
   const handleSaveEdit = async () => {
     try {
-      await client.put(`/moderator/players/${editingId}`, {
+      const payload = {
         ...editForm,
-        power: parseInt(editForm.power),
-        allianceId: parseInt(editForm.allianceId)
-      });
+        power: parseInt(editForm.power) || 0, // Tundra Power
+        normalPower: parseInt(editForm.normalPower) || 0, // NEW: Base Power
+        allianceId: editForm.allianceId ? parseInt(editForm.allianceId) : null,
+        fightingAllianceId: editForm.fightingAllianceId ? parseInt(editForm.fightingAllianceId) : null,
+        teamId: editForm.teamId ? parseInt(editForm.teamId) : null
+      };
+
+      await client.put(`/moderator/players/${editingId}`, payload);
       toast.success("Player updated");
       setEditingId(null);
       await refreshGlobalData(true);
     } catch (err) {
-      toast.error("Update failed");
+      console.error("Backend Save Error:", err.response?.data || err);
+      toast.error(err.response?.data?.error || "Update failed");
     }
   };
 
@@ -119,10 +158,7 @@ export default function Roster() {
     try {
       await client.delete(`/moderator/players/${fid}`);
       toast.success("Player removed");
-
-      // Clear mobile selection if deleted from mobile view
       if (selectedMobilePlayerId === fid) setSelectedMobilePlayerId(null);
-
       await refreshGlobalData(true);
     } catch (err) {
       toast.error("Delete failed");
@@ -155,10 +191,8 @@ export default function Roster() {
         destState: outboundModal.destState || 'Unknown'
       });
       toast.success("Player transferred out and archived.");
-
       if (selectedMobilePlayerId === outboundModal.player.fid) setSelectedMobilePlayerId(null);
       setOutboundModal({ isOpen: false, player: null, destState: '' });
-
       await refreshGlobalData(true);
     } catch (err) {
       toast.error("Transfer failed");
@@ -174,8 +208,6 @@ export default function Roster() {
   return (
       <AdminLayout title="State Roster">
         <div className="p-4 md:p-6 space-y-6 max-w-[1800px] mx-auto">
-
-          {/* HEADER */}
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
             <div>
               <h2 className="text-2xl font-black text-white flex items-center gap-3 uppercase tracking-tighter">
@@ -210,15 +242,12 @@ export default function Roster() {
             </div>
           </div>
 
-          {/* TABS */}
           <div className="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar">
             <div className="flex items-center gap-2 px-4 py-2 bg-gray-900 border border-gray-800 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-500 shrink-0">
               <Users size={14} className="text-blue-500" />
               <span>{filteredPlayers.length} Active</span>
             </div>
-
             <div className="w-px h-6 bg-gray-800 mx-2 shrink-0" />
-
             <div className="flex gap-2">
               {!isMod && (
                   <button
@@ -243,21 +272,20 @@ export default function Roster() {
             </div>
           </div>
 
-          {/* RESPONSIVE CONTENT: Table on Desktop, Cards on Mobile */}
           <div className="bg-gray-900 border border-gray-800 rounded-3xl overflow-hidden shadow-2xl flex flex-col xl:bg-transparent xl:border-none xl:shadow-none">
-
-            {/* 🖥️ DESKTOP TABLE */}
             <div className="hidden xl:block overflow-x-auto custom-scrollbar bg-gray-900 border border-gray-800 rounded-3xl shadow-2xl">
-              <table className="w-full text-left border-collapse min-w-[1400px]">
+              <table className="w-full text-left border-collapse min-w-[1500px]">
                 <thead className="bg-black text-gray-600 text-[10px] font-black uppercase tracking-widest border-b border-gray-800">
                 <tr>
                   <th className="p-4 w-16 text-center"></th>
                   <th className="p-4">Identity</th>
                   <th className="p-4 text-center">Furnace</th>
-                  <th className="p-4">Power</th>
+                  {/* NEW POWER COLUMNS */}
+                  <th className="p-4">Base Power</th>
+                  <th className="p-4">Tundra Power</th>
                   <th className="p-4">Troop Type</th>
                   <th className="p-4 w-32">Battle</th>
-                  <th className="p-4 w-28">Tundra</th>
+                  <th className="p-4 w-32">Tundra</th>
                   <th className="p-4">Alliance</th>
                   <th className="p-4 text-red-500/80">War Deployment</th>
                   <th className="p-4">Squad</th>
@@ -266,7 +294,7 @@ export default function Roster() {
                 </thead>
                 <tbody className="text-xs divide-y divide-gray-800/50">
                 {(globalLoading || loadingOptions) ? (
-                    <tr><td colSpan="11" className="p-20 text-center text-gray-600 font-black uppercase tracking-widest animate-pulse">Synchronizing State Data...</td></tr>
+                    <tr><td colSpan="12" className="p-20 text-center text-gray-600 font-black uppercase tracking-widest animate-pulse">Synchronizing State Data...</td></tr>
                 ) : filteredPlayers.map(p => {
                   const isEditing = editingId === p.fid;
                   return (
@@ -293,11 +321,21 @@ export default function Roster() {
                               <span className="text-gray-600 font-bold">-</span>
                           )}
                         </td>
+
+                        {/* BASE POWER */}
                         <td className="p-4">
                           {isEditing ? (
-                              <input type="number" className="bg-black border border-gray-700 rounded-lg px-2 py-1 w-28 text-yellow-500 font-mono outline-none" value={editForm.power} onChange={e => setEditForm({...editForm, power: e.target.value})} />
+                              <input type="number" className="bg-black border border-gray-700 rounded-lg px-2 py-1 w-24 text-blue-400 font-mono outline-none" value={editForm.normalPower || ''} onChange={e => setEditForm({...editForm, normalPower: e.target.value})} />
+                          ) : <span className="font-mono text-blue-400 font-bold">{p.normalPower?.toLocaleString() || '-'}</span>}
+                        </td>
+
+                        {/* TUNDRA POWER */}
+                        <td className="p-4">
+                          {isEditing ? (
+                              <input type="number" className="bg-black border border-gray-700 rounded-lg px-2 py-1 w-24 text-yellow-500 font-mono outline-none" value={editForm.power || ''} onChange={e => setEditForm({...editForm, power: e.target.value})} />
                           ) : <span className="font-mono text-yellow-600 font-bold">{p.power?.toLocaleString() || '-'}</span>}
                         </td>
+
                         <td className="p-4">
                           {isEditing ? (
                               <select className="bg-black border border-gray-700 rounded-lg px-2 py-1 text-[10px] text-white outline-none" value={editForm.troopType || ''} onChange={e => setEditForm({...editForm, troopType: e.target.value})}>
@@ -313,11 +351,11 @@ export default function Roster() {
                           ) : <span className={`text-[10px] font-black uppercase tracking-tighter ${getBattleColor(p.battleAvailability)}`}>{p.battleAvailability}</span>}
                         </td>
                         <td className="p-4">
-                          {isEditing ? (
-                              <select className="bg-black border border-gray-700 rounded-lg px-2 py-1 text-[10px] text-white outline-none" value={editForm.tundraAvailability || ''} onChange={e => setEditForm({...editForm, tundraAvailability: e.target.value})}>
-                                {options.rosterstats.tundraAvailability.map(t => <option key={t} value={t}>{t}</option>)}
-                              </select>
-                          ) : <span className={`text-[10px] font-black uppercase tracking-tighter ${p.tundraAvailability === 'Full' ? 'text-blue-400' : 'text-gray-700'}`}>{p.tundraAvailability}</span>}
+                          <TundraPills
+                              player={isEditing ? editForm : p}
+                              isEditing={isEditing}
+                              onChange={(key, val) => setEditForm({ ...editForm, [key]: val })}
+                          />
                         </td>
                         <td className="p-4 text-[10px] font-black tracking-widest text-gray-500">
                           {isEditing && isAdmin ? (
@@ -337,7 +375,7 @@ export default function Roster() {
                         </td>
                         <td className="p-4 text-[10px] font-black tracking-widest text-gray-500">
                           {isEditing ? (
-                              <select className="bg-black border border-gray-700 rounded-lg p-1 outline-none" value={editForm.teamId} onChange={e => setEditForm({...editForm, teamId: e.target.value})}>
+                              <select className="bg-black border border-gray-700 rounded-lg p-1 outline-none" value={editForm.teamId || ''} onChange={e => setEditForm({...editForm, teamId: e.target.value})}>
                                 <option value="">No Team</option>
                                 {(options.teams || []).filter(t => !editForm.allianceId || Number(t.allianceId) === Number(editForm.allianceId)).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                               </select>
@@ -368,7 +406,6 @@ export default function Roster() {
               </table>
             </div>
 
-            {/* 📱 MOBILE CARDS */}
             <div className="flex xl:hidden flex-col gap-3 p-4 bg-gray-950">
               {(globalLoading || loadingOptions) ? (
                   <div className="p-10 text-center text-gray-600 font-black uppercase tracking-widest animate-pulse">Synchronizing State Data...</div>
@@ -407,7 +444,7 @@ export default function Roster() {
           </div>
         </div>
 
-        {/* MODAL: BATCH ADD (ADMIN ONLY) */}
+        {/* MODALS BELOW */}
         {showAddModal && isAdmin && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm animate-in fade-in duration-200">
               <div className="bg-gray-800 border border-gray-700 w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden">
@@ -435,7 +472,6 @@ export default function Roster() {
             </div>
         )}
 
-        {/* MODAL: OUTBOUND (ADMIN ONLY) */}
         {outboundModal.isOpen && isAdmin && (
             <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
               <div className="bg-gray-800 p-8 rounded-3xl w-full max-w-md border border-gray-700 shadow-2xl">
@@ -459,7 +495,6 @@ export default function Roster() {
             </div>
         )}
 
-        {/* MODAL: MOBILE PLAYER DETAILS & EDIT */}
         {activeMobilePlayer && (
             <div className="fixed inset-0 bg-black/95 flex items-center justify-center z-[60] p-4">
               <div className="bg-gray-900 p-6 rounded-3xl w-full max-w-sm border border-gray-700 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
@@ -479,15 +514,24 @@ export default function Roster() {
                 </div>
 
                 <div className="space-y-4 max-h-[55vh] overflow-y-auto custom-scrollbar pr-2">
-                  {/* Power */}
-                  <div>
-                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-1">Power</label>
-                    {editingId === activeMobilePlayer.fid ? (
-                        <input type="number" className="w-full bg-black border border-gray-700 rounded-xl p-3 text-xs font-mono text-yellow-500 outline-none" value={editForm.power} onChange={e => setEditForm({...editForm, power: e.target.value})} />
-                    ) : <span className="font-mono text-yellow-500 font-bold">{activeMobilePlayer.power?.toLocaleString() || '-'}</span>}
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* BASE POWER */}
+                    <div>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-1">Base Power</label>
+                      {editingId === activeMobilePlayer.fid ? (
+                          <input type="number" className="w-full bg-black border border-gray-700 rounded-xl p-3 text-xs font-mono text-blue-400 outline-none" value={editForm.normalPower || ''} onChange={e => setEditForm({...editForm, normalPower: e.target.value})} />
+                      ) : <span className="font-mono text-blue-400 font-bold">{activeMobilePlayer.normalPower?.toLocaleString() || '-'}</span>}
+                    </div>
+
+                    {/* TUNDRA POWER */}
+                    <div>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-1">Tundra Power</label>
+                      {editingId === activeMobilePlayer.fid ? (
+                          <input type="number" className="w-full bg-black border border-gray-700 rounded-xl p-3 text-xs font-mono text-yellow-500 outline-none" value={editForm.power || ''} onChange={e => setEditForm({...editForm, power: e.target.value})} />
+                      ) : <span className="font-mono text-yellow-500 font-bold">{activeMobilePlayer.power?.toLocaleString() || '-'}</span>}
+                    </div>
                   </div>
 
-                  {/* Troop Type */}
                   <div>
                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-1">Troop Type</label>
                     {editingId === activeMobilePlayer.fid ? (
@@ -498,7 +542,6 @@ export default function Roster() {
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
-                    {/* Battle */}
                     <div>
                       <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-1">Battle</label>
                       {editingId === activeMobilePlayer.fid ? (
@@ -508,18 +551,16 @@ export default function Roster() {
                       ) : <span className={`text-[11px] font-black uppercase tracking-tighter ${getBattleColor(activeMobilePlayer.battleAvailability)}`}>{activeMobilePlayer.battleAvailability}</span>}
                     </div>
 
-                    {/* Tundra */}
                     <div>
                       <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-1">Tundra</label>
-                      {editingId === activeMobilePlayer.fid ? (
-                          <select className="w-full bg-black border border-gray-700 rounded-xl p-3 text-xs text-white outline-none" value={editForm.tundraAvailability || ''} onChange={e => setEditForm({...editForm, tundraAvailability: e.target.value})}>
-                            {options.rosterstats.tundraAvailability.map(t => <option key={t} value={t}>{t}</option>)}
-                          </select>
-                      ) : <span className={`text-[11px] font-black uppercase tracking-tighter ${activeMobilePlayer.tundraAvailability === 'Full' ? 'text-blue-400' : 'text-gray-700'}`}>{activeMobilePlayer.tundraAvailability}</span>}
+                      <TundraPills
+                          player={editingId === activeMobilePlayer.fid ? editForm : activeMobilePlayer}
+                          isEditing={editingId === activeMobilePlayer.fid}
+                          onChange={(key, val) => setEditForm({ ...editForm, [key]: val })}
+                      />
                     </div>
                   </div>
 
-                  {/* Alliance */}
                   <div>
                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-1">Alliance</label>
                     {editingId === activeMobilePlayer.fid && isAdmin ? (
@@ -530,7 +571,6 @@ export default function Roster() {
                     ) : <span className="text-xs font-bold text-gray-300">{activeMobilePlayer.allianceName || '-'}</span>}
                   </div>
 
-                  {/* War Deployment */}
                   <div>
                     <label className="text-[10px] font-black uppercase tracking-widest text-red-500/80 block mb-1">War Deployment</label>
                     {editingId === activeMobilePlayer.fid ? (
@@ -541,7 +581,6 @@ export default function Roster() {
                     ) : <span className={`text-xs ${activeMobilePlayer.fightingAllianceName ? "text-red-500 font-bold" : "text-gray-600"}`}>{activeMobilePlayer.fightingAllianceName || '-'}</span>}
                   </div>
 
-                  {/* Squad */}
                   <div>
                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-1">Squad</label>
                     {editingId === activeMobilePlayer.fid ? (
@@ -553,7 +592,6 @@ export default function Roster() {
                   </div>
                 </div>
 
-                {/* MODAL ACTIONS */}
                 <div className="pt-6 mt-4 border-t border-gray-800 flex justify-end gap-2">
                   {editingId === activeMobilePlayer.fid ? (
                       <>

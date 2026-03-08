@@ -29,8 +29,9 @@ type Config struct {
 	} `mapstructure:"Game"`
 
 	Discord struct {
-		WebhookURL string `mapstructure:"WebhookUrl"`
-		ChannelId  string `mapstructure:"ChannelId"`
+		BotToken    string `mapstructure:"BotToken"`
+		ClientID    string `mapstructure:"ClientID"`
+		RedirectURI string `mapstructure:"RedirectURI"`
 	} `mapstructure:"Discord"`
 
 	Rotation struct {

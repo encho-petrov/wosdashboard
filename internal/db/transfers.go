@@ -38,7 +38,7 @@ type TransferRecord struct {
 func (s *Store) GetActiveTransferSeason() (*TransferSeason, error) {
 	var ts TransferSeason
 	err := s.db.Get(&ts, "SELECT * FROM transfer_seasons WHERE status IN ('Planning', 'Active') ORDER BY created_at DESC LIMIT 1")
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	return &ts, err

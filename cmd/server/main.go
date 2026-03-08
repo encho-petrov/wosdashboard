@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"gift-redeemer/internal/api"
 	"gift-redeemer/internal/auth"
@@ -50,7 +51,7 @@ func runMigrations(baseDSN string) error {
 		return fmt.Errorf("migration instance error: %v", err)
 	}
 
-	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		return fmt.Errorf("migration failed: %v", err)
 	}
 
@@ -130,44 +131,41 @@ func main() {
 	engine := processor.NewProcessor(pClient, gClient, store, solver, redisStore)
 
 	go engine.StartWorkers()
-	router := api.SetupRouter(engine, store, cfg, pClient, redisStore)
 
-	if cfg.Discord.WebhookURL != "" {
-		c := cron.New(cron.WithLocation(time.UTC))
+	botToken := cfg.Discord.BotToken
+
+	var cronManager *services.CronManager
+	if botToken != "" {
+		cronManager = services.NewCronManager(store, botToken)
+		cronManager.Start()
+		defer cronManager.Stop()
+	} else {
+		log.Println("WARNING: Discord Bot Token missing. Dynamic Cron Engine disabled.")
+	}
+
+	router := api.SetupRouter(engine, store, cfg, pClient, redisStore, cronManager)
+
+	if botToken != "" {
+		sysCron := cron.New(cron.WithLocation(time.UTC))
 
 		cronExp := parseCronSchedule(cfg.Rotation.AnnounceDay, cfg.Rotation.AnnounceTimeUTC)
-
-		// Fortress rotation cron
-		_, err := c.AddFunc(cronExp, func() {
+		_, err := sysCron.AddFunc(cronExp, func() {
 			log.Println("CRON: Triggering automated Discord rotation announcement...")
-
-			cfg, _ := config.LoadConfig()
-			liveSeason, liveWeek := services.GetRotationState(cfg.Rotation.SeasonReferenceDate, cfg.Rotation.AnchorSeason)
-
-			entries, err := store.GetRotationForWeek(liveSeason, liveWeek)
-			if err != nil || len(entries) == 0 {
-				log.Printf("CRON: No rotation data found for S%d W%d. Skipping announcement.", liveSeason, liveWeek)
-				return
-			}
-
-			if err := services.SendDiscordRotation(cfg.Discord.WebhookURL, liveSeason, liveWeek, entries); err != nil {
-				log.Printf("CRON Error: %v", err)
-			}
+			services.TriggerRotationCron(store, botToken, cfg.Rotation.SeasonReferenceDate, cfg.Rotation.AnchorSeason)
 		})
 
-		// Ministry reservations cron
-		_, err = c.AddFunc("* * * * *", func() {
-			services.CheckMinistrySchedule(store, cfg.Discord.WebhookURL)
-			services.CheckPetSchedule(store, cfg.Discord.WebhookURL)
+		_, err = sysCron.AddFunc("* * * * *", func() {
+			services.CheckMinistrySchedule(store, botToken)
+			services.CheckPetSchedule(store, botToken)
 		})
 
 		if err != nil {
-			log.Printf("Failed to schedule Discord cron: %v", err)
+			log.Printf("Failed to schedule System Discord cron: %v", err)
 		} else {
-			c.Start()
-			log.Printf("Discord Rotation Cron scheduled for %s at %s UTC", cfg.Rotation.AnnounceDay, cfg.Rotation.AnnounceTimeUTC)
+			sysCron.Start()
+			log.Printf("System Discord Cron scheduled for %s at %s UTC", cfg.Rotation.AnnounceDay, cfg.Rotation.AnnounceTimeUTC)
+			defer sysCron.Stop()
 		}
-		defer c.Stop()
 	}
 
 	log.Println("Server running on http://localhost:8080")
