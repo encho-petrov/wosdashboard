@@ -92,7 +92,6 @@ export default function AllianceWarRoom() {
     // --- COMPUTED DATA (Dynamically sorted by relevant power) ---
     const localBench = useMemo(() => {
         if (!roster) return [];
-        if (roster.length > 0) console.log("REACT SEES THIS PLAYER:", roster[0]);
         return roster.filter(p => {
             const inMyAlliance = p.allianceId === user?.allianceId;
             const notDeployed = !deployedPlayers.find(dp => dp.fid === p.playerId || dp.fid === p.fid);
