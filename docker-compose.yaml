@@ -41,12 +41,15 @@ services:
       - wos-net
 
   frontend:
-    build: ./dashboard
+    build:
+      context: ./dashboard
+      target: development
     container_name: frontend
     depends_on:
       - backend
     ports:
       - "3000:80"
+    restart: always
     networks:
       - wos-net
 
