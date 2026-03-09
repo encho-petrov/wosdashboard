@@ -3,7 +3,6 @@ package api
 import (
 	"fmt"
 	"gift-redeemer/internal/auth"
-	"gift-redeemer/internal/config"
 	"gift-redeemer/internal/db"
 	"net/http"
 	"strconv"
@@ -13,13 +12,11 @@ import (
 
 type AdminController struct {
 	store *db.Store
-	cfg   *config.Config
 }
 
-func NewAdminController(s *db.Store, c *config.Config) *AdminController {
+func NewAdminController(s *db.Store) *AdminController {
 	return &AdminController{
 		store: s,
-		cfg:   c,
 	}
 }
 

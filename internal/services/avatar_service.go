@@ -15,7 +15,6 @@ func GetAvatarImage(rStore *cache.RedisStore, playerID int64, url string) (image
 	ctx := context.Background()
 	cacheKey := fmt.Sprintf("avatar_cache:%d", playerID)
 
-	// 1. Check Redis Store
 	if rStore != nil && rStore.Client != nil {
 		data, err := rStore.Client.Get(ctx, cacheKey).Bytes()
 		if err == nil {
@@ -26,16 +25,20 @@ func GetAvatarImage(rStore *cache.RedisStore, playerID int64, url string) (image
 		}
 	}
 
-	// 2. Fetch from URL
 	resp, err := http.Get(url)
-	if err != nil || resp.StatusCode != 200 {
-		return nil, fmt.Errorf("fetch failed")
+	if err != nil {
+		return nil, fmt.Errorf("network error: %w", err)
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("fetch failed with status: %d", resp.StatusCode)
+	}
 
-	// 3. Cache it
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read body: %w", err)
+	}
 	if rStore != nil && rStore.Client != nil {
 		rStore.Client.Set(ctx, cacheKey, body, 24*time.Hour)
 	}

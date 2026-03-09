@@ -62,12 +62,37 @@ export default function Users() {
 
   const handleUpdate = async (e) => {
     e.preventDefault();
+
+    const originalUser = users.find(u => u.id === editingUser.id);
+    if (!originalUser) return;
+
+    const originalAllianceId = originalUser.allianceId ? parseInt(originalUser.allianceId) : null;
+    const newAllianceId = editingUser.allianceId ? parseInt(editingUser.allianceId) : null;
+
     try {
-      await client.put(`/admin/users/${editingUser.id}`, {
-        role: editingUser.role,
-        allianceId: parseInt(editingUser.allianceId) || null
-      });
-      toast.success("User updated!");
+      if (originalUser.role !== editingUser.role) {
+        await client.put(`/admin/users/${editingUser.id}`, {
+          role: editingUser.role,
+          allianceId: originalAllianceId
+        });
+        toast.success("Role updated!");
+      }
+
+      if (originalAllianceId !== newAllianceId) {
+        await client.post('/moderator/admin/request', {
+          targetUserId: editingUser.id,
+          toAllianceId: newAllianceId
+        });
+
+        if (newAllianceId === null) {
+          toast.success("User unassigned successfully.");
+        } else {
+          toast.info("Alliance transfer requested! Waiting for approval.");
+        }
+      } else if (originalUser.role === editingUser.role) {
+        toast.info("No changes made.");
+      }
+
       setEditingUser(null);
       await fetchData();
     } catch (err) {

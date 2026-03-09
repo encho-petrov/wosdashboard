@@ -6,9 +6,11 @@ import { LogOut, Activity, Menu, ChevronRight } from 'lucide-react';
 
 import PullToRefresh from '../PullToRefresh';
 import MfaSetupModal from '../MfaSetupModal';
+import client from "../../api/client.js";
 
 export default function AdminLayout({ children, title, actions }) {
     const { user, logout } = useAuth();
+    const [pendingCount, setPendingCount] = useState(0);
     const navigate = useNavigate();
     const location = useLocation();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -36,6 +38,30 @@ export default function AdminLayout({ children, title, actions }) {
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
     }, []);
+
+
+    useEffect(() => {
+        if (user?.role !== 'admin') {
+            setPendingCount(0);
+            return;
+        }
+
+        const checkQueue = async () => {
+            try {
+                const res = await client.get('/api/moderator/admin/pending');
+                setPendingCount(res.data?.length || 0);
+            } catch (err) {
+                console.error("Background transfer check failed");
+            }
+        };
+
+        void checkQueue();
+
+        const interval = setInterval(checkQueue, 60000);
+
+        return () => clearInterval(interval);
+
+    }, [user?.role, location.pathname]);
 
     const handleLogout = () => {
         logout();
@@ -110,15 +136,25 @@ export default function AdminLayout({ children, title, actions }) {
                 </nav>
 
                 <div className="p-4 border-t border-gray-800 bg-gray-900/50 shrink-0">
-                    <div className="flex items-center gap-3 px-4 py-3 bg-gray-950 rounded-xl border border-gray-800 mb-3">
-                        <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-black text-xs text-white shrink-0">
-                            {user?.username?.charAt(0).toUpperCase()}
+                    <Link to="/profile" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-3 px-4 py-3 bg-gray-950 rounded-xl border border-gray-800 hover:border-blue-500/50 transition-all mb-3 group relative cursor-pointer block">
+                        <div className="flex items-center gap-3 w-full">
+                            <div className="relative">
+                                <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-black text-xs text-white shrink-0 group-hover:bg-blue-500 transition-colors">
+                                    {user?.username?.charAt(0).toUpperCase()}
+                                </div>
+                                {pendingCount > 0 && (
+                                    <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5 items-center justify-center">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500 border-2 border-gray-950"></span>
+                        </span>
+                                )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-xs font-black text-white truncate group-hover:text-blue-400 transition-colors">{user?.username}</p>
+                                <p className="text-[10px] text-gray-500 font-bold uppercase">{user?.role}</p>
+                            </div>
                         </div>
-                        <div className="min-w-0">
-                            <p className="text-xs font-black text-white truncate">{user?.username}</p>
-                            <p className="text-[10px] text-gray-500 font-bold uppercase">{user?.role}</p>
-                        </div>
-                    </div>
+                    </Link>
                     <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-red-950/50 rounded-xl font-black text-xs uppercase transition-colors">
                         <LogOut size={18} /> Logout
                     </button>

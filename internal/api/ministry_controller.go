@@ -2,7 +2,6 @@ package api
 
 import (
 	"fmt"
-	"gift-redeemer/internal/config"
 	"gift-redeemer/internal/db"
 	"net/http"
 	"strconv"
@@ -12,13 +11,11 @@ import (
 
 type MinistryController struct {
 	store *db.Store
-	cfg   *config.Config
 }
 
-func NewMinistryController(s *db.Store, c *config.Config) *MinistryController {
+func NewMinistryController(s *db.Store) *MinistryController {
 	return &MinistryController{
 		store: s,
-		cfg:   c,
 	}
 }
 
