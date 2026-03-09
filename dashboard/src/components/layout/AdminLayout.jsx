@@ -48,7 +48,7 @@ export default function AdminLayout({ children, title, actions }) {
 
         const checkQueue = async () => {
             try {
-                const res = await client.get('/api/moderator/admin/pending');
+                const res = await client.get('/moderator/admin/pending');
                 setPendingCount(res.data?.length || 0);
             } catch (err) {
                 console.error("Background transfer check failed");
