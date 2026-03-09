@@ -23,7 +23,7 @@ require (
 	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/PuerkitoBio/goquery v1.11.0 // indirect
 	github.com/andybalholm/cascadia v1.3.3 // indirect
-	github.com/antchfx/htmlquery v1.3.5 // indirect
+	github.com/antchfx/htmlquery v1.3.6 // indirect
 	github.com/antchfx/xmlquery v1.5.0 // indirect
 	github.com/antchfx/xpath v1.3.6 // indirect
 	github.com/bits-and-blooms/bitset v1.24.4 // indirect
@@ -74,10 +74,10 @@ require (
 	github.com/x448/float16 v0.8.4 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.5.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/arch v0.24.0 // indirect
+	golang.org/x/arch v0.25.0 // indirect
 	golang.org/x/image v0.36.0 // indirect
 	golang.org/x/net v0.51.0 // indirect
-	golang.org/x/sys v0.41.0 // indirect
+	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"gift-redeemer/internal/db"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-redis/redis/v8"
 	"github.com/pquerna/otp/totp"
 )
 
@@ -33,6 +35,11 @@ func NewAuthController(s *db.Store, c *config.Config, p *client.PlayerClient, r 
 		redisStore: r,
 	}
 }
+
+const (
+	MaxPlayerLoginAttempts = 3
+	PlayerLoginWindow      = 15 * time.Minute
+)
 
 func (ac *AuthController) Login(c *gin.Context) {
 	ip := c.ClientIP()
@@ -136,6 +143,19 @@ func (ac *AuthController) PlayerLogin(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(400, gin.H{"error": "Game ID (FID) is required"})
+		return
+	}
+
+	clientIP := c.ClientIP()
+	allowed, err := CheckPlayerLoginRateLimit(ac.redisStore.Client, clientIP, input.FID)
+	if err != nil {
+		fmt.Printf("Rate limit error: %v\n", err)
+		c.JSON(500, gin.H{"error": "Internal server error during security check"})
+		return
+	}
+
+	if !allowed {
+		c.JSON(429, gin.H{"error": "Too many login attempts. Please try again in 15 minutes."})
 		return
 	}
 
@@ -486,4 +506,32 @@ func (ac *AuthController) GetUserProfile(c *gin.Context) {
 		"has_webauthn": hasWebAuthn,
 		"devices":      devices,
 	})
+}
+
+func CheckPlayerLoginRateLimit(rClient *redis.Client, ipAddress string, playerID int64) (bool, error) {
+	ctx := context.Background()
+
+	ipKey := fmt.Sprintf("ratelimit:player:ip:%s", ipAddress)
+	idKey := fmt.Sprintf("ratelimit:player:id:%d", playerID)
+
+	pipe := rClient.Pipeline()
+	ipIncr := pipe.Incr(ctx, ipKey)
+	idIncr := pipe.Incr(ctx, idKey)
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		return false, fmt.Errorf("redis pipeline failed: %w", err)
+	}
+
+	if ipIncr.Val() == 1 {
+		rClient.Expire(ctx, ipKey, PlayerLoginWindow)
+	}
+	if idIncr.Val() == 1 {
+		rClient.Expire(ctx, idKey, PlayerLoginWindow)
+	}
+
+	if ipIncr.Val() > MaxPlayerLoginAttempts || idIncr.Val() > MaxPlayerLoginAttempts {
+		return false, nil
+	}
+
+	return true, nil
 }
