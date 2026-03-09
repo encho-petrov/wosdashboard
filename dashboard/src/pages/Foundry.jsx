@@ -8,6 +8,7 @@ import {
     ChevronRight, History as HistoryIcon, Clock, CalendarDays, ChevronDown, Zap, Sword
 } from 'lucide-react';
 import AdminLayout from '../components/layout/AdminLayout';
+import formatPower from '../components/FormatPower.jsx';
 
 export default function AllianceWarRoom() {
     const { user } = useAuth();
@@ -110,14 +111,6 @@ export default function AllianceWarRoom() {
     const formatDate = (dateString) => new Date(dateString).toLocaleDateString('en-US', {
         weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
     });
-
-    const formatPower = (num) => {
-        if (!num) return "0";
-        if (num >= 1000000000) return (num / 1000000000).toFixed(2) + 'B';
-        if (num >= 1000000) return (num / 1000000).toFixed(2) + 'M';
-        if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-        return num.toString();
-    };
 
     const handleDeploy = async (fid, legionId, isSub) => {
         if (!isAdmin) return toast.warning("Read-only access.");

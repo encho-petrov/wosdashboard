@@ -196,6 +196,23 @@ export default function MinistryReservations() {
         (p.fid || '').toString().includes(searchModal.query)
     );
 
+    const formatClosedDate = (dateObj) => {
+        if (!dateObj) return 'Unknown';
+
+        let safeString = dateObj;
+        if (typeof dateObj === 'object' && dateObj.Time) {
+            if (!dateObj.Valid) return 'Unknown';
+            safeString = dateObj.Time;
+        }
+
+        if (typeof safeString === 'string' && !safeString.includes('T')) {
+            safeString = safeString.replace(' ', 'T') + 'Z';
+        }
+
+        const d = new Date(safeString);
+        return isNaN(d.getTime()) ? 'Unknown' : d.toLocaleDateString();
+    };
+
     const ministryActions = (
         <div className="flex gap-3">
             {viewingHistory ? (
@@ -353,7 +370,7 @@ export default function MinistryReservations() {
                                         }`}
                                     >
                                         <div className="text-sm font-bold truncate">{h.title}</div>
-                                        <div className="text-[10px] opacity-60 mt-1 font-mono">Closed: {new Date(h.closedAt).toLocaleDateString()}</div>
+                                        <div className="text-[10px] opacity-60 mt-1 font-mono">Closed: {formatClosedDate(h.closedAt)}</div>
                                     </button>
                                 ))}
                             </div>

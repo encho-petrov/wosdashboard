@@ -9,6 +9,7 @@ import {
     ChevronDown, CheckSquare, Square
 } from 'lucide-react';
 import AdminLayout from '../components/layout/AdminLayout';
+import formatPower from '../components/FormatPower.jsx';
 
 const MultiSelectDropdown = ({ options, selected, onChange, placeholder, activeColorClass }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -101,14 +102,6 @@ export default function WarRoom() {
         } finally {
             if (!silent) setLoading(false);
         }
-    };
-
-    const formatPower = (num) => {
-        if (!num) return "0";
-        if (num >= 1000000000) return (num / 1000000000).toFixed(2) + 'B';
-        if (num >= 1000000) return (num / 1000000).toFixed(2) + 'M';
-        if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-        return num.toString();
     };
 
     const handleReset = async () => {
@@ -403,7 +396,12 @@ export default function WarRoom() {
                                                 <div className="flex items-center gap-3 min-w-0">
                                                     <img src={m.avatar} className="w-8 h-8 rounded-lg grayscale group-hover:grayscale-0 transition-all object-cover shrink-0" alt="" />
                                                     <div className="flex-1 min-w-0">
-                                                        <div className="text-[11px] font-bold text-gray-300 truncate tracking-tighter group-hover:text-white">{m.nickname}</div>
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="text-[11px] font-bold text-gray-300 truncate tracking-tighter group-hover:text-white">{m.nickname}</div>
+                                                            <div className="text-[8px] px-1.5 py-0.5 rounded-sm border font-black uppercase tracking-tighter text-gray-400 border-gray-700 bg-gray-800/40 shrink-0">
+                                                                {m.allianceName || 'NONE'}
+                                                            </div>
+                                                        </div>
                                                         <div className="flex items-center gap-1.5 mt-0.5">
                                                             <span className="text-[9px] text-blue-400 font-mono" title="Base Power">⚡ {formatPower(m.normalPower)}</span>
                                                             <span className="text-[9px] text-gray-600">|</span>
