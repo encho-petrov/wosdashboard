@@ -12,6 +12,7 @@ type TransferSeason struct {
 	PowerCap                int64        `db:"power_cap" json:"powerCap"`
 	IsLeading               bool         `db:"is_leading" json:"isLeading"`
 	SpecialInvitesAvailable int          `db:"special_invites_available" json:"specialInvitesAvailable"`
+	NormalInvitesAvailable  int          `db:"normal_invites_available" json:"normalInvitesAvailable"`
 	Status                  string       `db:"status" json:"status"`
 	CreatedAt               time.Time    `db:"created_at" json:"createdAt"`
 	ClosedAt                sql.NullTime `db:"closed_at" json:"closedAt"`
@@ -44,10 +45,10 @@ func (s *Store) GetActiveTransferSeason() (*TransferSeason, error) {
 	return &ts, err
 }
 
-func (s *Store) CreateTransferSeason(name string, powerCap int64, isLeading bool, specials int) error {
-	query := `INSERT INTO transfer_seasons (name, power_cap, is_leading, special_invites_available, status) 
-              VALUES (?, ?, ?, ?, 'Planning')`
-	_, err := s.db.Exec(query, name, powerCap, isLeading, specials)
+func (s *Store) CreateTransferSeason(name string, powerCap int64, isLeading bool, specials int, normals int) error {
+	query := `INSERT INTO transfer_seasons (name, power_cap, is_leading, special_invites_available, normal_invites_available, status) 
+              VALUES (?, ?, ?, ?, ?, 'Planning')`
+	_, err := s.db.Exec(query, name, powerCap, isLeading, specials, normals)
 	return err
 }
 
@@ -131,5 +132,11 @@ func (s *Store) GetClosedTransferSeasons() ([]TransferSeason, error) {
 
 func (s *Store) UpdateSeasonStatus(seasonID int, status string) error {
 	_, err := s.db.Exec("UPDATE transfer_seasons SET status = ? WHERE id = ?", status, seasonID)
+	return err
+}
+
+func (s *Store) UpdateTransferSeasonParams(id int, powerCap int64, specials int, normals int) error {
+	query := `UPDATE transfer_seasons SET power_cap = ?, special_invites_available = ?, normal_invites_available = ? WHERE id = ?`
+	_, err := s.db.Exec(query, powerCap, specials, normals, id)
 	return err
 }

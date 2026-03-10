@@ -52,13 +52,14 @@ func (tc *TransfersController) CreateTransferSeason(c *gin.Context) {
 		PowerCap int64  `json:"powerCap"`
 		Leading  bool   `json:"leading"`
 		Specials int    `json:"specials"`
+		Normals  int    `json:"normals"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
 		return
 	}
 
-	if err := tc.store.CreateTransferSeason(req.Name, req.PowerCap, req.Leading, req.Specials); err != nil {
+	if err := tc.store.CreateTransferSeason(req.Name, req.PowerCap, req.Leading, req.Specials, req.Normals); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create season"})
 		return
 	}
@@ -229,4 +230,31 @@ func (tc *TransfersController) ConfirmOutbandTransfer(c *gin.Context) {
 
 	logAction(c, tc.store, "TRANSFERS", fmt.Sprintf("Transferred Out: %s to %s", req.Nickname, req.DestState))
 	c.JSON(http.StatusOK, gin.H{"message": "Player successfully archived and logged in transfer history."})
+}
+
+func (tc *TransfersController) EditTransferSeason(c *gin.Context) {
+	if c.GetString("role") != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+		return
+	}
+
+	id, _ := strconv.Atoi(c.Param("id"))
+
+	var req struct {
+		PowerCap int64 `json:"powerCap"`
+		Specials int   `json:"specials"`
+		Normals  int   `json:"normals"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input format"})
+		return
+	}
+
+	if err := tc.store.UpdateTransferSeasonParams(id, req.PowerCap, req.Specials, req.Normals); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update season parameters"})
+		return
+	}
+
+	logAction(c, tc.store, "TRANSFERS", fmt.Sprintf("Updated season ID %d (Power Cap: %d, Specials: %d)", id, req.PowerCap, req.Specials))
+	c.JSON(http.StatusOK, gin.H{"message": "Season parameters updated"})
 }

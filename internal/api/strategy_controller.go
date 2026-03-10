@@ -1,11 +1,14 @@
 package api
 
 import (
+	"fmt"
 	"gift-redeemer/internal/cache"
 	"gift-redeemer/internal/config"
 	"gift-redeemer/internal/db"
 	"gift-redeemer/internal/models"
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -117,4 +120,22 @@ func (sc *StrategyController) SavePetSchedule(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Pet schedule saved successfully"})
+}
+
+func (sc *StrategyController) HeroIcon(c *gin.Context) {
+	filename := c.Param("filename")
+
+	if strings.Contains(filename, "..") || strings.Contains(filename, "/") || strings.Contains(filename, "\\") {
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Invalid file path"})
+		return
+	}
+
+	imagePath := fmt.Sprintf("./shared-assets/heroes/%s", filename)
+
+	if _, err := os.Stat(imagePath); os.IsNotExist(err) {
+		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Hero portrait not found"})
+		return
+	}
+
+	c.File(imagePath)
 }

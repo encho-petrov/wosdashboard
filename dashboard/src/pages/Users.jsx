@@ -112,13 +112,20 @@ export default function Users() {
   };
 
   const handleResetMFA = async (id, currentUsername) => {
-    if (!window.confirm(`Wipe all security settings (TOTP and Biometrics) for ${currentUsername}? They will be forced to log in with just their password.`)) return;
+    const newPassword = window.prompt(
+        `RESET SECURITY FOR: ${currentUsername}\n\nThis will wipe all TOTP and Biometric data.\nEnter a new temporary password for this user:`
+    );
+
+    if (!newPassword) return;
+
     try {
-      await client.post(`/admin/users/${id}/reset-mfa`);
-      toast.success(`Security reset for ${currentUsername}`);
+      await client.post(`/admin/users/${id}/reset-security`, {
+        new_password: newPassword
+      });
+      toast.success(`Security reset for ${currentUsername}. Password updated.`);
       await fetchData();
     } catch (err) {
-      toast.error("Failed to reset security settings");
+      toast.error(err.response?.data?.error || "Failed to reset security settings");
     }
   };
 
@@ -254,13 +261,15 @@ export default function Users() {
 
                           <td className="p-4 pr-6 text-right space-x-2">
                             {/* Edit Button */}
-                            <button
-                                onClick={() => setEditingUser({ ...u, allianceId: u.allianceId || '' })}
-                                className="p-2 text-blue-500/70 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-all border border-transparent hover:border-blue-500/30 lg:opacity-0 lg:group-hover:opacity-100 opacity-100"
-                                title="Edit Role & Alliance"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
+                            {u.id !== 1 && (
+                                <button
+                                    onClick={() => setEditingUser({ ...u, allianceId: u.allianceId || '' })}
+                                    className="p-2 text-blue-500/70 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-all border border-transparent hover:border-blue-500/30 lg:opacity-0 lg:group-hover:opacity-100 opacity-100"
+                                    title="Edit Role & Alliance"
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </button>
+                            )}
 
                             <button
                                 onClick={() => handleResetMFA(u.id, u.username)}

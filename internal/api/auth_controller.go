@@ -4,9 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"gift-redeemer/internal/auth"
@@ -224,24 +222,6 @@ func (ac *AuthController) Refresh(c *gin.Context) {
 	})
 }
 
-func (ac *AuthController) HeroIcon(c *gin.Context) {
-	filename := c.Param("filename")
-
-	if strings.Contains(filename, "..") || strings.Contains(filename, "/") || strings.Contains(filename, "\\") {
-		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Invalid file path"})
-		return
-	}
-
-	imagePath := fmt.Sprintf("./shared-assets/heroes/%s", filename)
-
-	if _, err := os.Stat(imagePath); os.IsNotExist(err) {
-		c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Hero portrait not found"})
-		return
-	}
-
-	c.File(imagePath)
-}
-
 func (ac *AuthController) WebAuthNLoginBegin(c *gin.Context) {
 	tempToken := c.Query("temp_token")
 	if tempToken == "" {
@@ -421,22 +401,6 @@ func (ac *AuthController) EnableMfa(c *gin.Context) {
 	c.JSON(200, gin.H{"message": "MFA Enabled Successfully"})
 }
 
-func (ac *AuthController) ResetMfa(c *gin.Context) {
-	userIDStr := c.Param("id")
-	userID, err := strconv.Atoi(userIDStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
-		return
-	}
-
-	if err := ac.store.ResetUserMFA(userID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reset MFA"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "User security settings have been reset"})
-}
-
 func (ac *AuthController) AuthMe(c *gin.Context) {
 	username := c.GetString("username")
 
@@ -534,4 +498,33 @@ func CheckPlayerLoginRateLimit(rClient *redis.Client, ipAddress string, playerID
 	}
 
 	return true, nil
+}
+
+func (ac *AuthController) ResetUserSecurity(c *gin.Context) {
+	idParam := c.Param("id")
+	id, _ := strconv.Atoi(idParam)
+
+	if id == 1 {
+		c.JSON(http.StatusForbidden, gin.H{"error": "The master admin account cannot be reset this way."})
+		return
+	}
+
+	var input struct {
+		NewPassword string `json:"new_password" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(400, gin.H{"error": "New password is required"})
+		return
+	}
+
+	hash, _ := auth.HashPassword(input.NewPassword)
+
+	if err := ac.store.ResetUserSecurity(id, hash); err != nil {
+		c.JSON(500, gin.H{"error": "Failed to reset user security"})
+		return
+	}
+
+	logAction(c, ac.store, "RESET_SECURITY", fmt.Sprintf("Reset password and wiped MFA for user ID: %d", id))
+	c.JSON(200, gin.H{"message": "Security reset successfully"})
 }

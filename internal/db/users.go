@@ -222,3 +222,22 @@ func (s *Store) UpdateUserAccess(userID int, role string, allianceID *int) error
 	_, err := s.db.Exec("UPDATE users SET role = ?, alliance_id = ? WHERE id = ?", role, allianceID, userID)
 	return err
 }
+
+func (s *Store) ResetUserSecurity(userID int, newPasswordHash string) error {
+	userQuery := `
+		UPDATE users 
+		SET password_hash = $1, 
+		    mfa_enabled = false, 
+		    mfa_secret = '' 
+		WHERE id = $2
+	`
+	_, err := s.db.Exec(userQuery, newPasswordHash, userID)
+	if err != nil {
+		return err
+	}
+
+	webauthnQuery := `DELETE FROM webauthn_credentials WHERE user_id = $1`
+	s.db.Exec(webauthnQuery, userID)
+
+	return nil
+}

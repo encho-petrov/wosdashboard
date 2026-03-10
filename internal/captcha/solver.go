@@ -36,7 +36,7 @@ func (s *Solver) Solve(base64Image string) (string, error) {
 	log.Println("[Solver] Sending image to 2Captcha...")
 	startTime := time.Now()
 
-	submitUrl := "http://2captcha.com/in.php"
+	submitUrl := "https://2captcha.com/in.php"
 	data := url.Values{}
 	data.Set("key", s.ApiKey)
 	data.Set("method", "base64")
@@ -69,7 +69,7 @@ func (s *Solver) Solve(base64Image string) (string, error) {
 	time.Sleep(5 * time.Second)
 
 	for i := 0; i < 30; i++ {
-		solveUrl := fmt.Sprintf("http://2captcha.com/res.php?key=%s&action=get&id=%s&json=1", s.ApiKey, captchaID)
+		solveUrl := fmt.Sprintf("https://2captcha.com/res.php?key=%s&action=get&id=%s&json=1", s.ApiKey, captchaID)
 		resp, err := s.Client.Get(solveUrl)
 		if err != nil {
 			time.Sleep(2 * time.Second)

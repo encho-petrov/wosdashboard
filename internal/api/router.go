@@ -91,7 +91,7 @@ func SetupRouter(engine *processor.Processor, store *db.Store, cfg *config.Confi
 	r.POST("/api/refresh", authCtrl.Refresh)
 	r.POST("/api/login/player", authCtrl.PlayerLogin)
 	r.GET("/api/moderator/discord/callback", discordCtrl.CallbackHandler)
-	r.GET("/api/shared-assets/heroes/:filename", authCtrl.HeroIcon)
+	r.GET("/api/shared-assets/heroes/:filename", strategyCtrl.HeroIcon)
 	r.GET("/api/webauthn/login/begin", authCtrl.WebAuthNLoginBegin)
 	r.POST("/api/webauthn/login/finish", authCtrl.WebAuthNLoginEnd)
 
@@ -129,7 +129,6 @@ func SetupRouter(engine *processor.Processor, store *db.Store, cfg *config.Confi
 		authorized.POST("/change-password", authCtrl.ChangePassword)
 		authorized.GET("/mfa/generate", authCtrl.GenerateMfa)
 		authorized.POST("/mfa/enable", authCtrl.EnableMfa)
-		//authorized.POST("/create-user", adminCtrl.CreateUser)
 		authorized.GET("/jobs", redeemCtrl.GetRecentJobs)
 		authorized.GET("/job/current", redeemCtrl.GetActiveJob)
 		authorized.GET("/reports/:filename", redeemCtrl.GetActiveJob)
@@ -192,7 +191,7 @@ func SetupRouter(engine *processor.Processor, store *db.Store, cfg *config.Confi
 		admin.GET("/webauthn/register/begin", authCtrl.WebAuthNLRegisterBegin)
 		admin.POST("/webauthn/register/finish", authCtrl.WebAuthNLRegisterEnd)
 		admin.DELETE("/webauthn/device", authCtrl.WebAuthNDeleteDevice)
-		admin.POST("/users/:id/reset-mfa", authCtrl.ResetMfa)
+		admin.POST("/users/:id/reset-security", authCtrl.ResetUserSecurity)
 		admin.GET("/auth/me", AuthMiddleware(store), authCtrl.AuthMe)
 		admin.GET("/users", adminCtrl.GetAllUsers)
 		admin.POST("/users", adminCtrl.CreateUser)
@@ -210,6 +209,7 @@ func SetupRouter(engine *processor.Processor, store *db.Store, cfg *config.Confi
 			transfers.PUT("/seasons/:id/status", transfersCtrl.UpdateSeasonStatus)
 			transfers.GET("/history", transfersCtrl.GetTransferHistory)
 			transfers.GET("/seasons/:id/records", transfersCtrl.GetTransferRecords)
+			transfers.PUT("/seasons/:id", transfersCtrl.EditTransferSeason)
 		}
 
 		rotation := authorized.Group("/rotation")

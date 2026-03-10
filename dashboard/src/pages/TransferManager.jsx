@@ -6,7 +6,7 @@ import AdminLayout from '../components/layout/AdminLayout';
 import { toast } from 'react-toastify';
 import MfaSetupModal from '../components/MfaSetupModal';
 import {
-    Plus, Archive, Check, X,
+    Plus, Archive, Check, X, Edit,
     AlertTriangle, Send, Shield, Play, History, Activity
 } from 'lucide-react';
 
@@ -27,8 +27,10 @@ export default function TransferManager() {
 
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [editSeasonData, setEditSeasonData] = useState({ powerCap: 0, specials: 0, normals: 0 });
     const [bulkFids, setBulkFids] = useState('');
-    const [newSeason, setNewSeason] = useState({ name: '', powerCap: 200000000, leading: false, specials: 3 });
+    const [newSeason, setNewSeason] = useState({ name: '', powerCap: 200000000, leading: false, specials: 1, normals: 35 });
     const [showMfaModal, setShowMfaModal] = useState(false);
 
     // Mobile modal state
@@ -74,7 +76,7 @@ export default function TransferManager() {
     // --- CALCULATIONS ---
     const stats = useMemo(() => {
         if (!season) return { normalUsed: 0, normalMax: 0, specialUsed: 0, specialMax: 0 };
-        const normalMax = season.isLeading ? 20 : 35;
+        const normalMax = season.normalInvitesAvailable ?? (season.isLeading ? 20 : 35);
         const specialMax = season.specialInvitesAvailable;
         const normalUsed = records.filter(r => r.inviteType === 'Normal' && r.status !== 'Declined').length;
         const specialUsed = records.filter(r => r.inviteType === 'Special' && r.status !== 'Declined').length;
@@ -169,7 +171,30 @@ export default function TransferManager() {
         } catch (err) { toast.error("Failed to confirm player"); }
     };
 
-    // Refactored buttons to be flex-responsive and match Roster.jsx
+    const openEditModal = () => {
+        setEditSeasonData({
+            powerCap: season.powerCap,
+            specials: season.specialInvitesAvailable,
+            normals: season.normalInvitesAvailable ?? (season.isLeading ? 20 : 35)
+        });
+        setShowEditModal(true);
+    };
+
+    const handleEditSeasonSubmit = async () => {
+        try {
+            await client.put(`/moderator/transfers/seasons/${season.id}`, {
+                powerCap: editSeasonData.powerCap,
+                specials: editSeasonData.specials,
+                normals: editSeasonData.normals
+            });
+            toast.success("Season parameters updated!");
+            setShowEditModal(false);
+            await fetchData();
+        } catch (err) {
+            toast.error("Failed to update season details");
+        }
+    };
+
     const transferActions = (
         <div className="flex flex-wrap gap-2 w-full lg:w-auto">
             {viewingHistory ? (
@@ -191,6 +216,9 @@ export default function TransferManager() {
                             {season.status === 'Planning' && (
                                 <button onClick={() => handleUpdateSeasonStatus('Active')} className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-blue-600/20 border border-blue-800/50 hover:bg-blue-600/40 text-blue-400 rounded-xl font-black text-xs uppercase shadow-lg transition-all">
                                     <Play size={16} /> Open
+                                </button>) && (
+                                <button onClick={openEditModal} className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-yellow-600/20 border border-yellow-800/50 hover:bg-yellow-600/40 text-yellow-400 rounded-xl font-black text-xs uppercase shadow-lg transition-all">
+                                    <Edit size={16} /> Edit
                                 </button>
                             )}
 
@@ -393,6 +421,10 @@ export default function TransferManager() {
     // RENDER: NO ACTIVE SEASON
     // ==========================================
     if (!season) {
+        const handleLeadingToggle = (e) => {
+            const isLeading = e.target.checked;
+            setNewSeason({ ...newSeason, leading: isLeading, normals: isLeading ? 20 : 35, specials: isLeading ? 0 : 1 });
+        };
         return (
             <AdminLayout title="Transfer Manager">
                 <div className="p-4 md:p-6 flex flex-col h-full bg-gray-950 overflow-hidden">
@@ -440,19 +472,24 @@ export default function TransferManager() {
                                             <div>
                                                 <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Power Cap</label>
                                                 <input type="number" className="w-full p-3 bg-gray-900 border border-gray-700 rounded-xl text-white outline-none font-mono"
-                                                       value={newSeason.powerCap} onChange={e => setNewSeason({...newSeason, powerCap: parseInt(e.target.value)})} />
+                                                       value={newSeason.powerCap} onChange={e => setNewSeason({...newSeason, powerCap: parseInt(e.target.value) || 0})} />
                                             </div>
                                             <div>
-                                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Specials Available</label>
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Normal Invites</label>
                                                 <input type="number" className="w-full p-3 bg-gray-900 border border-gray-700 rounded-xl text-white outline-none font-mono"
-                                                       value={newSeason.specials} onChange={e => setNewSeason({...newSeason, specials: parseInt(e.target.value)})} />
+                                                       value={newSeason.normals} onChange={e => setNewSeason({...newSeason, normals: parseInt(e.target.value) || 0})} />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Specials</label>
+                                                <input type="number" className="w-full p-3 bg-gray-900 border border-gray-700 rounded-xl text-white outline-none font-mono"
+                                                       value={newSeason.specials} onChange={e => setNewSeason({...newSeason, specials: parseInt(e.target.value) || 0})} />
                                             </div>
                                         </div>
-                                        <label className="flex items-center gap-3 p-4 bg-gray-900 rounded-xl border border-gray-700 cursor-pointer group hover:border-blue-500 transition-all">
-                                            <input type="checkbox" className="w-5 h-5 rounded border-gray-700 bg-gray-800" checked={newSeason.leading} onChange={e => setNewSeason({...newSeason, leading: e.target.checked})} />
+                                        <label className="flex items-center gap-3 p-4 bg-gray-900 rounded-xl border border-gray-700 cursor-pointer group hover:border-blue-500 transition-all mt-4">
+                                            <input type="checkbox" className="w-5 h-5 rounded border-gray-700 bg-gray-800" checked={newSeason.leading} onChange={handleLeadingToggle} />
                                             <div>
                                                 <p className="text-xs font-black uppercase tracking-widest text-white">Leading State Status</p>
-                                                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter">Enforces strict 20-invite limit</p>
+                                                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter">Auto-adjusts limits for leading states</p>
                                             </div>
                                         </label>
                                     </div>
@@ -718,6 +755,47 @@ export default function TransferManager() {
                                 <button onClick={handleBulkAdd} className="px-8 py-2.5 bg-green-600 hover:bg-green-500 text-white rounded-xl font-black uppercase tracking-widest shadow-xl flex items-center gap-2 transition-all hover:scale-105">
                                     <Send size={16} /> Sync API
                                 </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                {/* Edit Season Modal */}
+                {showEditModal && (
+                    <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[70] p-4">
+                        <div className="bg-gray-800 p-8 rounded-2xl w-full max-w-md border border-gray-700 shadow-2xl text-left animate-in zoom-in-95 duration-200">
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-xl font-black text-white uppercase tracking-tighter">Edit Season Parameters</h3>
+                                <button onClick={() => setShowEditModal(false)} className="text-gray-500 hover:text-white transition-colors">
+                                    <X size={20} />
+                                </button>
+                            </div>
+
+                            <div className="space-y-4 mb-8">
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Power Cap</label>
+                                        <input type="number" className="w-full p-3 bg-gray-900 border border-gray-700 rounded-xl text-white outline-none font-mono focus:border-yellow-500 transition-all shadow-inner"
+                                               value={editSeasonData.powerCap} onChange={e => setEditSeasonData({...editSeasonData, powerCap: parseInt(e.target.value) || 0})} />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Normals</label>
+                                        <input type="number" className="w-full p-3 bg-gray-900 border border-gray-700 rounded-xl text-white outline-none font-mono focus:border-yellow-500 transition-all shadow-inner"
+                                               value={editSeasonData.normals} onChange={e => setEditSeasonData({...editSeasonData, normals: parseInt(e.target.value) || 0})} />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Specials</label>
+                                        <input type="number" className="w-full p-3 bg-gray-900 border border-gray-700 rounded-xl text-white outline-none font-mono focus:border-yellow-500 transition-all shadow-inner"
+                                               value={editSeasonData.specials} onChange={e => setEditSeasonData({...editSeasonData, specials: parseInt(e.target.value) || 0})} />
+                                    </div>
+                                </div>
+                                <p className="text-[10px] text-yellow-600 font-bold uppercase tracking-widest border border-yellow-900/50 bg-yellow-900/10 p-3 rounded-xl mt-4">
+                                    Note: Reducing limits below current consumption will not invalidate already assigned invites, but will block new ones.
+                                </p>
+                            </div>
+
+                            <div className="flex justify-end gap-3">
+                                <button onClick={() => setShowEditModal(false)} className="px-5 py-2.5 text-gray-400 hover:text-white font-black uppercase tracking-widest text-xs">Cancel</button>
+                                <button onClick={handleEditSeasonSubmit} className="px-8 py-2.5 bg-yellow-600 hover:bg-yellow-500 text-white rounded-xl font-black uppercase tracking-widest shadow-lg transition-all">Save Changes</button>
                             </div>
                         </div>
                     </div>

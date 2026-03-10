@@ -8,7 +8,6 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // --- 1. HYDRATION CYCLE ---
   useEffect(() => {
     const hydrateSession = async () => {
       const token = localStorage.getItem('token');
@@ -21,19 +20,18 @@ export const AuthProvider = ({ children }) => {
       try {
         const decoded = jwtDecode(token);
 
-        // Hard token expiration check
         if (decoded.exp * 1000 < Date.now()) {
-          throw new Error("Token expired");
+          console.warn("Token expired. Wiping state.");
+          logout();
+          return;
         }
 
-        // Branching Logic: Players hydrate from token, Staff hydrate from DB
         if (decoded.role === 'player') {
           setUser({
             username: decoded.username || decoded.fid,
             role: decoded.role
           });
         } else {
-          // Fetch the absolute source of truth for admins/moderators
           const res = await client.get('/admin/auth/me');
 
           setUser({
@@ -44,7 +42,7 @@ export const AuthProvider = ({ children }) => {
           });
         }
       } catch (e) {
-        console.warn("Session hydration failed. Wiping state.");
+        console.error("Session hydration failed due to a network or parsing error:", e);
         logout();
       } finally {
         setLoading(false);
@@ -57,14 +55,11 @@ export const AuthProvider = ({ children }) => {
   // --- 2. STAFF LOGIN ---
   const login = async (token, role, username, mfaEnabled, allianceId = null) => {
     try {
-      // ONLY store the secure access token
       localStorage.setItem('token', token);
 
-      // Legacy cleanup (wipes the vulnerable keys from old sessions)
       localStorage.removeItem('mfa_enabled');
       localStorage.removeItem('allianceId');
 
-      // Inject dynamic data strictly into React memory
       setUser({
         username,
         role,
@@ -83,14 +78,12 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     localStorage.removeItem('token');
 
-    // Legacy cleanup just in case
     localStorage.removeItem('mfa_enabled');
     localStorage.removeItem('allianceId');
 
     setUser(null);
   };
 
-  // --- 4. PLAYER LOGIN (Unchanged flow, token-based state) ---
   const loginPlayer = async (fid) => {
     try {
       const res = await client.post('/login/player', { fid: parseInt(fid) });

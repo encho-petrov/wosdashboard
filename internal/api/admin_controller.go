@@ -110,7 +110,7 @@ func (ac *AdminController) CreateUser(c *gin.Context) {
 		c.JSON(500, gin.H{"error": "Failed to create user"})
 		return
 	}
-	logAction(c, ac.store, "ADD_USER", fmt.Sprintf("Created user: %d", input.Username))
+	logAction(c, ac.store, "ADD_USER", fmt.Sprintf("Created user: %s", input.Username))
 	c.JSON(201, gin.H{"message": "User created successfully"})
 }
 
