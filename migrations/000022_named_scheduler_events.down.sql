@@ -1,0 +1,1 @@
+ALTER TABLE discord_custom_crons DROP COLUMN name;

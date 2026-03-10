@@ -546,9 +546,10 @@ func (dc *DiscordController) CreateCustomCron(c *gin.Context) {
 	}
 
 	var req struct {
+		Name             string    `json:"name" binding:"required"`
 		NextRunTime      time.Time `json:"nextRunTime" binding:"required"`
 		RecurrenceType   string    `json:"recurrenceType" binding:"required"`
-		RecurrenceConfig string    `json:"recurrenceConfig"` // Can be empty for ONCE
+		RecurrenceConfig string    `json:"recurrenceConfig"`
 		Message          string    `json:"message" binding:"required"`
 		ChannelID        string    `json:"channelId" binding:"required"`
 		PingRoleID       *string   `json:"pingRoleId"`
@@ -561,6 +562,7 @@ func (dc *DiscordController) CreateCustomCron(c *gin.Context) {
 
 	newJob := db.DiscordCustomCron{
 		AllianceID:       allianceID,
+		Name:             req.Name,
 		ChannelID:        req.ChannelID,
 		NextRunTime:      req.NextRunTime.UTC(),
 		RecurrenceType:   req.RecurrenceType,

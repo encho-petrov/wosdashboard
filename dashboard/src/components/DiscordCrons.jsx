@@ -14,6 +14,7 @@ export default function DiscordCrons({ adminScope, roles, channels }) {
     const [pingRoleId, setPingRoleId] = useState('');
     const [channelId, setChannelId] = useState('');
     const [editingId, setEditingId] = useState(null);
+    const [name, setName] = useState('');
 
     // New Scheduling State
     const [nextRunTime, setNextRunTime] = useState(null);
@@ -76,6 +77,7 @@ export default function DiscordCrons({ adminScope, roles, channels }) {
             const utcNextRun = `${nextRunTime.getFullYear()}-${pad(nextRunTime.getMonth() + 1)}-${pad(nextRunTime.getDate())}T${pad(nextRunTime.getHours())}:${pad(nextRunTime.getMinutes())}:00Z`;
 
             const payload = {
+                name: name,
                 nextRunTime: utcNextRun,
                 recurrenceType: recurrenceType,
                 recurrenceConfig: JSON.stringify(configObj),
@@ -106,6 +108,7 @@ export default function DiscordCrons({ adminScope, roles, channels }) {
     };
 
     const handleEditClick = (cron) => {
+        setName(cron.name || '');
         setEditingId(cron.id);
         setMessage(cron.message);
         setChannelId(cron.channelId);
@@ -127,6 +130,7 @@ export default function DiscordCrons({ adminScope, roles, channels }) {
     };
 
     const cancelEdit = () => {
+        setName('');
         setEditingId(null);
         setMessage('');
         setNextRunTime(null);
@@ -180,6 +184,19 @@ export default function DiscordCrons({ adminScope, roles, channels }) {
 
             {/* CREATE NEW CRON FORM */}
             <form onSubmit={handleCreate} className="bg-black/40 border border-gray-800 rounded-2xl p-5 mb-8 space-y-5">
+
+                {/* ROW 0: Event Name */}
+                <div className="space-y-2 mb-4">
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Event Name</label>
+                    <input
+                        type="text"
+                        required
+                        placeholder="e.g., Bear Trap Reminder"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="w-full bg-gray-950 border border-gray-800 text-white text-sm rounded-xl px-4 py-3 outline-none focus:border-purple-500"
+                    />
+                </div>
 
                 {/* ROW 1: Date/Time & Recurrence */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -345,6 +362,7 @@ export default function DiscordCrons({ adminScope, roles, channels }) {
                     <div key={cron.id} className={`flex flex-col lg:flex-row lg:items-center justify-between border rounded-2xl p-4 gap-4 transition-all ${cron.isActive ? 'bg-gray-900 border-gray-700' : 'bg-black/40 border-gray-800 opacity-60'}`}>
 
                         <div className="flex-1 min-w-0 space-y-2">
+                            <h3 className="text-lg font-black text-white uppercase tracking-tight">{cron.name}</h3>
                             <div className="flex flex-wrap items-center gap-2">
                                 <span className="bg-purple-900/20 text-purple-400 border border-purple-500/30 font-bold uppercase tracking-widest text-[10px] px-2.5 py-1 rounded-md">
                                     {formatScheduleRules(cron.recurrenceType, cron.recurrenceConfig)}

@@ -9,6 +9,7 @@ import (
 type DiscordCustomCron struct {
 	ID               int       `db:"id" json:"id"`
 	AllianceID       *int      `db:"alliance_id" json:"allianceId"`
+	Name             string    `db:"name" json:"name"`
 	ChannelID        string    `db:"channel_id" json:"channelId"`
 	NextRunTime      time.Time `db:"next_run_time" json:"nextRunTime"`
 	RecurrenceType   string    `db:"recurrence_type" json:"recurrenceType"`
@@ -37,8 +38,8 @@ func (s *Store) GetCustomCrons(allianceID *int) ([]DiscordCustomCron, error) {
 
 func (s *Store) CreateCustomCron(cron *DiscordCustomCron) error {
 	query := `INSERT INTO discord_custom_crons 
-              (alliance_id, channel_id, next_run_time, recurrence_type, recurrence_config, message, ping_role_id, is_active) 
-              VALUES (:alliance_id, :channel_id, :next_run_time, :recurrence_type, :recurrence_config, :message, :ping_role_id, :is_active)`
+              (alliance_id, name, channel_id, next_run_time, recurrence_type, recurrence_config, message, ping_role_id, is_active) 
+              VALUES (:alliance_id, :name, :channel_id, :next_run_time, :recurrence_type, :recurrence_config, :message, :ping_role_id, :is_active)`
 
 	res, err := s.db.NamedExec(query, cron)
 	if err == nil {
@@ -147,13 +148,13 @@ func (s *Store) UpdateCustomCron(cron *DiscordCustomCron) error {
 	var query string
 	if cron.AllianceID == nil {
 		query = `UPDATE discord_custom_crons 
-                 SET channel_id = :channel_id, next_run_time = :next_run_time, 
+                 SET name = :name, channel_id = :channel_id, next_run_time = :next_run_time, 
                      recurrence_type = :recurrence_type, recurrence_config = :recurrence_config, 
                      message = :message, ping_role_id = :ping_role_id, updated_at = NOW() 
                  WHERE id = :id AND alliance_id IS NULL`
 	} else {
 		query = `UPDATE discord_custom_crons 
-                 SET channel_id = :channel_id, next_run_time = :next_run_time, 
+                 SET name = :name, channel_id = :channel_id, next_run_time = :next_run_time, 
                      recurrence_type = :recurrence_type, recurrence_config = :recurrence_config, 
                      message = :message, ping_role_id = :ping_role_id, updated_at = NOW() 
                  WHERE id = :id AND alliance_id = :alliance_id`
