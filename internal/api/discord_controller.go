@@ -545,24 +545,37 @@ func (dc *DiscordController) CreateCustomCron(c *gin.Context) {
 		return
 	}
 
-	var req db.DiscordCustomCron
+	var req struct {
+		NextRunTime      time.Time `json:"nextRunTime" binding:"required"`
+		RecurrenceType   string    `json:"recurrenceType" binding:"required"`
+		RecurrenceConfig string    `json:"recurrenceConfig"` // Can be empty for ONCE
+		Message          string    `json:"message" binding:"required"`
+		ChannelID        string    `json:"channelId" binding:"required"`
+		PingRoleID       *string   `json:"pingRoleId"`
+	}
+
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format: " + err.Error()})
 		return
 	}
 
-	req.AllianceID = allianceID
-	req.IsActive = true
+	newJob := db.DiscordCustomCron{
+		AllianceID:       allianceID,
+		ChannelID:        req.ChannelID,
+		NextRunTime:      req.NextRunTime.UTC(),
+		RecurrenceType:   req.RecurrenceType,
+		RecurrenceConfig: req.RecurrenceConfig,
+		Message:          req.Message,
+		PingRoleID:       req.PingRoleID,
+		IsActive:         true,
+	}
 
-	if err := dc.store.CreateCustomCron(&req); err != nil {
+	if err := dc.store.CreateCustomCron(&newJob); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save scheduled alert"})
 		return
 	}
 
-	if dc.cronManager != nil {
-		dc.cronManager.AddOrUpdateJob(req)
-	}
-	c.JSON(http.StatusOK, req)
+	c.JSON(http.StatusOK, newJob)
 }
 
 func (dc *DiscordController) DeleteCustomCron(c *gin.Context) {
@@ -574,9 +587,6 @@ func (dc *DiscordController) DeleteCustomCron(c *gin.Context) {
 		return
 	}
 
-	if dc.cronManager != nil {
-		dc.cronManager.RemoveJob(id)
-	}
 	c.JSON(http.StatusOK, gin.H{"message": "Alert deleted"})
 }
 
@@ -587,11 +597,6 @@ func (dc *DiscordController) ToggleCustomCron(c *gin.Context) {
 	if err := dc.store.ToggleCustomCron(id, allianceID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to toggle alert"})
 		return
-	}
-
-	updatedCron, err := dc.store.GetCustomCronByID(id)
-	if err == nil && dc.cronManager != nil {
-		dc.cronManager.AddOrUpdateJob(updatedCron)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Alert status updated"})
@@ -642,9 +647,42 @@ func (dc *DiscordController) DisconnectServer(c *gin.Context) {
 		return
 	}
 
-	if dc.cronManager != nil {
-		dc.cronManager.ReloadAllSchedules()
+	c.JSON(http.StatusOK, gin.H{"message": "Server disconnected and bot has left the guild."})
+}
+
+func (dc *DiscordController) EditCustomCron(c *gin.Context) {
+	allianceID, _ := dc.resolveTargetAlliance(c)
+	id, _ := strconv.Atoi(c.Param("id"))
+
+	var req struct {
+		NextRunTime      time.Time `json:"nextRunTime" binding:"required"`
+		RecurrenceType   string    `json:"recurrenceType" binding:"required"`
+		RecurrenceConfig string    `json:"recurrenceConfig"`
+		Message          string    `json:"message" binding:"required"`
+		ChannelID        string    `json:"channelId" binding:"required"`
+		PingRoleID       *string   `json:"pingRoleId"`
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Server disconnected and bot has left the guild."})
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+		return
+	}
+
+	job := db.DiscordCustomCron{
+		ID:               id,
+		AllianceID:       allianceID,
+		ChannelID:        req.ChannelID,
+		NextRunTime:      req.NextRunTime.UTC(),
+		RecurrenceType:   req.RecurrenceType,
+		RecurrenceConfig: req.RecurrenceConfig,
+		Message:          req.Message,
+		PingRoleID:       req.PingRoleID,
+	}
+
+	if err := dc.store.UpdateCustomCron(&job); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update alert"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Alert updated"})
 }
