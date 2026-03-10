@@ -285,7 +285,9 @@ export default function DiscordConfig() {
                 )}
 
                 {/* Custom Crons Component */}
-                <DiscordCrons adminScope={adminScope} roles={roles} channels={channels} />
+                {isLinked && (
+                    <DiscordCrons adminScope={adminScope} roles={roles} channels={channels} />
+                )}
             </div>
         </AdminLayout>
     );
