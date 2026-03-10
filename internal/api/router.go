@@ -236,7 +236,7 @@ func SetupRouter(engine *processor.Processor, store *db.Store, cfg *config.Confi
 			discord.PUT("/crons/:id/toggle", discordCtrl.ToggleCustomCron)
 			discord.DELETE("/routes/:eventType", discordCtrl.DeleteRoute)
 			discord.DELETE("/disconnect", discordCtrl.DisconnectServer)
-			discord.PUT("/discord/crons/:id", discordCtrl.EditCustomCron)
+			discord.PUT("/crons/:id", discordCtrl.EditCustomCron)
 		}
 	}
 	return r
