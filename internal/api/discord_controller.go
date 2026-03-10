@@ -657,6 +657,7 @@ func (dc *DiscordController) EditCustomCron(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 
 	var req struct {
+		Name             string    `json:"name" binding:"required"`
 		NextRunTime      time.Time `json:"nextRunTime" binding:"required"`
 		RecurrenceType   string    `json:"recurrenceType" binding:"required"`
 		RecurrenceConfig string    `json:"recurrenceConfig"`
@@ -672,6 +673,7 @@ func (dc *DiscordController) EditCustomCron(c *gin.Context) {
 
 	job := db.DiscordCustomCron{
 		ID:               id,
+		Name:             req.Name,
 		AllianceID:       allianceID,
 		ChannelID:        req.ChannelID,
 		NextRunTime:      req.NextRunTime.UTC(),
