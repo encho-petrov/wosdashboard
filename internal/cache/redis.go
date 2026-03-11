@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -124,4 +125,9 @@ func (r *RedisStore) GetWebAuthnSession(token string) (*webauthn.SessionData, er
 
 func (r *RedisStore) DeleteWebAuthnSession(token string) {
 	r.Client.Del(ctx, "wa_session:"+token)
+}
+
+func (r *RedisStore) Close() error {
+	log.Println("Closing Redis connection pool...")
+	return r.Client.Close()
 }

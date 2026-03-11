@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
@@ -66,4 +67,9 @@ func NewStore(user, pass, host, dbName string) (*Store, error) {
 		return nil, err
 	}
 	return &Store{db: db}, nil
+}
+
+func (s *Store) Close() error {
+	log.Println("Closing database connection pool...")
+	return s.db.Close()
 }
