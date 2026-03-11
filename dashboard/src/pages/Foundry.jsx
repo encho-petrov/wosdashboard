@@ -286,10 +286,10 @@ export default function AllianceWarRoom() {
                                                 'bg-yellow-900/30 text-yellow-500 border-yellow-800'
                                 }`}
                             >
-                                <option value="Pending">?</option>
-                                <option value="Attended">YES</option>
-                                <option value="Missed">NO</option>
-                                <option value="Exempt">EXC</option>
+                                <option className="bg-gray-900 text-yellow-500" value="Pending">?</option>
+                                <option className="bg-gray-900 text-green-500" value="Attended">YES</option>
+                                <option className="bg-gray-900 text-red-500" value="Missed">NO</option>
+                                <option className="bg-gray-900 text-gray-400" value="Exempt">EXC</option>
                             </select>
                         ) : null}
                     </div>
@@ -313,7 +313,7 @@ export default function AllianceWarRoom() {
         const activePlayers = mapToRoster(actives);
         const subPlayers = mapToRoster(subs);
 
-        // Dynamic Power Calculation for the Legion Header
+// Dynamic Power Calculation for the Legion Header
         const totalPower = activePlayers.reduce((sum, p) => {
             const val = eventType === 'Foundry' ? (p.power || p.tundraPower || 0) : (p.normalPower || 0);
             return sum + val;
@@ -329,7 +329,7 @@ export default function AllianceWarRoom() {
                             <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest flex items-center gap-1.5 mt-0.5">
                                 {actives.length}/30 ACTIVE •
                                 <span className={eventType === 'Foundry' ? 'text-yellow-500' : 'text-blue-400'}>
-                                    {(totalPower / 1000000).toFixed(0)}M POWER
+                                    {formatPower(totalPower)} POWER
                                 </span>
                             </p>
                         </div>
