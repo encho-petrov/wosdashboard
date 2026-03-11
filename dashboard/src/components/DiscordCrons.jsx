@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import {Clock, Plus, Trash2, Power, AtSign, Hash, RotateCw, CalendarIcon, Edit, X} from 'lucide-react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
+import { DateTime } from 'luxon';
 
 export default function DiscordCrons({ adminScope, roles, channels }) {
     const [crons, setCrons] = useState([]);
@@ -32,6 +33,16 @@ export default function DiscordCrons({ adminScope, roles, channels }) {
         { id: 4, label: 'Thu' }, { id: 5, label: 'Fri' }, { id: 6, label: 'Sat' },
         { id: 0, label: 'Sun' } // 0 is Sunday in Go's time.Weekday()
     ];
+
+    const fromPickerDate = (date) => {
+        if (!date) return null;
+        return new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+    };
+
+    const toPickerDate = (date) => {
+        if (!date) return null;
+        return new Date(date.getTime() + date.getTimezoneOffset() * 60000);
+    };
 
     useEffect(() => {
         void fetchCrons();
@@ -66,6 +77,14 @@ export default function DiscordCrons({ adminScope, roles, channels }) {
 
     const handleCreate = async (e) => {
         e.preventDefault();
+        const dt = DateTime.fromJSDate(nextRunTime);
+        const finalUtc = DateTime.fromObject({
+            year: dt.year,
+            month: dt.month,
+            day: dt.day,
+            hour: dt.hour,
+            minute: dt.minute
+        }, { zone: 'utc' });
 
         if (!nextRunTime || !message || !channelId) {
             return toast.warning('Date/Time, Channel, and Message are required.');
@@ -82,12 +101,12 @@ export default function DiscordCrons({ adminScope, roles, channels }) {
         }
 
         try {
-            const pad = (n) => n.toString().padStart(2, '0');
-            const utcNextRun = `${nextRunTime.getFullYear()}-${pad(nextRunTime.getMonth() + 1)}-${pad(nextRunTime.getDate())}T${pad(nextRunTime.getHours())}:${pad(nextRunTime.getMinutes())}:00Z`;
+            // const pad = (n) => n.toString().padStart(2, '0');
+            // const utcNextRun = `${nextRunTime.getFullYear()}-${pad(nextRunTime.getMonth() + 1)}-${pad(nextRunTime.getDate())}T${pad(nextRunTime.getHours())}:${pad(nextRunTime.getMinutes())}:00Z`;
 
             const payload = {
                 name: name,
-                nextRunTime: utcNextRun,
+                nextRunTime: finalUtc,
                 recurrenceType: recurrenceType,
                 recurrenceConfig: JSON.stringify(configObj),
                 message: message,
@@ -117,6 +136,12 @@ export default function DiscordCrons({ adminScope, roles, channels }) {
     };
 
     const handleEditClick = (cron) => {
+        const utcDate = DateTime.fromISO(cron.nextRunTime, { zone: 'utc' });
+        const displayDate = new Date(
+            utcDate.year, utcDate.month - 1, utcDate.day,
+            utcDate.hour, utcDate.minute
+        );
+
         setName(cron.name || '');
         setEditingId(cron.id);
         setMessage(cron.message);
@@ -124,7 +149,8 @@ export default function DiscordCrons({ adminScope, roles, channels }) {
         setPingRoleId(cron.pingRoleId || '');
         setRecurrenceType(cron.recurrenceType);
 
-        setNextRunTime(new Date(cron.nextRunTime));
+        // setNextRunTime(new Date(cron.nextRunTime));
+        setNextRunTime(displayDate);
 
         if (cron.recurrenceType === 'INTERVAL') {
             const cfg = JSON.parse(cron.recurrenceConfig);
@@ -210,7 +236,7 @@ export default function DiscordCrons({ adminScope, roles, channels }) {
                 {/* ROW 1: Date/Time & Recurrence */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">First Run (Local Time)</label>
+                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">First Run (UTC)</label>
                         <div className="relative">
                             <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 z-10" />
                             <DatePicker
@@ -220,7 +246,7 @@ export default function DiscordCrons({ adminScope, roles, channels }) {
                                 timeFormat="HH:mm" // Forces 24-hour time selector
                                 timeIntervals={15}
                                 dateFormat="yyyy-MM-dd HH:mm" // Forces 24-hour display
-                                calendarStartDay={1} // 1 = moonday
+                                calendarStartDay={1} // 1 = monday
                                 placeholderText="Select UTC Date & Time"
                                 className="w-full bg-gray-950 border border-gray-800 text-white text-sm rounded-xl pl-10 pr-4 py-3 outline-none focus:border-purple-500"
                                 wrapperClassName="w-full"
@@ -378,7 +404,11 @@ export default function DiscordCrons({ adminScope, roles, channels }) {
                                 </span>
 
                                 <span className="bg-gray-800 text-gray-300 font-mono text-[10px] px-2.5 py-1 rounded-md border border-gray-700 flex items-center gap-1">
-                                    <Clock size={10}/> Next: {new Date(cron.nextRunTime).toISOString().replace('T', ' ').substring(0, 16)} UTC
+                                    <Clock size={10}/> Next: {
+                                        DateTime.fromISO(cron.nextRunTime)
+                                            .setZone('utc')
+                                            .toFormat('yyyy-MM-dd HH:mm')
+                                    } UTC
                                 </span>
 
                                 {cron.pingRoleId && (
