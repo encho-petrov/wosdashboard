@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -14,7 +15,11 @@ import (
 	"gift-redeemer/internal/processor"
 	"gift-redeemer/internal/services"
 	"log"
+	"net/http"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -145,8 +150,9 @@ func main() {
 
 	router := api.SetupRouter(engine, store, cfg, pClient, redisStore, cronManager)
 
+	var sysCron *cron.Cron
 	if botToken != "" {
-		sysCron := cron.New(cron.WithLocation(time.UTC))
+		sysCron = cron.New(cron.WithLocation(time.UTC))
 
 		cronExp := parseCronSchedule(cfg.Rotation.AnnounceDay, cfg.Rotation.AnnounceTimeUTC)
 		_, err := sysCron.AddFunc(cronExp, func() {
@@ -164,12 +170,56 @@ func main() {
 		} else {
 			sysCron.Start()
 			log.Printf("System Discord Cron scheduled for %s at %s UTC", cfg.Rotation.AnnounceDay, cfg.Rotation.AnnounceTimeUTC)
-			defer sysCron.Stop()
 		}
 	}
-
-	log.Println("Server running on http://localhost:8080")
-	if err := router.Run(":8080"); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+	srv := &http.Server{
+		Addr:    ":8080",
+		Handler: router,
 	}
+
+	go func() {
+		log.Println("Server running on http://localhost:8080")
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("Failed to start server: %v", err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	<-quit
+	log.Println("Shutdown signal received. Initiating graceful shutdown sequence...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatalf("Server forced to shutdown: %v", err)
+	}
+
+	log.Println("Cleaning up background workers and connections...")
+
+	if cronManager != nil {
+		cronManager.Stop()
+	}
+
+	if sysCron != nil {
+		stopCtx := sysCron.Stop()
+		<-stopCtx.Done()
+		log.Println("System Crons stopped.")
+	}
+
+	if err := store.Close(); err != nil {
+		log.Printf("Error closing MySQL connection: %v", err)
+	} else {
+		log.Println("MySQL connection closed.")
+	}
+
+	if err := redisStore.Close(); err != nil {
+		log.Printf("Error closing Redis connection: %v", err)
+	} else {
+		log.Println("Redis connection closed.")
+	}
+
+	log.Println("✅ Server exited cleanly.")
 }

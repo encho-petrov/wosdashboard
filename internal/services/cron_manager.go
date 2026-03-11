@@ -3,6 +3,7 @@ package services
 import (
 	"gift-redeemer/internal/db"
 	"log"
+	"sync"
 	"time"
 )
 
@@ -10,6 +11,7 @@ type CronManager struct {
 	store    *db.Store
 	botToken string
 	stopChan chan struct{}
+	stopOnce sync.Once
 }
 
 func NewCronManager(store *db.Store, botToken string) *CronManager {
@@ -71,8 +73,8 @@ func (cm *CronManager) processPendingCustomJobs() {
 }
 
 func (cm *CronManager) Stop() {
-	log.Println("🛑 Custom Rule Scheduler stopping...")
-	close(cm.stopChan)
+	cm.stopOnce.Do(func() {
+		log.Println("🛑 Custom Rule Scheduler stopping...")
+		close(cm.stopChan)
+	})
 }
-
-func (cm *CronManager) ReloadAllSchedules() {}
