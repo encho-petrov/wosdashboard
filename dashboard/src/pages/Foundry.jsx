@@ -90,7 +90,27 @@ export default function AllianceWarRoom() {
         void fetchSnapshot();
     }, [selectedHistoryId, viewMode]);
 
-    // --- COMPUTED DATA (Dynamically sorted by relevant power) ---
+    useEffect(() => {
+        // Only sync if they are on the live board
+        if (viewMode !== 'live' || !user?.allianceId) return;
+
+        const handleSync = () => {
+            console.log("[LiveSync] War Room updated!");
+            client.get(`/moderator/foundry/state?eventType=${eventType}`)
+                .then(res => {
+                    setLegionLocks(res.data.legions || []);
+                    setDeployedPlayers(res.data.roster || []);
+                    const statsMap = {};
+                    (res.data.stats || []).forEach(s => { statsMap[s.playerId] = s.score; });
+                    setAttendanceStats(statsMap);
+                }).catch(console.error);
+        };
+
+        window.addEventListener('REFRESH_FOUNDRY', handleSync);
+        return () => window.removeEventListener('REFRESH_FOUNDRY', handleSync);
+    }, [viewMode, eventType, user?.allianceId]);
+
+   // --- COMPUTED DATA (Dynamically sorted by relevant power) ---
     const localBench = useMemo(() => {
         if (!roster) return [];
         return roster.filter(p => {

@@ -5,6 +5,7 @@ import (
 	"gift-redeemer/internal/config"
 	"gift-redeemer/internal/db"
 	"gift-redeemer/internal/processor"
+	"gift-redeemer/internal/services"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,16 +15,18 @@ import (
 )
 
 type WarController struct {
-	store  *db.Store
-	cfg    *config.Config
-	engine *processor.Processor
+	store     *db.Store
+	cfg       *config.Config
+	engine    *processor.Processor
+	sseBroker *services.SSEBroker
 }
 
-func NewWarController(s *db.Store, c *config.Config, e *processor.Processor) *WarController {
+func NewWarController(s *db.Store, c *config.Config, e *processor.Processor, b *services.SSEBroker) *WarController {
 	return &WarController{
-		store:  s,
-		cfg:    c,
-		engine: e,
+		store:     s,
+		cfg:       c,
+		engine:    e,
+		sseBroker: b,
 	}
 }
 
@@ -61,6 +64,7 @@ func (wc *WarController) AddPlayer(c *gin.Context) {
 		return
 	}
 
+	wc.sseBroker.Notifier <- "REFRESH_ROSTER"
 	c.JSON(http.StatusOK, gin.H{
 		"message": fmt.Sprintf("Processed %d IDs", len(ids)),
 		"added":   added,
@@ -80,6 +84,7 @@ func (wc *WarController) DeletePlayer(c *gin.Context) {
 		return
 	}
 
+	wc.sseBroker.Notifier <- "REFRESH_ROSTER"
 	c.JSON(200, gin.H{"message": "Player removed from roster"})
 }
 
@@ -124,6 +129,7 @@ func (wc *WarController) LockWarRoom(c *gin.Context) {
 		c.JSON(500, gin.H{"error": "Failed to toggle lock"})
 		return
 	}
+	wc.sseBroker.Notifier <- "REFRESH_WARROOM"
 	c.JSON(200, gin.H{"message": "Lock updated"})
 }
 
@@ -145,6 +151,7 @@ func (wc *WarController) ArchiveAndResetEvent(c *gin.Context) {
 		return
 	}
 
+	wc.sseBroker.Notifier <- "REFRESH_WARROOM"
 	c.JSON(http.StatusOK, gin.H{"message": "Event archived and reset! All troops returned to reserve."})
 }
 
@@ -199,6 +206,8 @@ func (wc *WarController) PromoteCaptain(c *gin.Context) {
 		return
 	}
 	wc.store.PromoteCaptain(input.FID, input.AllianceID)
+
+	wc.sseBroker.Notifier <- "REFRESH_SQUADS"
 	c.JSON(200, gin.H{"message": "Squad created"})
 }
 
@@ -210,6 +219,8 @@ func (wc *WarController) DemoteCaptain(c *gin.Context) {
 		return
 	}
 	wc.store.DemoteCaptain(input.TeamID)
+
+	wc.sseBroker.Notifier <- "REFRESH_SQUADS"
 	c.JSON(200, gin.H{"message": "Squad disbanded"})
 }
 
@@ -222,6 +233,8 @@ func (wc *WarController) AssignPlayerToSquad(c *gin.Context) {
 		return
 	}
 	wc.store.AssignToSquad(input.FID, input.TeamID)
+
+	wc.sseBroker.Notifier <- "REFRESH_SQUADS"
 	c.JSON(200, gin.H{"message": "Player moved"})
 }
 

@@ -45,6 +45,16 @@ export default function MinistryReservations() {
         void fetchData();
     }, []);
 
+    useEffect(() => {
+        const handleSync = () => {
+            console.log("[LiveSync] Ministry schedule updated!");
+            void fetchData();
+        };
+
+        window.addEventListener('REFRESH_MINISTRY', handleSync);
+        return () => window.removeEventListener('REFRESH_MINISTRY', handleSync);
+    }, []);
+
     // Set initial mobile tab when schedule loads
     useEffect(() => {
         if (schedule.length > 0 && !activeMobileTab) {

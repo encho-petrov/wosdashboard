@@ -1,0 +1,1 @@
+CREATE INDEX idx_active_next_run ON discord_custom_crons (is_active, next_run_time);

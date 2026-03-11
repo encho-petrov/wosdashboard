@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"gift-redeemer/internal/services"
 	"net/http"
 	"strconv"
 	"time"
@@ -23,14 +24,16 @@ type AuthController struct {
 	cfg        *config.Config
 	client     *client.PlayerClient
 	redisStore *cache.RedisStore
+	sseBroker  *services.SSEBroker
 }
 
-func NewAuthController(s *db.Store, c *config.Config, p *client.PlayerClient, r *cache.RedisStore) *AuthController {
+func NewAuthController(s *db.Store, c *config.Config, p *client.PlayerClient, r *cache.RedisStore, b *services.SSEBroker) *AuthController {
 	return &AuthController{
 		store:      s,
 		cfg:        c,
 		client:     p,
 		redisStore: r,
+		sseBroker:  b,
 	}
 }
 
@@ -526,5 +529,6 @@ func (ac *AuthController) ResetUserSecurity(c *gin.Context) {
 	}
 
 	logAction(c, ac.store, "RESET_SECURITY", fmt.Sprintf("Reset password and wiped MFA for user ID: %d", id))
+	ac.sseBroker.Notifier <- "REFRESH_USERS"
 	c.JSON(200, gin.H{"message": "Security reset successfully"})
 }

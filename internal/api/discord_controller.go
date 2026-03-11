@@ -23,6 +23,7 @@ type DiscordController struct {
 	store       *db.Store
 	cfg         *config.Config
 	cronManager *services.CronManager
+	sseBroker   *services.SSEBroker
 }
 
 type DiscordChannel struct {
@@ -37,8 +38,8 @@ type DiscordRole struct {
 	Managed bool   `json:"managed"`
 }
 
-func NewDiscordController(store *db.Store, cfg *config.Config, cronManager *services.CronManager) *DiscordController {
-	return &DiscordController{store: store, cfg: cfg, cronManager: cronManager}
+func NewDiscordController(store *db.Store, cfg *config.Config, cronManager *services.CronManager, sseBroker *services.SSEBroker) *DiscordController {
+	return &DiscordController{store: store, cfg: cfg, cronManager: cronManager, sseBroker: sseBroker}
 }
 
 func (dc *DiscordController) resolveTargetAlliance(c *gin.Context) (*int, error) {
@@ -121,6 +122,7 @@ func (dc *DiscordController) CallbackHandler(c *gin.Context) {
 		return
 	}
 
+	dc.sseBroker.Notifier <- "REFRESH_DISCORD_CONFIG"
 	c.Redirect(http.StatusTemporaryRedirect, frontendURL+"/discord?success=true")
 }
 
@@ -257,6 +259,7 @@ func (dc *DiscordController) SaveRoute(c *gin.Context) {
 		return
 	}
 
+	dc.sseBroker.Notifier <- "REFRESH_DISCORD_CONFIG"
 	c.JSON(http.StatusOK, gin.H{"message": "Route saved securely"})
 }
 
@@ -577,6 +580,7 @@ func (dc *DiscordController) CreateCustomCron(c *gin.Context) {
 		return
 	}
 
+	dc.sseBroker.Notifier <- "REFRESH_CRONS"
 	c.JSON(http.StatusOK, newJob)
 }
 
@@ -589,6 +593,7 @@ func (dc *DiscordController) DeleteCustomCron(c *gin.Context) {
 		return
 	}
 
+	dc.sseBroker.Notifier <- "REFRESH_CRONS"
 	c.JSON(http.StatusOK, gin.H{"message": "Alert deleted"})
 }
 
@@ -601,6 +606,7 @@ func (dc *DiscordController) ToggleCustomCron(c *gin.Context) {
 		return
 	}
 
+	dc.sseBroker.Notifier <- "REFRESH_CRONS"
 	c.JSON(http.StatusOK, gin.H{"message": "Alert status updated"})
 }
 
@@ -622,6 +628,7 @@ func (dc *DiscordController) DeleteRoute(c *gin.Context) {
 		return
 	}
 
+	dc.sseBroker.Notifier <- "REFRESH_CRONS"
 	c.JSON(http.StatusOK, gin.H{"message": "Route unlinked successfully"})
 }
 
@@ -649,6 +656,7 @@ func (dc *DiscordController) DisconnectServer(c *gin.Context) {
 		return
 	}
 
+	dc.sseBroker.Notifier <- "REFRESH_DISCORD_CONFIG"
 	c.JSON(http.StatusOK, gin.H{"message": "Server disconnected and bot has left the guild."})
 }
 

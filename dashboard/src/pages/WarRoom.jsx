@@ -88,6 +88,16 @@ export default function WarRoom() {
         void fetchData();
     }, []);
 
+    useEffect(() => {
+        const handleSync = () => {
+            console.log("[LiveSync] WarRoom updated!");
+            void fetchData();
+        };
+
+        window.addEventListener('REFRESH_WARROOM', handleSync);
+        return () => window.removeEventListener('REFRESH_WARROOM', handleSync);
+    }, []);
+
     const fetchData = async (silent = false) => {
         try {
             if (!silent) setLoading(true);

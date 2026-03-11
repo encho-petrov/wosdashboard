@@ -52,6 +52,16 @@ export default function TransferManager() {
         }
     };
 
+    useEffect(() => {
+        const handleSync = () => {
+            console.log("[LiveSync] Transfer list updated!");
+            void fetchData();
+        };
+
+        window.addEventListener('REFRESH_TRANSFERS', handleSync);
+        return () => window.removeEventListener('REFRESH_TRANSFERS', handleSync);
+    }, []);
+
     const handleViewHistory = async () => {
         setViewingHistory(true);
         try {

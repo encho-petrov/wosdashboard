@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"gift-redeemer/internal/db"
+	"gift-redeemer/internal/services"
 	"net/http"
 	"strconv"
 
@@ -10,12 +11,14 @@ import (
 )
 
 type MinistryController struct {
-	store *db.Store
+	store     *db.Store
+	sseBroker *services.SSEBroker
 }
 
-func NewMinistryController(s *db.Store) *MinistryController {
+func NewMinistryController(s *db.Store, b *services.SSEBroker) *MinistryController {
 	return &MinistryController{
-		store: s,
+		store:     s,
+		sseBroker: b,
 	}
 }
 
@@ -68,6 +71,7 @@ func (mc *MinistryController) CreateEvent(c *gin.Context) {
 	}
 
 	logAction(c, mc.store, "MINISTRY", "Created new Ministry Event: "+req.Title)
+	mc.sseBroker.Notifier <- "REFRESH_MINISTRY"
 	c.JSON(http.StatusOK, gin.H{"message": "Event created and slots generated!"})
 }
 
@@ -88,7 +92,7 @@ func (mc *MinistryController) UpdateActiveEvent(c *gin.Context) {
 		actionDetail = "Archived Ministry Event #" + strconv.Itoa(id)
 	}
 	logAction(c, mc.store, "MINISTRY", actionDetail)
-
+	mc.sseBroker.Notifier <- "REFRESH_MINISTRY"
 	c.JSON(http.StatusOK, gin.H{"message": "Status updated"})
 }
 
@@ -114,7 +118,7 @@ func (mc *MinistryController) UpdateMinistrySlot(c *gin.Context) {
 		actionMsg = fmt.Sprintf("Assigned %s to a ministry slot", req.Nickname)
 	}
 	logAction(c, mc.store, "MINISTRY", actionMsg)
-
+	mc.sseBroker.Notifier <- "REFRESH_MINISTRY"
 	c.JSON(http.StatusOK, gin.H{"message": "Slot updated"})
 }
 
@@ -131,6 +135,7 @@ func (mc *MinistryController) ToggleNotifications(c *gin.Context) {
 
 	mc.store.UpdateMinistryAnnounce(id, req.AnnounceEnabled)
 	logAction(c, mc.store, "MINISTRY", fmt.Sprintf("Toggled Discord Pings to %v", req.AnnounceEnabled))
+	mc.sseBroker.Notifier <- "REFRESH_MINISTRY"
 	c.JSON(http.StatusOK, gin.H{"message": "Announcements toggled"})
 }
 
