@@ -7,6 +7,7 @@ import { LogOut, Activity, Menu, ChevronRight } from 'lucide-react';
 import PullToRefresh from '../PullToRefresh';
 import MfaSetupModal from '../MfaSetupModal';
 import client from "../../api/client.js";
+import LiveSyncManager from '../LiveSyncManager';
 
 export default function AdminLayout({ children, title, actions }) {
     const { user, logout } = useAuth();
@@ -80,6 +81,7 @@ export default function AdminLayout({ children, title, actions }) {
 
     return (
         <div className="flex h-screen bg-gray-950 text-gray-100 font-sans overflow-hidden relative">
+            <LiveSyncManager />
             {/* MFA OVERLAY */}
             {isMfaRequired && (
                 <>

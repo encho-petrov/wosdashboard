@@ -23,6 +23,16 @@ export default function Users() {
     void fetchData();
   }, []);
 
+  useEffect(() => {
+    const handleSync = () => {
+      console.log("[LiveSync] Users state updated!");
+      void fetchData();
+    };
+
+    window.addEventListener('REFRESH_USERS', handleSync);
+    return () => window.removeEventListener('REFRESH_USERS', handleSync);
+  }, []);
+
   const fetchData = async () => {
     try {
       setLoading(true);

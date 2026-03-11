@@ -73,18 +73,20 @@ func SetupRouter(engine *processor.Processor, store *db.Store, cfg *config.Confi
 		c.Next()
 	})
 
-	discordCtrl := NewDiscordController(store, cfg, cronManager)
-	authCtrl := NewAuthController(store, cfg, pClient, redisStore)
+	sseBroker := services.NewSSEBroker()
+
+	discordCtrl := NewDiscordController(store, cfg, cronManager, sseBroker)
+	authCtrl := NewAuthController(store, cfg, pClient, redisStore, sseBroker)
 	playerCtrl := NewPlayerController(store, cfg)
 	strategyCtrl := NewStrategyController(store, cfg, redisStore)
-	transfersCtrl := NewTransfersController(store, cfg, pClient)
-	adminCtrl := NewAdminController(store)
-	ministryCtrl := NewMinistryController(store)
-	foundryCtrl := NewFoundryController(store, cfg)
-	fortressCtrl := NewFortressController(store, cfg)
-	warCtrl := NewWarController(store, cfg, engine)
+	transfersCtrl := NewTransfersController(store, cfg, pClient, sseBroker)
+	adminCtrl := NewAdminController(store, sseBroker)
+	ministryCtrl := NewMinistryController(store, sseBroker)
+	foundryCtrl := NewFoundryController(store, cfg, sseBroker)
+	fortressCtrl := NewFortressController(store, cfg, sseBroker)
+	warCtrl := NewWarController(store, cfg, engine, sseBroker)
 	redeemCtrl := NewRedeemController(store, cfg, pClient, redisStore, engine)
-	allianceCtrl := NewAllianceController(store)
+	allianceCtrl := NewAllianceController(store, sseBroker)
 
 	r.POST("/api/login", authCtrl.Login)
 	r.POST("/api/login/mfa", authCtrl.VerifyMFA)
@@ -105,6 +107,27 @@ func SetupRouter(engine *processor.Processor, store *db.Store, cfg *config.Confi
 	authorized := r.Group("/api/moderator")
 	authorized.Use(AuthMiddleware(store))
 	{
+		authorized.GET("/stream", func(c *gin.Context) {
+			c.Writer.Header().Set("Content-Type", "text/event-stream")
+			c.Writer.Header().Set("Cache-Control", "no-cache")
+			c.Writer.Header().Set("Connection", "keep-alive")
+
+			clientChan := make(services.Client)
+			sseBroker.AddClient(clientChan)
+			defer sseBroker.RemoveClient(clientChan)
+
+			notify := c.Request.Context().Done()
+			for {
+				select {
+				case <-notify:
+					return
+				case msg := <-clientChan:
+					c.SSEvent("message", msg)
+					c.Writer.Flush()
+				}
+			}
+		})
+
 		authorized.GET("/strategy/heroes", strategyCtrl.GetHeroes)
 		authorized.POST("/strategy/meta", strategyCtrl.SaveStrategy)
 		authorized.GET("/strategy/active", strategyCtrl.GetActiveStrategy)

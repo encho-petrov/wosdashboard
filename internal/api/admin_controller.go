@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"gift-redeemer/internal/auth"
 	"gift-redeemer/internal/db"
+	"gift-redeemer/internal/services"
 	"net/http"
 	"strconv"
 
@@ -11,12 +12,14 @@ import (
 )
 
 type AdminController struct {
-	store *db.Store
+	store     *db.Store
+	sseBroker *services.SSEBroker
 }
 
-func NewAdminController(s *db.Store) *AdminController {
+func NewAdminController(s *db.Store, b *services.SSEBroker) *AdminController {
 	return &AdminController{
-		store: s,
+		store:     s,
+		sseBroker: b,
 	}
 }
 
@@ -42,6 +45,7 @@ func (ac *AdminController) CreateAlliance(c *gin.Context) {
 		c.JSON(500, gin.H{"error": "Database error"})
 		return
 	}
+	ac.sseBroker.Notifier <- "REFRESH_ALLIANCES"
 	c.JSON(200, gin.H{"message": "Alliance created successfully"})
 }
 
@@ -59,6 +63,7 @@ func (ac *AdminController) UpdateAlliance(c *gin.Context) {
 		c.JSON(500, gin.H{"error": "Update failed"})
 		return
 	}
+	ac.sseBroker.Notifier <- "REFRESH_ALLIANCES"
 	c.JSON(200, gin.H{"message": "Alliance updated"})
 }
 
@@ -68,6 +73,7 @@ func (ac *AdminController) DeleteAlliance(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "Cannot delete: Ensure no players are assigned to this alliance first."})
 		return
 	}
+	ac.sseBroker.Notifier <- "REFRESH_ALLIANCES"
 	c.JSON(200, gin.H{"message": "Alliance deleted"})
 }
 
@@ -111,6 +117,7 @@ func (ac *AdminController) CreateUser(c *gin.Context) {
 		return
 	}
 	logAction(c, ac.store, "ADD_USER", fmt.Sprintf("Created user: %s", input.Username))
+	ac.sseBroker.Notifier <- "REFRESH_USERS"
 	c.JSON(201, gin.H{"message": "User created successfully"})
 }
 
@@ -148,6 +155,7 @@ func (ac *AdminController) UpdateUser(c *gin.Context) {
 	}
 
 	logAction(c, ac.store, "EDIT_USER", fmt.Sprintf("Modified user ID: %d", id))
+	ac.sseBroker.Notifier <- "REFRESH_USERS"
 	c.JSON(200, gin.H{"message": "User modified successfully"})
 }
 
@@ -165,5 +173,6 @@ func (ac *AdminController) DeleteUser(c *gin.Context) {
 		return
 	}
 	logAction(c, ac.store, "DELETE_USER", fmt.Sprintf("Deleted user ID: %d", id))
+	ac.sseBroker.Notifier <- "REFRESH_USERS"
 	c.JSON(200, gin.H{"message": "User deleted"})
 }

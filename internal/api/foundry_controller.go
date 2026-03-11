@@ -12,14 +12,16 @@ import (
 )
 
 type FoundryController struct {
-	store *db.Store
-	cfg   *config.Config
+	store     *db.Store
+	cfg       *config.Config
+	sseBroker *services.SSEBroker
 }
 
-func NewFoundryController(s *db.Store, c *config.Config) *FoundryController {
+func NewFoundryController(s *db.Store, c *config.Config, b *services.SSEBroker) *FoundryController {
 	return &FoundryController{
-		store: s,
-		cfg:   c,
+		store:     s,
+		cfg:       c,
+		sseBroker: b,
 	}
 }
 
@@ -67,6 +69,8 @@ func (fc *FoundryController) DeployPlayer(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to deploy"})
 		return
 	}
+
+	fc.sseBroker.Notifier <- "REFRESH_FOUNDRY"
 	c.JSON(http.StatusOK, gin.H{"message": "Deployed successfully"})
 }
 
@@ -92,6 +96,8 @@ func (fc *FoundryController) LockEvent(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to lock/unlock"})
 		return
 	}
+
+	fc.sseBroker.Notifier <- "REFRESH_FOUNDRY"
 	c.JSON(http.StatusOK, gin.H{"message": "Lock updated"})
 }
 
@@ -117,6 +123,8 @@ func (fc *FoundryController) UpdateAttendance(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update attendance"})
 		return
 	}
+
+	fc.sseBroker.Notifier <- "REFRESH_FOUNDRY"
 	c.JSON(http.StatusOK, gin.H{"message": "Attendance updated"})
 }
 

@@ -37,6 +37,15 @@ export default function DiscordCrons({ adminScope, roles, channels }) {
         void fetchCrons();
     }, [adminScope]);
 
+    useEffect(() => {
+        const handleSync = () => {
+            console.log("[LiveSync] Custom crons updated!");
+            void fetchCrons();
+        };
+        window.addEventListener('REFRESH_CRONS', handleSync);
+        return () => window.removeEventListener('REFRESH_CRONS', handleSync);
+    }, [adminScope]);
+
     const fetchCrons = async () => {
         try {
             setLoading(true);

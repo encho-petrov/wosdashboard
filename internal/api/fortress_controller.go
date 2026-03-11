@@ -12,14 +12,16 @@ import (
 )
 
 type FortressController struct {
-	store *db.Store
-	cfg   *config.Config
+	store     *db.Store
+	cfg       *config.Config
+	sseBroker *services.SSEBroker
 }
 
-func NewFortressController(s *db.Store, c *config.Config) *FortressController {
+func NewFortressController(s *db.Store, c *config.Config, b *services.SSEBroker) *FortressController {
 	return &FortressController{
-		store: s,
-		cfg:   c,
+		store:     s,
+		cfg:       c,
+		sseBroker: b,
 	}
 }
 
@@ -69,6 +71,7 @@ func (fc *FortressController) UpdateSeason(c *gin.Context) {
 	}
 
 	logAction(c, fc.store, "UPDATE_ROTATION", fmt.Sprintf("Updated rotation for Season %d", req.SeasonID))
+	fc.sseBroker.Notifier <- "REFRESH_MINISTRY"
 	c.JSON(http.StatusOK, gin.H{"message": "Rotation schedule updated successfully"})
 }
 

@@ -2,6 +2,7 @@ package api
 
 import (
 	"gift-redeemer/internal/db"
+	"gift-redeemer/internal/services"
 	"net/http"
 	"strconv"
 
@@ -9,11 +10,12 @@ import (
 )
 
 type AllianceController struct {
-	store *db.Store
+	store     *db.Store
+	sseBroker *services.SSEBroker
 }
 
-func NewAllianceController(store *db.Store) *AllianceController {
-	return &AllianceController{store: store}
+func NewAllianceController(store *db.Store, sseBroker *services.SSEBroker) *AllianceController {
+	return &AllianceController{store: store, sseBroker: sseBroker}
 }
 
 type TransferRequestPayload struct {
@@ -37,6 +39,16 @@ func getInt64FromContext(c *gin.Context, key string) int64 {
 		return int64(v)
 	case int64:
 		return v
+	case *int:
+		if v == nil {
+			return 0
+		}
+		return int64(*v)
+	case *int64:
+		if v == nil {
+			return 0
+		}
+		return *v
 	case string:
 		parsed, _ := strconv.ParseInt(v, 10, 64)
 		return parsed
@@ -136,5 +148,6 @@ func (ac *AllianceController) HandleResolve(c *gin.Context) {
 		return
 	}
 
+	ac.sseBroker.Notifier <- "REFRESH_ALLIANCES"
 	c.JSON(http.StatusOK, gin.H{"message": "Transfer " + payload.Status})
 }

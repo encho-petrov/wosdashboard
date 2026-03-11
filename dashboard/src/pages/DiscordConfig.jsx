@@ -44,6 +44,15 @@ export default function DiscordConfig() {
         void fetchStatus();
     }, [adminScope]);
 
+    useEffect(() => {
+        const handleSync = () => {
+            console.log("[LiveSync] Discord config updated!");
+            void fetchStatus();
+        };
+        window.addEventListener('REFRESH_DISCORD_CONFIG', handleSync);
+        return () => window.removeEventListener('REFRESH_DISCORD_CONFIG', handleSync);
+    }, [adminScope]);
+
     const fetchStatus = async () => {
         try {
             setLoading(true);

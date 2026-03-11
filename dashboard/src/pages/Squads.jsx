@@ -40,6 +40,16 @@ export default function Squads() {
         if (activeAlliance) void fetchData();
     }, [activeAlliance]);
 
+    useEffect(() => {
+        const handleSync = () => {
+            console.log("[LiveSync] Squads updated!");
+            void fetchData();
+        };
+
+        window.addEventListener('REFRESH_SQUADS', handleSync);
+        return () => window.removeEventListener('REFRESH_SQUADS', handleSync);
+    }, []);
+
     const fetchData = async (silent = false) => {
         if (!silent) setLoading(true);
         try {

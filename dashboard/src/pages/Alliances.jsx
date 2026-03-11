@@ -12,6 +12,16 @@ export default function Alliances() {
 
     useEffect(() => { void fetchAlliances(); }, []);
 
+    useEffect(() => {
+        const handleSync = () => {
+            console.log("[LiveSync] Alliances state updated!");
+            void fetchAlliances();
+        };
+
+        window.addEventListener('REFRESH_ALLIANCES', handleSync);
+        return () => window.removeEventListener('REFRESH_ALLIANCES', handleSync);
+    }, []);
+
     const fetchAlliances = async () => {
         try {
             const res = await client.get('/moderator/admin/alliances');

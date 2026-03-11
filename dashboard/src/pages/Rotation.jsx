@@ -38,6 +38,16 @@ export default function Rotation() {
         void fetchInitialData();
     }, []);
 
+    useEffect(() => {
+        const handleSync = () => {
+            console.log("[LiveSync] Rotation state updated!");
+            void fetchInitialData();
+        };
+
+        window.addEventListener('REFRESH_ROTATION', handleSync);
+        return () => window.removeEventListener('REFRESH_ROTATION', handleSync);
+    }, []);
+
     // Re-fetch the schedule whenever the selected season changes
     useEffect(() => {
         if (viewSeason) {

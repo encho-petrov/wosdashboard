@@ -5,6 +5,7 @@ import (
 	"gift-redeemer/internal/client"
 	"gift-redeemer/internal/config"
 	"gift-redeemer/internal/db"
+	"gift-redeemer/internal/services"
 	"net/http"
 	"strconv"
 	"strings"
@@ -13,16 +14,18 @@ import (
 )
 
 type TransfersController struct {
-	store  *db.Store
-	cfg    *config.Config
-	client *client.PlayerClient
+	store     *db.Store
+	cfg       *config.Config
+	client    *client.PlayerClient
+	sseBroker *services.SSEBroker
 }
 
-func NewTransfersController(s *db.Store, c *config.Config, client *client.PlayerClient) *TransfersController {
+func NewTransfersController(s *db.Store, c *config.Config, client *client.PlayerClient, sseBroker *services.SSEBroker) *TransfersController {
 	return &TransfersController{
-		store:  s,
-		cfg:    c,
-		client: client,
+		store:     s,
+		cfg:       c,
+		client:    client,
+		sseBroker: sseBroker,
 	}
 }
 
@@ -116,6 +119,7 @@ func (tc *TransfersController) AddPlayersForTransfer(c *gin.Context) {
 	}
 
 	logAction(c, tc.store, "TRANSFERS", fmt.Sprintf("Bulk added %d candidates", addedCount))
+	tc.sseBroker.Notifier <- "REFRESH_TRANSFERS"
 	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("Successfully added %d candidates", addedCount)})
 }
 
@@ -139,6 +143,7 @@ func (tc *TransfersController) UpdateTransferRecord(c *gin.Context) {
 	}
 
 	tc.store.UpdateTransferRecord(id, req.Power, req.TargetAllianceID, req.InviteType, req.Status)
+	tc.sseBroker.Notifier <- "REFRESH_TRANSFERS"
 	c.JSON(http.StatusOK, gin.H{"message": "Updated successfully"})
 }
 
@@ -162,6 +167,7 @@ func (tc *TransfersController) ConfirmTransfer(c *gin.Context) {
 	}
 
 	logAction(c, tc.store, "TRANSFERS", fmt.Sprintf("Confirmed Inbound: %s", req.Nickname))
+	tc.sseBroker.Notifier <- "REFRESH_TRANSFERS"
 	c.JSON(http.StatusOK, gin.H{"message": "Player confirmed and added to Roster!"})
 }
 
@@ -177,6 +183,7 @@ func (tc *TransfersController) UpdateSeasonStatus(c *gin.Context) {
 	_ = c.ShouldBindJSON(&req)
 
 	tc.store.UpdateSeasonStatus(id, req.Status)
+	tc.sseBroker.Notifier <- "REFRESH_TRANSFERS"
 	c.JSON(http.StatusOK, gin.H{"message": "Status updated"})
 }
 
