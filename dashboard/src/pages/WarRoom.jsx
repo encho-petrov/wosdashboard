@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import AdminLayout from '../components/layout/AdminLayout';
 import formatPower from '../components/FormatPower.jsx';
+import { useRateLimit } from '../hooks/useRateLimit';
 
 const MultiSelectDropdown = ({ options, selected, onChange, placeholder, activeColorClass }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -83,6 +84,13 @@ export default function WarRoom() {
 
     const [displayLimit, setDisplayLimit] = useState(30);
     const [mobileTab, setMobileTab] = useState('bench');
+
+    const postAnnounceData = (payload) => client.post('/moderator/discord/announce', payload);
+    const {
+        execute: executeAnnounce,
+        isPending: isAnnouncePending,
+        cooldown: announceCooldown
+    } = useRateLimit(postAnnounceData);
 
     useEffect(() => {
         void fetchData();
@@ -179,13 +187,17 @@ export default function WarRoom() {
         });
 
         try {
-            await client.post('/moderator/discord/announce', {
+            await executeAnnounce({
                 title: "⚔️ War Room Locked & Deployed",
                 description: description,
                 color: 15158332
             });
             toast.success("War Room deployed to Discord!");
-        } catch (err) { toast.error("Failed to announce deployments."); }
+        } catch (err) {
+            if (err?.response?.status !== 429) {
+                toast.error("Failed to announce deployments.");
+            }
+        }
     };
 
     const filteredPlayers = useMemo(() => {
@@ -249,8 +261,20 @@ export default function WarRoom() {
                 </button>
             )}
             {isAdmin && stats.some(a => a.isLocked) && (
-                <button onClick={handleAnnounceWarRoom} className="flex items-center gap-2 px-3 py-1.5 bg-blue-900/20 text-blue-400 border border-blue-800/50 rounded-lg text-[10px] font-black uppercase">
-                    <Megaphone size={14} className="animate-pulse" /> <span className="hidden sm:inline">Announce</span>
+                <button
+                    onClick={handleAnnounceWarRoom}
+                    disabled={isAnnouncePending || announceCooldown > 0}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-colors ${
+                        isAnnouncePending || announceCooldown > 0
+                            ? 'bg-gray-800/50 text-gray-500 border border-gray-700/50 cursor-not-allowed'
+                            : 'bg-blue-900/20 text-blue-400 border border-blue-800/50 hover:bg-blue-900/40'
+                    }`}
+                >
+                    <Megaphone size={14} className={(!isAnnouncePending && announceCooldown === 0) ? "animate-pulse" : ""} />
+                    {/* 3. Change the text based on the state */}
+                    <span className="hidden sm:inline">
+                        {isAnnouncePending ? 'Sending...' : announceCooldown > 0 ? `Wait ${announceCooldown}s` : 'Announce'}
+                    </span>
                 </button>
             )}
         </div>

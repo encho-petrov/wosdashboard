@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
 import { Swords, Shield, Save, Users, PawPrint, Send, X } from 'lucide-react';
 import AdminLayout from '../components/layout/AdminLayout';
+import { useRateLimit } from '../hooks/useRateLimit';
 
 const HeroSlot = ({ label, slotIndex, selectedId, heroes, onChange }) => {
     const selectedHero = (heroes || []).find(h => h.id === parseInt(selectedId));
@@ -50,7 +51,6 @@ export default function Strategy() {
     const [captains, setCaptains] = useState([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [publishing, setPublishing] = useState(false);
     const [activeTab, setActiveTab] = useState('Attack');
 
     // Meta State
@@ -72,6 +72,14 @@ export default function Strategy() {
     ];
     const [fightDate, setFightDate] = useState('');
     const [schedule, setSchedule] = useState({ 1: [], 2: [], 3: [] });
+
+    // Rate Limiter Setup for Discord Notify Button
+    const postNotifyData = (payload) => client.post('/moderator/strategy/notify', payload);
+    const {
+        execute: executeNotify,
+        isPending: isNotifyPending,
+        cooldown: notifyCooldown
+    } = useRateLimit(postNotifyData);
 
     useEffect(() => {
         if (isAdmin) {
@@ -113,7 +121,6 @@ export default function Strategy() {
         try {
             const res = await client.get(`/moderator/strategy/pets?date=${targetDate}`);
 
-            // Backend should return { date: '2026-03-07', schedule: {...} }
             if (res.data) {
                 if (!targetDate && res.data.date) {
                     setFightDate(res.data.date);
@@ -123,7 +130,6 @@ export default function Strategy() {
         } catch (err) {
             console.error("No saved schedule for this date.");
 
-            // If no upcoming schedule exists, just default the calendar to today so it isn't blank
             if (!targetDate) {
                 const today = new Date().toISOString().split('T')[0];
                 setFightDate(today);
@@ -185,14 +191,13 @@ export default function Strategy() {
     };
 
     const handlePublishToDiscord = async () => {
-        setPublishing(true);
         try {
-            await client.post('/moderator/strategy/notify', { target: activeTab, fightDate: fightDate });
+            await executeNotify({ target: activeTab, fightDate: fightDate });
             toast.success(`Published ${activeTab} to Discord!`);
         } catch (err) {
-            toast.error("Failed to send Discord notification.");
-        } finally {
-            setPublishing(false);
+            if (err?.response?.status !== 429) {
+                toast.error("Failed to send Discord notification.");
+            }
         }
     };
 
@@ -230,6 +235,7 @@ export default function Strategy() {
     if (loading) return <div className="min-h-screen bg-gray-900 flex items-center justify-center font-mono text-blue-500">LOADING TACTICAL ASSETS...</div>;
 
     const currentData = activeTab === 'Attack' ? attackData : defenseData;
+    const isNotifyLocked = isNotifyPending || notifyCooldown > 0;
 
     return (
         <AdminLayout title="War Strategy">
@@ -270,10 +276,15 @@ export default function Strategy() {
 
                             <button
                                 onClick={handlePublishToDiscord}
-                                disabled={publishing}
-                                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-[#5865F2] hover:bg-[#4752C4] text-white rounded-xl font-bold transition-all disabled:opacity-50 shadow-lg shadow-indigo-900/20"
+                                disabled={isNotifyLocked}
+                                className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold transition-all shadow-lg ${
+                                    isNotifyLocked
+                                        ? 'bg-gray-700 text-gray-400 cursor-not-allowed border border-gray-600'
+                                        : 'bg-[#5865F2] hover:bg-[#4752C4] text-white shadow-indigo-900/20'
+                                }`}
                             >
-                                <Send size={18} /> {publishing ? 'Sending...' : 'Notify'}
+                                <Send size={18} className={(!isNotifyPending && notifyCooldown === 0) ? "animate-pulse" : ""} />
+                                {isNotifyPending ? 'Sending...' : notifyCooldown > 0 ? `Wait ${notifyCooldown}s` : 'Notify'}
                             </button>
                         </div>
                     </div>

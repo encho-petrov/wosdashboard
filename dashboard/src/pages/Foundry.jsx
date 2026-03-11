@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import AdminLayout from '../components/layout/AdminLayout';
 import formatPower from '../components/FormatPower.jsx';
+import { useRateLimit } from '../hooks/useRateLimit';
 
 export default function AllianceWarRoom() {
     const { user } = useAuth();
@@ -31,6 +32,14 @@ export default function AllianceWarRoom() {
     const [historySnapshot, setHistorySnapshot] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [isMobileTimelineOpen, setIsMobileTimelineOpen] = useState(false);
+
+    // --- Rate Limiter Setup for Discord Announcement ---
+    const postAnnounceData = (payload) => client.post(`/moderator/foundry/announce`, payload);
+    const {
+        execute: executeAnnounce,
+        isPending: isAnnouncePending,
+        cooldown: announceCooldown
+    } = useRateLimit(postAnnounceData);
 
     useEffect(() => {
         if (viewMode !== 'live' || !user?.allianceId) return;
@@ -90,27 +99,7 @@ export default function AllianceWarRoom() {
         void fetchSnapshot();
     }, [selectedHistoryId, viewMode]);
 
-    useEffect(() => {
-        // Only sync if they are on the live board
-        if (viewMode !== 'live' || !user?.allianceId) return;
-
-        const handleSync = () => {
-            console.log("[LiveSync] War Room updated!");
-            client.get(`/moderator/foundry/state?eventType=${eventType}`)
-                .then(res => {
-                    setLegionLocks(res.data.legions || []);
-                    setDeployedPlayers(res.data.roster || []);
-                    const statsMap = {};
-                    (res.data.stats || []).forEach(s => { statsMap[s.playerId] = s.score; });
-                    setAttendanceStats(statsMap);
-                }).catch(console.error);
-        };
-
-        window.addEventListener('REFRESH_FOUNDRY', handleSync);
-        return () => window.removeEventListener('REFRESH_FOUNDRY', handleSync);
-    }, [viewMode, eventType, user?.allianceId]);
-
-   // --- COMPUTED DATA (Dynamically sorted by relevant power) ---
+    // --- COMPUTED DATA (Dynamically sorted by relevant power) ---
     const localBench = useMemo(() => {
         if (!roster) return [];
         return roster.filter(p => {
@@ -192,14 +181,16 @@ export default function AllianceWarRoom() {
     const handleAnnounceDiscord = async (e, legionId) => {
         if (e) e.preventDefault();
         try {
-            await client.post(`/moderator/foundry/announce`, {
+            await executeAnnounce({
                 eventName: eventType,
                 message: `The roster for **Legion ${legionId}** in the upcoming **${eventType}** has been locked and finalized. Please check the portal for deployment details.`
             });
             toast.success(`Legion ${legionId} announced to Discord!`);
         } catch (err) {
-            console.error("Discord Announce Error:", err.response || err);
-            toast.error(err.response?.data?.error || 'Failed to announce to Discord.');
+            if (err?.response?.status !== 429) {
+                console.error("Discord Announce Error:", err.response || err);
+                toast.error(err.response?.data?.error || 'Failed to announce to Discord.');
+            }
         }
     };
 
@@ -333,11 +324,13 @@ export default function AllianceWarRoom() {
         const activePlayers = mapToRoster(actives);
         const subPlayers = mapToRoster(subs);
 
-// Dynamic Power Calculation for the Legion Header
+        // Dynamic Power Calculation for the Legion Header
         const totalPower = activePlayers.reduce((sum, p) => {
             const val = eventType === 'Foundry' ? (p.power || p.tundraPower || 0) : (p.normalPower || 0);
             return sum + val;
         }, 0);
+
+        const isAnnounceLocked = isAnnouncePending || announceCooldown > 0;
 
         return (
             <div className={`bg-gray-900 rounded-3xl border transition-all flex flex-col overflow-hidden ${isLocked && !isHistory ? 'border-red-900/50 bg-red-950/5' : 'border-gray-800 shadow-2xl'}`}>
@@ -359,11 +352,18 @@ export default function AllianceWarRoom() {
                         {isAdmin && !isHistory && isLocked && (
                             <button
                                 onClick={(e) => handleAnnounceDiscord(e, legionId)}
-                                className="px-3 py-1.5 bg-[#5865F2] hover:bg-[#4752C4] text-white text-xs font-bold rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-[#5865F2]/20"
-                                title="Announce to Discord"
+                                disabled={isAnnounceLocked}
+                                className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all flex items-center gap-2 shadow-lg ${
+                                    isAnnounceLocked
+                                        ? 'bg-gray-800 text-gray-500 border border-gray-700 cursor-not-allowed'
+                                        : 'bg-[#5865F2] hover:bg-[#4752C4] text-white shadow-[#5865F2]/20'
+                                }`}
+                                title={isAnnounceLocked ? `Wait ${announceCooldown}s` : "Announce to Discord"}
                             >
-                                <Megaphone size={14} />
-                                <span className="hidden sm:inline">Announce</span>
+                                <Megaphone size={14} className={(!isAnnouncePending && announceCooldown === 0) ? "animate-pulse" : ""} />
+                                <span className="hidden sm:inline">
+                                    {isAnnouncePending ? 'Sending...' : announceCooldown > 0 ? `Wait ${announceCooldown}s` : 'Announce'}
+                                </span>
                             </button>
                         )}
                         {isAdmin && !isHistory && (

@@ -75,7 +75,7 @@ func SetupRouter(engine *processor.Processor, store *db.Store, cfg *config.Confi
 
 	sseBroker := services.NewSSEBroker()
 
-	discordCtrl := NewDiscordController(store, cfg, cronManager, sseBroker)
+	discordCtrl := NewDiscordController(store, cfg, cronManager, redisStore, sseBroker)
 	authCtrl := NewAuthController(store, cfg, pClient, redisStore, sseBroker)
 	playerCtrl := NewPlayerController(store, cfg)
 	strategyCtrl := NewStrategyController(store, cfg, redisStore)

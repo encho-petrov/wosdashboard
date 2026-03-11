@@ -7,6 +7,7 @@ import {
     Crown, Trash2, Search, Sword, Megaphone, X, ChevronRight
 } from 'lucide-react';
 import AdminLayout from '../components/layout/AdminLayout';
+import { useRateLimit } from '../hooks/useRateLimit';
 
 export default function Squads() {
     const { user } = useAuth();
@@ -22,7 +23,15 @@ export default function Squads() {
     const [loading, setLoading] = useState(true);
     const [draggedPlayerId, setDraggedPlayerId] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedPlayer, setSelectedPlayer] = useState(null); // Mobile Interaction
+    const [selectedPlayer, setSelectedPlayer] = useState(null);
+
+    // --- Rate Limiter Setup for Discord Announcement ---
+    const postAnnounceData = (payload) => client.post('/moderator/discord/announce', payload);
+    const {
+        execute: executeAnnounce,
+        isPending: isAnnouncePending,
+        cooldown: announceCooldown
+    } = useRateLimit(postAnnounceData);
 
     // --- INITIALIZATION (STRICTLY FROM SOURCE) ---
     useEffect(() => {
@@ -39,16 +48,6 @@ export default function Squads() {
     useEffect(() => {
         if (activeAlliance) void fetchData();
     }, [activeAlliance]);
-
-    useEffect(() => {
-        const handleSync = () => {
-            console.log("[LiveSync] Squads updated!");
-            void fetchData();
-        };
-
-        window.addEventListener('REFRESH_SQUADS', handleSync);
-        return () => window.removeEventListener('REFRESH_SQUADS', handleSync);
-    }, []);
 
     const fetchData = async (silent = false) => {
         if (!silent) setLoading(true);
@@ -129,14 +128,16 @@ export default function Squads() {
         });
 
         try {
-            await client.post('/moderator/discord/announce', {
+            await executeAnnounce({
                 title: "🛡️ Squad Assignments Finalized",
                 description: description,
                 color: 3447003
             });
             toast.success(`Squads for ${allianceName} announced!`);
         } catch (err) {
-            toast.error("Failed to announce squads.");
+            if (err?.response?.status !== 429) {
+                toast.error("Failed to announce squads.");
+            }
         }
     };
 
@@ -174,11 +175,22 @@ export default function Squads() {
         setDraggedPlayerId(null);
     };
 
+    const isAnnounceLocked = isAnnouncePending || announceCooldown > 0;
+
     const headerActions = (
         <div className="flex gap-2">
             {isAdmin && squads.length > 0 && (
-                <button onClick={handleAnnounceSquads} className="flex items-center gap-2 px-3 py-1.5 bg-blue-900/20 text-blue-400 border border-blue-800/50 rounded-lg text-[10px] font-black uppercase">
-                    <Megaphone size={14} /> Announce
+                <button
+                    onClick={handleAnnounceSquads}
+                    disabled={isAnnounceLocked}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${
+                        isAnnounceLocked
+                            ? 'bg-gray-800/80 text-gray-500 border border-gray-700 cursor-not-allowed'
+                            : 'bg-blue-900/20 text-blue-400 border border-blue-800/50 hover:bg-blue-900/40'
+                    }`}
+                >
+                    <Megaphone size={14} className={(!isAnnouncePending && announceCooldown === 0) ? "animate-pulse" : ""} />
+                    {isAnnouncePending ? 'Sending...' : announceCooldown > 0 ? `Wait ${announceCooldown}s` : 'Announce'}
                 </button>
             )}
         </div>

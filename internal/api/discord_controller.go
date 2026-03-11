@@ -23,6 +23,7 @@ type DiscordController struct {
 	store       *db.Store
 	cfg         *config.Config
 	cronManager *services.CronManager
+	redisStore  *cache.RedisStore
 	sseBroker   *services.SSEBroker
 }
 
@@ -38,8 +39,13 @@ type DiscordRole struct {
 	Managed bool   `json:"managed"`
 }
 
-func NewDiscordController(store *db.Store, cfg *config.Config, cronManager *services.CronManager, sseBroker *services.SSEBroker) *DiscordController {
-	return &DiscordController{store: store, cfg: cfg, cronManager: cronManager, sseBroker: sseBroker}
+var actionType = "static_button"
+var remainingStr = "a few"
+var limit = int64(1)
+var cooldown = 30 * time.Second
+
+func NewDiscordController(store *db.Store, cfg *config.Config, cronManager *services.CronManager, redisStore *cache.RedisStore, sseBroker *services.SSEBroker) *DiscordController {
+	return &DiscordController{store: store, cfg: cfg, cronManager: cronManager, redisStore: redisStore, sseBroker: sseBroker}
 }
 
 func (dc *DiscordController) resolveTargetAlliance(c *gin.Context) (*int, error) {
@@ -266,6 +272,28 @@ func (dc *DiscordController) SaveRoute(c *gin.Context) {
 func (dc *DiscordController) PostSeasonRotation(c *gin.Context) {
 	seasonId, _ := strconv.Atoi(c.Param("seasonId"))
 	week, _ := strconv.Atoi(c.Param("week"))
+	userID := getInt64FromContext(c, "userId")
+	actionType = "fortress_rotation"
+	redisKey := fmt.Sprintf("ratelimit:discord_btn:%s:user:%d", actionType, userID)
+
+	allowed, err := dc.redisStore.AllowRequest(c.Request.Context(), redisKey, limit, cooldown)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Rate limiter unavailable"})
+		return
+	}
+
+	if !allowed {
+		rem, err := dc.redisStore.GetTimeRemaining(c.Request.Context(), redisKey)
+		if err == nil && rem > 0 {
+			remainingStr = fmt.Sprintf("%d", rem)
+		}
+
+		c.JSON(http.StatusTooManyRequests, gin.H{
+			"error":       fmt.Sprintf("Please wait %s seconds before pinging again.", remainingStr),
+			"retry_after": rem,
+		})
+		return
+	}
 
 	entries, err := dc.store.GetRotationForWeek(seasonId, week)
 	if err != nil {
@@ -313,6 +341,29 @@ func (dc *DiscordController) PostStrategy(c *gin.Context) {
 	activeMeta, err := dc.store.GetActiveStrategy()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch active strategy"})
+		return
+	}
+
+	userID := getInt64FromContext(c, "userId")
+	actionType = "strategy_meta"
+	redisKey := fmt.Sprintf("ratelimit:discord_btn:%s:user:%d", actionType, userID)
+
+	allowed, err := dc.redisStore.AllowRequest(c.Request.Context(), redisKey, limit, cooldown)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Rate limiter unavailable"})
+		return
+	}
+
+	if !allowed {
+		rem, err := dc.redisStore.GetTimeRemaining(c.Request.Context(), redisKey)
+		if err == nil && rem > 0 {
+			remainingStr = fmt.Sprintf("%d", rem)
+		}
+
+		c.JSON(http.StatusTooManyRequests, gin.H{
+			"error":       fmt.Sprintf("Please wait %s seconds before pinging again.", remainingStr),
+			"retry_after": rem,
+		})
 		return
 	}
 
@@ -452,6 +503,29 @@ func (dc *DiscordController) PostAnnouncement(c *gin.Context) {
 	routes, err := dc.store.GetWarRoomBroadcastRoutes()
 	if err != nil || len(routes) == 0 {
 		c.JSON(http.StatusNotFound, gin.H{"error": "No Discord channels are configured to receive this alert."})
+		return
+	}
+
+	userID := getInt64FromContext(c, "userId")
+	actionType = "dynamic_announcement"
+	redisKey := fmt.Sprintf("ratelimit:discord_btn:%s:user:%d", actionType, userID)
+
+	allowed, err := dc.redisStore.AllowRequest(c.Request.Context(), redisKey, limit, cooldown)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Rate limiter unavailable"})
+		return
+	}
+
+	if !allowed {
+		rem, err := dc.redisStore.GetTimeRemaining(c.Request.Context(), redisKey)
+		if err == nil && rem > 0 {
+			remainingStr = fmt.Sprintf("%d", rem)
+		}
+
+		c.JSON(http.StatusTooManyRequests, gin.H{
+			"error":       fmt.Sprintf("Please wait %s seconds before pinging again.", remainingStr),
+			"retry_after": rem,
+		})
 		return
 	}
 

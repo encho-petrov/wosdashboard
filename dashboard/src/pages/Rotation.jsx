@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import AdminLayout from '../components/layout/AdminLayout';
 import { getRewardIcon } from '../assets/rewards/index';
+import { useRateLimit } from '../hooks/useRateLimit';
 
 export default function Rotation() {
     const { user } = useAuth();
@@ -34,18 +35,16 @@ export default function Rotation() {
         return viewSeason < currentSeason;
     }, [currentSeason, viewSeason]);
 
+    // Rate Limiter Setup for Discord Announcement
+    const postAnnounceData = (week) => client.post(`/moderator/discord/rotation/${viewSeason}/${week}`);
+    const {
+        execute: executeAnnounce,
+        isPending: isAnnouncePending,
+        cooldown: announceCooldown
+    } = useRateLimit(postAnnounceData);
+
     useEffect(() => {
         void fetchInitialData();
-    }, []);
-
-    useEffect(() => {
-        const handleSync = () => {
-            console.log("[LiveSync] Rotation state updated!");
-            void fetchInitialData();
-        };
-
-        window.addEventListener('REFRESH_ROTATION', handleSync);
-        return () => window.removeEventListener('REFRESH_ROTATION', handleSync);
     }, []);
 
     // Re-fetch the schedule whenever the selected season changes
@@ -113,10 +112,12 @@ export default function Rotation() {
     const handleAnnounceRotation = async (week) => {
         if (isReadOnly) return;
         try {
-            await client.post(`/moderator/discord/rotation/${viewSeason}/${week}`);
+            await executeAnnounce(week);
             toast.success(`Week ${week} schedule sent to Discord!`);
         } catch (err) {
-            toast.error("Failed to announce rotation.");
+            if (err?.response?.status !== 429) {
+                toast.error("Failed to announce rotation.");
+            }
         }
     };
 
@@ -181,6 +182,8 @@ export default function Rotation() {
 
     if (loading) return <div className="min-h-screen bg-gray-900 flex items-center justify-center font-mono text-blue-500">SYNCHRONIZING SEASON MATRIX...</div>;
 
+    const isAnnounceLocked = isAnnouncePending || announceCooldown > 0;
+
     return (
         <AdminLayout title="Fortress Rotation">
             <div className="min-h-screen bg-gray-900 text-gray-100 font-sans">
@@ -210,15 +213,17 @@ export default function Rotation() {
                             </div>
                         </div>
 
-                        {isAdmin && !isReadOnly ? (
-                            <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-all disabled:opacity-50">
-                                <Save size={18} /> {saving ? 'Saving...' : `Save Season ${viewSeason}`}
-                            </button>
-                        ) : (
-                            <div className="flex items-center gap-2 px-4 py-2 bg-amber-900/20 text-amber-400 border border-amber-800/30 rounded-lg text-xs font-bold uppercase">
-                                <Lock size={14} /> {isReadOnly ? `Season ${viewSeason} Locked` : 'Restricted Access'}
-                            </div>
-                        )}
+                        <div className="flex items-center gap-3">
+                            {isAdmin && !isReadOnly ? (
+                                <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold transition-all disabled:opacity-50">
+                                    <Save size={18} /> {saving ? 'Saving...' : `Save Season ${viewSeason}`}
+                                </button>
+                            ) : (
+                                <div className="flex items-center gap-2 px-4 py-2 bg-amber-900/20 text-amber-400 border border-amber-800/30 rounded-lg text-xs font-bold uppercase">
+                                    <Lock size={14} /> {isReadOnly ? `Season ${viewSeason} Locked` : 'Restricted Access'}
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     {/* The Matrix Table */}
@@ -233,8 +238,18 @@ export default function Rotation() {
                                             <div className="flex items-center justify-center gap-2">
                                                 <span>Week {w}</span>
                                                 {isAdmin && !isReadOnly && (
-                                                    <button onClick={() => handleAnnounceRotation(w)} className="opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-blue-900/40 hover:bg-blue-600 text-blue-400 hover:text-white rounded-md border border-blue-500/30">
-                                                        <Megaphone size={12} />
+                                                    <button
+                                                        onClick={() => handleAnnounceRotation(w)}
+                                                        disabled={isAnnounceLocked}
+                                                        className={`transition-all p-1.5 rounded-md border text-[10px] flex items-center gap-1 ${
+                                                            isAnnounceLocked
+                                                                ? 'bg-gray-800 text-gray-500 border-gray-700 cursor-not-allowed opacity-100'
+                                                                : 'bg-blue-900/40 hover:bg-blue-600 text-blue-400 hover:text-white border-blue-500/30 opacity-0 group-hover:opacity-100'
+                                                        }`}
+                                                        title={isAnnounceLocked ? `Wait ${announceCooldown}s` : `Announce Week ${w}`}
+                                                    >
+                                                        <Megaphone size={12} className={(!isAnnouncePending && announceCooldown === 0) ? "animate-pulse" : ""} />
+                                                        {announceCooldown > 0 && <span className="font-mono">{announceCooldown}s</span>}
                                                     </button>
                                                 )}
                                             </div>

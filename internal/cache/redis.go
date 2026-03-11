@@ -127,6 +127,27 @@ func (r *RedisStore) DeleteWebAuthnSession(token string) {
 	r.Client.Del(ctx, "wa_session:"+token)
 }
 
+func (r *RedisStore) AllowRequest(ctx context.Context, key string, limit int64, cooldown time.Duration) (bool, error) {
+	count, err := r.Client.Incr(ctx, key).Result()
+	if err != nil {
+		return false, err
+	}
+
+	if count == 1 {
+		r.Client.Expire(ctx, key, cooldown)
+	}
+
+	return count <= limit, nil
+}
+
+func (r *RedisStore) GetTimeRemaining(ctx context.Context, key string) (int, error) {
+	ttl, err := r.Client.TTL(ctx, key).Result()
+	if err != nil {
+		return 0, err
+	}
+	return int(ttl.Seconds()), nil
+}
+
 func (r *RedisStore) Close() error {
 	log.Println("Closing Redis connection pool...")
 	return r.Client.Close()
