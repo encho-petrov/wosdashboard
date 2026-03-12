@@ -7,7 +7,7 @@ FILENAME="db_backup_${TIMESTAMP}.sql.gz.gpg"
 echo "[$(date)] Starting encrypted backup pipeline..."
 
 # Dump, Compress, and Encrypt on the fly
-mysqldump -h "${DB_HOST}" -u "${DB_USER}" -p"${DB_PASSWORD}" "${DB_NAME}" \
+mariadb-dump -h "${DB_HOST}" -u "${DB_USER}" -p"${DB_PASSWORD}" "${DB_NAME}" \
     | gzip \
     | gpg --batch --yes --encrypt --recipient "${GPG_RECIPIENT}" --trust-model always \
     > "/tmp/${FILENAME}"

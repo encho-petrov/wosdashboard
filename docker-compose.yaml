@@ -74,6 +74,8 @@ services:
     restart: unless-stopped
     depends_on:
       - mysql
+    networks:
+      - wos-net
     volumes:
       - ./ops/backup.sh:/scripts/backup.sh:ro
       - ./ops/backup_pub.asc:/keys/pubkey.asc:ro
