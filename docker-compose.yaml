@@ -5,8 +5,8 @@ services:
     image: mysql:8.0
     container_name: mysql
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: wos
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
     volumes:
       - mysql_data:/var/lib/mysql
     ports:
@@ -32,7 +32,7 @@ services:
       - "8080:8080"
     environment:
       Database__Host: "mysql:3306"
-      Database__Password: "rootpassword"
+      Database__Password: "${MYSQL_ROOT_PASSWORD}"
       Redis__Host: "redis:6379"
     volumes:
       - shared_assets:/app/shared-assets/heroes
@@ -62,11 +62,39 @@ services:
       - mysql
     environment:
       Database__Host: "mysql:3306"
-      Database__Password: "rootpassword"
+      Database__Password: "${MYSQL_ROOT_PASSWORD}"
     volumes:
       - shared_assets:/app/shared-assets/heroes
     networks:
       - wos-net
+
+  backup-worker:
+    image: alpine:latest
+    container_name: wos_backup_worker
+    restart: unless-stopped
+    depends_on:
+      - mysql
+    volumes:
+      - ./ops/backup.sh:/scripts/backup.sh:ro
+      - ./ops/backup_pub.asc:/keys/pubkey.asc:ro
+    environment:
+      - DB_HOST=mysql
+      - DB_USER=${MYSQL_USER}
+      - DB_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - DB_NAME=${MYSQL_DATABASE}
+      - GPG_RECIPIENT=${GPG_RECIPIENT}
+      - AWS_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - AWS_DEFAULT_REGION=auto
+      - S3_BUCKET=${S3_BUCKET}
+      - R2_ENDPOINT_URL=${R2_ENDPOINT_URL}
+    command: >
+      sh -c "
+        apk add --no-cache mysql-client gnupg aws-cli bash tzdata &&
+        gpg --import /keys/pubkey.asc &&
+        echo '0 */12 * * * bash /scripts/backup.sh >> /proc/1/fd/1 2>&1' > /etc/crontabs/root &&
+        crond -f -d 8
+      "
 
 volumes:
   mysql_data:
