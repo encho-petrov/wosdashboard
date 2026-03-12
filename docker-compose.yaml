@@ -69,8 +69,8 @@ services:
       - wos-net
 
   backup-worker:
-    image: alpine:latest
-    container_name: wos_backup_worker
+    image: debian:bookworm-slim
+    container_name: backup
     restart: unless-stopped
     depends_on:
       - mysql
@@ -91,11 +91,13 @@ services:
       - S3_BUCKET=${S3_BUCKET}
       - R2_ENDPOINT_URL=${R2_ENDPOINT_URL}
     command: >
-      sh -c "
-        apk add --no-cache mysql-client gnupg aws-cli bash tzdata &&
+      bash -c "
+        apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y default-mysql-client gnupg awscli cron tzdata &&
         gpg --import /keys/pubkey.asc &&
-        echo '0 */12 * * * bash /scripts/backup.sh >> /proc/1/fd/1 2>&1' > /etc/crontabs/root &&
-        crond -f -d 8
+        echo '0 */12 * * * bash /scripts/backup.sh >> /proc/1/fd/1 2>&1' > /etc/cron.d/backup-cron &&
+        chmod 0644 /etc/cron.d/backup-cron &&
+        crontab /etc/cron.d/backup-cron &&
+        cron -f
       "
 
 volumes:
