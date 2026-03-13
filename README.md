@@ -108,7 +108,6 @@ vim appsettings.json
 Define your MySQL credentials, Discord token, and WoS State ID. **Crucially, configure your active modules here:**
 ```json
 "Features": {
-    "GameApi": true,
     "GiftCodes": false, 
     "Discord": true,
     "WarRoom": true,
