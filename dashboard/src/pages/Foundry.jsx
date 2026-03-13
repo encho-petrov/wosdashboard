@@ -13,6 +13,7 @@ import { useRateLimit } from '../hooks/useRateLimit';
 
 export default function AllianceWarRoom() {
     const { user } = useAuth();
+    const { features } = useApp();
     const isAdmin = user?.role === 'admin';
     const { roster, globalLoading } = useApp();
 
@@ -349,7 +350,7 @@ export default function AllianceWarRoom() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                        {isAdmin && !isHistory && isLocked && (
+                        {isAdmin && !isHistory && isLocked && features?.Discord && (
                             <button
                                 onClick={(e) => handleAnnounceDiscord(e, legionId)}
                                 disabled={isAnnounceLocked}

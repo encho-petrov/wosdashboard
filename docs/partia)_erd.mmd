@@ -1,0 +1,62 @@
+﻿erDiagram
+    USER ||--o| ALLIANCE : "restricted to (optional)"
+    USER {
+        int id PK
+        string username
+        string role "admin, moderator"
+        boolean mfa_enabled
+        boolean has_webauthn
+    }
+
+    PLAYER ||--o| ALLIANCE : "member of (Home)"
+    PLAYER ||--o| ALLIANCE : "deployed to (War)"
+    PLAYER ||--o| SQUAD : "assigned to"
+    PLAYER {
+        bigint fid PK
+        string nickname
+        int normalPower
+        int power "Tundra Power"
+        string troopType
+        string battleAvailability
+        boolean avail_0200
+    }
+
+    ALLIANCE ||--o{ SQUAD : "commands"
+    ALLIANCE {
+        int id PK
+        string name
+        boolean isLocked
+    }
+
+    SQUAD {
+        int id PK
+        int allianceId FK
+        bigint captainFid FK
+    }
+
+    TRANSFER_SEASON ||--o{ TRANSFER_RECORD : "contains"
+    TRANSFER_SEASON {
+        int id PK
+        string name
+        string status "Planning, Active, Closed"
+        int powerCap
+        int normalInvites
+        int specialInvites
+    }
+
+    TRANSFER_RECORD {
+        int id PK
+        int seasonId FK
+        bigint fid FK
+        int targetAllianceId FK
+        string status "Pending, Confirmed, Declined"
+        string inviteType "Normal, Special, None"
+    }
+
+    REDEEM_JOB ||--o{ REDEEM_LOG : "generates"
+    REDEEM_JOB {
+        string jobId PK
+        string status "PENDING, RUNNING, COMPLETED"
+        int totalPlayers
+        int processedPlayers
+    }

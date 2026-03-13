@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import client from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useApp } from '../context/AppContext'
 import { toast } from 'react-toastify';
 import {
     LayoutGrid, Shield, Save,
@@ -12,6 +13,7 @@ import { useRateLimit } from '../hooks/useRateLimit';
 
 export default function Rotation() {
     const { user } = useAuth();
+    const { features } = useApp()
     const isAdmin = user?.role === 'admin';
 
     // Data State
@@ -237,7 +239,7 @@ export default function Rotation() {
                                         <th key={w} className="p-4 text-center min-w-[140px] font-black text-xs uppercase tracking-tighter text-gray-400 group relative">
                                             <div className="flex items-center justify-center gap-2">
                                                 <span>Week {w}</span>
-                                                {isAdmin && !isReadOnly && (
+                                                {isAdmin && !isReadOnly && features?.Discord && (
                                                     <button
                                                         onClick={() => handleAnnounceRotation(w)}
                                                         disabled={isAnnounceLocked}

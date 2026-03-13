@@ -224,12 +224,14 @@ export default function TransferManager() {
                             </button>
 
                             {season.status === 'Planning' && (
-                                <button onClick={() => handleUpdateSeasonStatus('Active')} className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-blue-600/20 border border-blue-800/50 hover:bg-blue-600/40 text-blue-400 rounded-xl font-black text-xs uppercase shadow-lg transition-all">
-                                    <Play size={16} /> Open
-                                </button>) && (
-                                <button onClick={openEditModal} className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-yellow-600/20 border border-yellow-800/50 hover:bg-yellow-600/40 text-yellow-400 rounded-xl font-black text-xs uppercase shadow-lg transition-all">
-                                    <Edit size={16} /> Edit
-                                </button>
+                                <>
+                                    <button onClick={() => handleUpdateSeasonStatus('Active')} className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-blue-600/20 border border-blue-800/50 hover:bg-blue-600/40 text-blue-400 rounded-xl font-black text-xs uppercase shadow-lg transition-all">
+                                        <Play size={16} /> Open
+                                    </button>
+                                    <button onClick={openEditModal} className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-yellow-600/20 border border-yellow-800/50 hover:bg-yellow-600/40 text-yellow-400 rounded-xl font-black text-xs uppercase shadow-lg transition-all">
+                                        <Edit size={16} /> Edit
+                                    </button>
+                                </>
                             )}
 
                             {(season.status === 'Planning' || season.status === 'Active') && (

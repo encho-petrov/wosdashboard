@@ -1,0 +1,34 @@
+﻿sequenceDiagram
+    participant User
+    participant React UI
+    participant Go API
+    participant DB
+
+    User->>React UI: Clicks "Login"
+
+    alt Path A: Standard Password Login
+        React UI->>Go API: POST /api/login {user, pass}
+        Go API->>DB: Verify Hash
+        alt MFA Enabled
+            Go API-->>React UI: 401 Unauthorized { "mfa_required": true, "temp_token" }
+            React UI->>User: Prompt for 6-digit TOTP Code
+            User->>React UI: Enters Code
+            React UI->>Go API: POST /api/login/mfa {code, temp_token}
+            Go API->>Go API: Validate TOTP
+            Go API-->>React UI: 200 OK + JWT Access/Refresh Tokens
+        else MFA Disabled
+            Go API-->>React UI: 200 OK + JWT Tokens
+        end
+    end
+
+    alt Path B: Biometric / WebAuthn Login
+        React UI->>Go API: GET /api/webauthn/login/begin
+        Go API-->>React UI: Cryptographic Challenge
+        React UI->>User: Browser prompts TouchID/FaceID
+        User->>React UI: Biometric Approval
+        React UI->>Go API: POST /api/webauthn/login/finish {signed_challenge}
+        Go API->>DB: Verify Signature against stored Public Key
+        Go API-->>React UI: 200 OK + JWT Tokens
+    end
+
+    Note over React UI, Go API: React stores JWT in memory & handles auto-refresh via POST /api/refresh

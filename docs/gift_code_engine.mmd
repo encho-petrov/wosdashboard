@@ -1,0 +1,58 @@
+﻿sequenceDiagram
+    participant UI as RedemptionWidget
+    participant Ctrl as RedeemController
+    participant Redis as Redis (Lock/State)
+    participant Queue as JobQueue (Channel)
+    participant Worker as Processor Worker
+    participant API as Game/2Captcha API
+
+    UI->>Ctrl: POST /api/moderator/redeem {codes}
+    Ctrl->>Redis: Check IsJobRunning()
+
+    alt Job Already Running
+        Redis-->>Ctrl: True
+        Ctrl-->>UI: 409 Conflict
+    else System Clear
+        Redis-->>Ctrl: False
+        Ctrl->>Ctrl: Create Job in DB
+        Ctrl->>Queue: Push Job
+        Ctrl-->>UI: 200 OK (Job Started)
+    end
+
+    Note over UI, Ctrl: UI begins polling /api/moderator/job/current
+
+%% Async Worker Loop
+    Worker->>Queue: Pop Job
+    Worker->>Redis: AcquireJobLock(JobID)
+
+    loop For Each Target Player
+        loop For Each Gift Code
+            Worker->>API: GetPlayerInfo()
+
+            alt WAF_BLOCK Detected
+                API-->>Worker: Error (WAF_BLOCK)
+                Worker->>Worker: Trigger Global 60s Pause
+                Worker->>Worker: Sleep remaining time
+            end
+
+            Worker->>API: GetCaptcha()
+            API-->>Worker: Base64 Image
+            Worker->>API: Solve() (via 2Captcha)
+            Worker->>API: RedeemGift(solved_token)
+
+            alt Success or Ghost Success
+                API-->>Worker: 20000 / "USED"
+                Worker->>Worker: Mark Redeemed in DB
+            else Failure
+                API-->>Worker: "CDK NOT FOUND" / "EXPIRED"
+                Worker->>Worker: Log Failure
+            end
+
+            Worker->>Worker: Random Jitter Sleep (1-2.5s)
+        end
+        Worker->>Redis: Update Job Progress
+    end
+
+    Worker->>Worker: Generate CSV Report
+    Worker->>Redis: ReleaseJobLock()
+    Worker->>Worker: Mark Job COMPLETED

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import client, { API_URL } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useApp } from '../context/AppContext';
 import { toast } from 'react-toastify';
 import { Swords, Shield, Save, Users, PawPrint, Send, X } from 'lucide-react';
 import AdminLayout from '../components/layout/AdminLayout';
@@ -44,6 +45,7 @@ const HeroSlot = ({ label, slotIndex, selectedId, heroes, onChange }) => {
 
 export default function Strategy() {
     const { user } = useAuth();
+    const { features } = useApp();
     const isAdmin = user?.role === 'admin';
 
     // Core State
@@ -273,19 +275,20 @@ export default function Strategy() {
                             >
                                 <Save size={18} /> {saving ? 'Saving...' : 'Deploy Plan'}
                             </button>
-
-                            <button
-                                onClick={handlePublishToDiscord}
-                                disabled={isNotifyLocked}
-                                className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold transition-all shadow-lg ${
-                                    isNotifyLocked
-                                        ? 'bg-gray-700 text-gray-400 cursor-not-allowed border border-gray-600'
-                                        : 'bg-[#5865F2] hover:bg-[#4752C4] text-white shadow-indigo-900/20'
-                                }`}
-                            >
-                                <Send size={18} className={(!isNotifyPending && notifyCooldown === 0) ? "animate-pulse" : ""} />
-                                {isNotifyPending ? 'Sending...' : notifyCooldown > 0 ? `Wait ${notifyCooldown}s` : 'Notify'}
-                            </button>
+                            {features?.Discord && (
+                                <button
+                                    onClick={handlePublishToDiscord}
+                                    disabled={isNotifyLocked}
+                                    className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold transition-all shadow-lg ${
+                                        isNotifyLocked
+                                            ? 'bg-gray-700 text-gray-400 cursor-not-allowed border border-gray-600'
+                                            : 'bg-[#5865F2] hover:bg-[#4752C4] text-white shadow-indigo-900/20'
+                                    }`}
+                                >
+                                    <Send size={18} className={(!isNotifyPending && notifyCooldown === 0) ? "animate-pulse" : ""} />
+                                    {isNotifyPending ? 'Sending...' : notifyCooldown > 0 ? `Wait ${notifyCooldown}s` : 'Notify'}
+                                </button>
+                            )}
                         </div>
                     </div>
 

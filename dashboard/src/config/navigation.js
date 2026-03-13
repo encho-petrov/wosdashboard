@@ -14,7 +14,8 @@ export const navLinks = [
         icon: LayoutDashboard,
         requiredRoles: ['admin', 'moderator'],
         description: 'System overview and redemption launcher.',
-        requiresAlliance: false
+        requiresAlliance: false,
+        featureKey: null
     },
     {
         name: 'Roster',
@@ -22,7 +23,8 @@ export const navLinks = [
         icon: List,
         requiredRoles: ['admin', 'moderator'],
         description: 'Full player database and attribute editing.',
-        requiresAlliance: false
+        requiresAlliance: false,
+        featureKey: null
     },
     {
         name: 'War Room',
@@ -30,7 +32,8 @@ export const navLinks = [
         icon: Swords,
         requiredRoles: ['admin', 'moderator'],
         description: 'Event deployment and troop assignments.',
-        requiresAlliance: false
+        requiresAlliance: false,
+        featureKey: 'WarRoom'
     },
     {
         name: 'Squads',
@@ -38,7 +41,8 @@ export const navLinks = [
         icon: Users,
         requiredRoles: ['admin', 'moderator'],
         description: 'Manage specialized squad formations.',
-        requiresAlliance: false
+        requiresAlliance: false,
+        featureKey: 'Squads'
     },
     {
         name: 'Strategy',
@@ -46,7 +50,8 @@ export const navLinks = [
         icon: Crown,
         requiredRoles: ['admin', 'moderator'],
         description: 'Event deployment and troop assignments.',
-        requiresAlliance: false
+        requiresAlliance: false,
+        featureKey: 'Strategy'
     },
     {
         name: 'Event History',
@@ -54,7 +59,8 @@ export const navLinks = [
         icon: History,
         requiredRoles: ['admin','moderator'],
         description: 'Event history assignments.',
-        requiresAlliance: false
+        requiresAlliance: false,
+        featureKey: 'WarRoom'
     },
     {
         name: 'Ministry',
@@ -62,7 +68,8 @@ export const navLinks = [
         icon: Calendar,
         requiredRoles: ['admin', 'moderator'],
         description: 'Buff reservations and schedule management.',
-        requiresAlliance: false
+        requiresAlliance: false,
+        featureKey: 'Ministry'
     },
     {
         name: 'Transfers',
@@ -70,7 +77,8 @@ export const navLinks = [
         icon: Send,
         requiredRoles: ['admin', 'moderator'],
         description: 'Monitor inbound and outbound movements.',
-        requiresAlliance: false
+        requiresAlliance: false,
+        featureKey: 'Transfers'
     },
     {
         name: 'Rotation',
@@ -78,7 +86,8 @@ export const navLinks = [
         icon: LayoutGrid,
         requiredRoles: ['admin', 'moderator'],
         description: 'Fortress and Stronghold season planning.',
-        requiresAlliance: false
+        requiresAlliance: false,
+        featureKey: 'Rotation'
     },
     {
         name: 'Alliances',
@@ -94,7 +103,8 @@ export const navLinks = [
         icon: FoundryIcon,
         requiredRoles: ['admin','moderator'],
         description: 'Configure Foundry and Canyon Clash legions.',
-        requiresAlliance: true
+        requiresAlliance: true,
+        featureKey: 'Foundry'
     },
     {
         name: 'Discord',
@@ -102,7 +112,8 @@ export const navLinks = [
         icon: FaDiscord,
         requiredRoles: ['admin','moderator'],
         description: 'Configure Discord integrations.',
-        requiresAlliance: true
+        requiresAlliance: true,
+        featureKey: 'Discord'
     },
     {
         name: 'Audit Logs',
@@ -110,7 +121,8 @@ export const navLinks = [
         icon: Terminal,
         requiredRoles: ['admin'],
         description: 'Review administrative action history.',
-        requiresAlliance: false
+        requiresAlliance: false,
+        featureKey: null
     },
     {
         name: 'Users',
@@ -118,7 +130,8 @@ export const navLinks = [
         icon: Users,
         requiredRoles: ['admin'],
         description: 'User administration.',
-        requiresAlliance: false
+        requiresAlliance: false,
+        featureKey: null
     },
     {
         name: 'User Profile',
@@ -126,6 +139,7 @@ export const navLinks = [
         icon: UserCircle,
         requiredRoles: ['admin', 'moderator'],
         description: 'User profile.',
-        requiresAlliance: false
+        requiresAlliance: false,
+        featureKey: null
     }
 ];
