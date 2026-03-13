@@ -224,14 +224,7 @@ func (s *Store) UpdateUserAccess(userID int, role string, allianceID *int) error
 }
 
 func (s *Store) ResetUserSecurity(userID int, newPasswordHash string) error {
-	userQuery := `
-		UPDATE users 
-		SET password_hash = $1, 
-		    mfa_enabled = false, 
-		    mfa_secret = '' 
-		WHERE id = $2
-	`
-	_, err := s.db.Exec(userQuery, newPasswordHash, userID)
+	_, err := s.db.Exec("UPDATE users SET password_hash = ?, mfa_enabled = false, mfa_secret = '' WHERE id = ?", newPasswordHash, userID)
 	if err != nil {
 		return err
 	}
