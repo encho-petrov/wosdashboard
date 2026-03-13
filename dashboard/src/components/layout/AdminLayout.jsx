@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useApp } from '../../context/AppContext';
 import { navLinks } from '../../config/navigation';
 import { LogOut, Activity, Menu, ChevronRight } from 'lucide-react';
 
@@ -11,6 +12,7 @@ import LiveSyncManager from '../LiveSyncManager';
 
 export default function AdminLayout({ children, title, actions }) {
     const { user, logout } = useAuth();
+    const { features } = useApp(); // Pulling features from context
     const [pendingCount, setPendingCount] = useState(0);
     const navigate = useNavigate();
     const location = useLocation();
@@ -40,7 +42,6 @@ export default function AdminLayout({ children, title, actions }) {
         };
     }, []);
 
-
     useEffect(() => {
         if (user?.role !== 'admin') {
             setPendingCount(0);
@@ -69,12 +70,21 @@ export default function AdminLayout({ children, title, actions }) {
         navigate('/login');
     };
 
+    // --- Dynamic Feature Filtering ---
     const filteredLinks = navLinks.filter(link => {
-        const hasRole = link.requiredRoles.includes(user?.role)
+        // 1. Check Role Permission
+        const hasRole = link.requiredRoles.includes(user?.role);
+        if (!hasRole) return false;
+
+        // 2. Check Alliance Requirement
         if (link.requiresAlliance && !user?.allianceId) {
             return false;
         }
-        return hasRole;
+
+        // 3. Check Feature Flag (if it has a key, and it is explicitly false)
+        return !(link.featureKey && features && features[link.featureKey] === false);
+
+
     });
 
     const isMfaRequired = user && !user.mfaEnabled;
@@ -82,6 +92,7 @@ export default function AdminLayout({ children, title, actions }) {
     return (
         <div className="flex h-screen bg-gray-950 text-gray-100 font-sans overflow-hidden relative">
             <LiveSyncManager />
+
             {/* MFA OVERLAY */}
             {isMfaRequired && (
                 <>
@@ -108,7 +119,6 @@ export default function AdminLayout({ children, title, actions }) {
                 transform transition-transform duration-300 ease-in-out flex flex-col shrink-0
                 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
             `}>
-                {/* ... Sidebar contents remain unchanged ... */}
                 <div className="h-16 flex items-center px-6 border-b border-gray-800 shrink-0">
                     <Activity className="text-blue-500 w-6 h-6 mr-3" />
                     <span className="font-black text-lg tracking-tighter text-white uppercase">Command Console</span>
@@ -138,7 +148,7 @@ export default function AdminLayout({ children, title, actions }) {
                 </nav>
 
                 <div className="p-4 border-t border-gray-800 bg-gray-900/50 shrink-0">
-                    <Link to="/profile" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-3 px-4 py-3 bg-gray-950 rounded-xl border border-gray-800 hover:border-blue-500/50 transition-all mb-3 group relative cursor-pointer block">
+                    <Link to="/profile" onClick={() => setIsSidebarOpen(false)} className="flex items-center gap-3 px-4 py-3 bg-gray-950 rounded-xl border border-gray-800 hover:border-blue-500/50 transition-all mb-3 group relative cursor-pointer">
                         <div className="flex items-center gap-3 w-full">
                             <div className="relative">
                                 <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-black text-xs text-white shrink-0 group-hover:bg-blue-500 transition-colors">
@@ -146,9 +156,9 @@ export default function AdminLayout({ children, title, actions }) {
                                 </div>
                                 {pendingCount > 0 && (
                                     <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5 items-center justify-center">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500 border-2 border-gray-950"></span>
-                        </span>
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500 border-2 border-gray-950"></span>
+                                    </span>
                                 )}
                             </div>
                             <div className="min-w-0 flex-1">

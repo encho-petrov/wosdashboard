@@ -62,6 +62,7 @@ const MultiSelectDropdown = ({ options, selected, onChange, placeholder, activeC
 
 export default function WarRoom() {
     const { user } = useAuth();
+    const { features } = useApp();
     const isAdmin = user?.role === 'admin';
     const isMod = user?.role === 'moderator';
 
@@ -260,7 +261,7 @@ export default function WarRoom() {
                     <RotateCcw size={14} /> <span className="hidden sm:inline">Reset</span>
                 </button>
             )}
-            {isAdmin && stats.some(a => a.isLocked) && (
+            {isAdmin && features?.Discord && stats.some(a => a.isLocked) && (
                 <button
                     onClick={handleAnnounceWarRoom}
                     disabled={isAnnouncePending || announceCooldown > 0}

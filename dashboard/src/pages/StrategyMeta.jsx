@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import client, { API_URL } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useApp } from '../context/AppContext';
 import { toast } from 'react-toastify';
 import { Swords, Shield, Save, Users, PawPrint, Send, X } from 'lucide-react';
 import AdminLayout from '../components/layout/AdminLayout';
@@ -44,6 +45,7 @@ const HeroSlot = ({ label, slotIndex, selectedId, heroes, onChange }) => {
 
 export default function Strategy() {
     const { user } = useAuth();
+    const { features } = useApp();
     const isAdmin = user?.role === 'admin';
 
     // Core State
@@ -257,12 +259,14 @@ export default function Strategy() {
                             >
                                 <Shield size={16} className="md:w-5 md:h-5" /> Defense Formations
                             </button>
-                            <button
-                                onClick={() => setActiveTab('Pet Schedule')}
-                                className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-3 md:px-6 py-3 rounded-t-xl font-bold transition-colors whitespace-nowrap text-xs sm:text-sm md:text-base ${activeTab === 'Pet Schedule' ? 'bg-gray-800 text-yellow-400 border-t-2 border-yellow-500' : 'text-gray-500 hover:text-gray-300'}`}
-                            >
-                                <PawPrint size={16} className="md:w-5 md:h-5" /> Pet Schedule
-                            </button>
+                            {( features?.Squads &&
+                                <button
+                                    onClick={() => setActiveTab('Pet Schedule')}
+                                    className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-3 md:px-6 py-3 rounded-t-xl font-bold transition-colors whitespace-nowrap text-xs sm:text-sm md:text-base ${activeTab === 'Pet Schedule' ? 'bg-gray-800 text-yellow-400 border-t-2 border-yellow-500' : 'text-gray-500 hover:text-gray-300'}`}
+                                >
+                                    <PawPrint size={16} className="md:w-5 md:h-5" /> Pet Schedule
+                                </button>
+                            )}
                         </div>
 
                         <div className="flex gap-3 w-full md:w-auto">
@@ -273,19 +277,20 @@ export default function Strategy() {
                             >
                                 <Save size={18} /> {saving ? 'Saving...' : 'Deploy Plan'}
                             </button>
-
-                            <button
-                                onClick={handlePublishToDiscord}
-                                disabled={isNotifyLocked}
-                                className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold transition-all shadow-lg ${
-                                    isNotifyLocked
-                                        ? 'bg-gray-700 text-gray-400 cursor-not-allowed border border-gray-600'
-                                        : 'bg-[#5865F2] hover:bg-[#4752C4] text-white shadow-indigo-900/20'
-                                }`}
-                            >
-                                <Send size={18} className={(!isNotifyPending && notifyCooldown === 0) ? "animate-pulse" : ""} />
-                                {isNotifyPending ? 'Sending...' : notifyCooldown > 0 ? `Wait ${notifyCooldown}s` : 'Notify'}
-                            </button>
+                            {features?.Discord && (
+                                <button
+                                    onClick={handlePublishToDiscord}
+                                    disabled={isNotifyLocked}
+                                    className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold transition-all shadow-lg ${
+                                        isNotifyLocked
+                                            ? 'bg-gray-700 text-gray-400 cursor-not-allowed border border-gray-600'
+                                            : 'bg-[#5865F2] hover:bg-[#4752C4] text-white shadow-indigo-900/20'
+                                    }`}
+                                >
+                                    <Send size={18} className={(!isNotifyPending && notifyCooldown === 0) ? "animate-pulse" : ""} />
+                                    {isNotifyPending ? 'Sending...' : notifyCooldown > 0 ? `Wait ${notifyCooldown}s` : 'Notify'}
+                                </button>
+                            )}
                         </div>
                     </div>
 
@@ -338,7 +343,7 @@ export default function Strategy() {
                         )}
 
                         {/* VIEW 2: PET SCHEDULE */}
-                        {activeTab === 'Pet Schedule' && (
+                        {activeTab === 'Pet Schedule' && features?.Squads &&  (
                             <div className="space-y-6">
                                 <div className="flex justify-between items-end border-b border-gray-700 pb-4">
                                     <div>

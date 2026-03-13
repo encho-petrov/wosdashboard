@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -126,59 +127,59 @@ func main() {
 		log.Println("Created default admin user: admin / admin123")
 	}
 
-	solver := captcha.NewSolver(cfg.ApiSecrets.CaptchaApiKey)
-	defer solver.Close()
-
 	pClient := client.NewPlayerClient(cfg.ApiSecrets.GiftSecret)
-	gClient := client.NewGiftClient(cfg.ApiSecrets.GiftSecret)
-
 	redisStore := cache.NewRedisStore(cfg.Redis.Host, cfg.Redis.Password, cfg.Redis.DB)
-	engine := processor.NewProcessor(pClient, gClient, store, solver, redisStore)
 
-	go engine.StartWorkers()
+	if !cfg.FeaturesConfig.WarRoom {
+		cfg.FeaturesConfig.Squads = false
+	}
+
+	var engine *processor.Processor
+	if cfg.FeaturesConfig.GiftCodes {
+		solver := captcha.NewSolver(cfg.ApiSecrets.CaptchaApiKey)
+		defer solver.Close()
+		gClient := client.NewGiftClient(cfg.ApiSecrets.GiftSecret)
+
+		engine = processor.NewProcessor(pClient, gClient, store, solver, redisStore)
+		go engine.StartWorkers()
+		log.Println("Gift Code Processor initialized.")
+	}
 
 	botToken := cfg.Discord.BotToken
-
 	var cronManager *services.CronManager
-	if botToken != "" {
+	var sysCron *cron.Cron
+
+	if botToken != "" && cfg.FeaturesConfig.Discord {
 		cronManager = services.NewCronManager(store, botToken)
 		cronManager.Start()
 		defer cronManager.Stop()
-	} else {
-		log.Println("WARNING: Discord Bot Token missing. Dynamic Cron Engine disabled.")
-	}
 
-	router := api.SetupRouter(engine, store, cfg, pClient, redisStore, cronManager)
-
-	var sysCron *cron.Cron
-	if botToken != "" {
 		sysCron = cron.New(cron.WithLocation(time.UTC))
-
 		cronExp := parseCronSchedule(cfg.Rotation.AnnounceDay, cfg.Rotation.AnnounceTimeUTC)
 		_, err := sysCron.AddFunc(cronExp, func() {
-			log.Println("CRON: Triggering automated Discord rotation announcement...")
 			services.TriggerRotationCron(store, botToken, cfg.Rotation.SeasonReferenceDate, cfg.Rotation.AnchorSeason)
 		})
-
 		_, err = sysCron.AddFunc("* * * * *", func() {
 			services.CheckMinistrySchedule(store, botToken)
 			services.CheckPetSchedule(store, botToken)
 		})
-
-		if err != nil {
-			log.Printf("Failed to schedule System Discord cron: %v", err)
-		} else {
+		if err == nil {
 			sysCron.Start()
-			log.Printf("System Discord Cron scheduled for %s at %s UTC", cfg.Rotation.AnnounceDay, cfg.Rotation.AnnounceTimeUTC)
+			log.Println("System Discord Crons scheduled.")
 		}
+	} else {
+		log.Println("Discord Integration disabled in Config.")
 	}
+
+	router := api.SetupRouter(engine, store, cfg, pClient, redisStore, cronManager)
+
 	srv := &http.Server{
-		Addr:    ":8080",
+		Addr:    ":" + strconv.Itoa(cfg.Server.Port),
 		Handler: router,
 	}
 
 	go func() {
-		log.Println("Server running on http://localhost:8080")
+		log.Println("Server running on http://localhost:" + strconv.Itoa(cfg.Server.Port))
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("Failed to start server: %v", err)
 		}

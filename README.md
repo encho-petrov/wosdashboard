@@ -1,4 +1,4 @@
-# WoS Dashboard
+# WoS Dashboard: Alliance Command Console
 
 ![Status](https://img.shields.io/badge/status-active-success)
 ![Backend](https://img.shields.io/badge/backend-Go-00ADD8)
@@ -7,406 +7,171 @@
 ![Deployment](https://img.shields.io/badge/deployment-Docker-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-A lightweight **state management dashboard for Whiteout Survival (WoS)**.
+A lightweight, modular **state management dashboard for Whiteout Survival (WoS)**.
 
-WoS Dashboard provides R4/R5 leadership with a centralized interface to manage **players, alliances, events, transfers, and reservations** — replacing scattered spreadsheets, Google Docs, and manual Discord coordination.
+WoS Dashboard provides R4/R5 leadership with a centralized interface to manage **players, alliances, events, transfers, and reservations**—replacing scattered spreadsheets, Google Docs, and manual Discord coordination.
 
-Originally built as a **gift code redeemer**, the project evolved into a **full operational dashboard** tailored for real WoS leadership workflows.
-
----
-
-# Screenshots
-
-*(Coming soon)*
+Originally built as a gift code redeemer, the project has evolved into a highly scalable, **feature-toggled operational dashboard** tailored for real WoS leadership workflows.
 
 ---
 
-# Live Demo
+## 📸 Screenshots & Demo
 
-A walkthrough of the dashboard will be available here:
-
-📺 **YouTube Demo**  
-*(link coming soon)*
+*(Coming soon)* | [📺 **YouTube Walkthrough**](#) *(link coming soon)*
 
 ---
 
-# Why This Exists
+## 🎯 Why This Exists
 
-Running a WoS state often requires juggling:
+Running a WoS state often requires juggling multiple Google Sheets, Discord reminders, fortress rotation spreadsheets, manual ministry tracking, and the general coordination chaos during SvS and Tyrant.
 
-- multiple Google Sheets
-- Discord reminders
-- fortress rotation spreadsheets
-- manual ministry reservation tracking
-- event coordination chaos during SvS and Tyrant
-
-WoS Dashboard consolidates everything into **one lightweight management platform** designed specifically for **state leadership teams**.
-
-Goal:
-
-> Give state leadership a single place to run the entire state.
+WoS Dashboard consolidates everything into **one lightweight, modular platform** designed specifically to give state leadership a single place to run the entire state.
 
 ---
 
-# Features
+## ✨ Core Features & Modules
 
-## Player & Alliance Management
+The application is built on a **modular architecture**. The core system runs the basic roster and authentication, while heavy features (like Gift Codes or Discord integrations) can be toggled on or off in the configuration to save server memory and simplify the UI.
 
-- Complete **state roster management**
-- Add, edit, and remove players and alliances
-- Sync player data from the **WoS API**
-    - avatar
-    - nickname
-    - furnace level
-- Advanced filtering and sorting
-- Track player availability for events
-- Configure **standard and fighting alliances**
+### 🛡️ The Core OS (Always On)
+* **State Roster Ledger:** Complete management of players, alliances, and furnace levels synced via the WoS API.
+* **Role-Based Access Control:** Secure Admin/Moderator tiers.
+* **Enterprise Security:** Support for Standard Passwords, **TOTP Authenticator Apps**, and **WebAuthn (Biometrics/Passkeys)**.
+* **Player Dashboard:** A restricted view where players can log in using their Game ID to view their specific deployments.
+* **Audit Logging & Backups:** Comprehensive action tracking and automated, encrypted database backups (AWS, GCP, Cloudflare R2).
 
----
-
-## Event Planning
-
-Tools designed for coordinating large-scale events such as **SvS**.
-
-- Fighting alliance deployment
-- Rally team organization
-- Troop formations
-- Pet schedules
-- Event history tracking
+### 🧩 Toggleable Modules
+* **⚔️ War Room & Squads:** Coordinate SvS fighting alliances, rally teams, and troop formations with real-time UI synchronization.
+* **🏛️ Ministry Reservations:** Streamline SvS ministry schedules with custom templates and history tracking.
+* **🏰 Fortress Rotation:** Plan and allocate seasonal fortress and stronghold rotations.
+* **✈️ Transfer Manager:** Manage inbound/outbound transfers, track season caps (Normal/Special invites), and onboard players directly to the roster.
+* **⚙️ Foundry & Canyon Clash:** Manage alliance-based event coordination, legion assignments, and attendance histories.
+* **🤖 Discord Integration:** Automated, taggable cron reminders for rotations, ministries, troop deployments, and pet schedules.
+* **🎁 Gift Code Engine:** Live, batched redemption tracking with CSV reporting (Requires external 2captcha service).
 
 ---
 
-## Ministry Reservation System
+## 🏗️ Architecture
 
-A streamlined system for **SvS ministry reservations**.
+The system utilizes a modular Go backend with an injected configuration state. The React frontend dynamically hydrates its UI based on the backend's active feature flags.
 
-- Custom reservation schedules
-- Predefined templates
-- Reservation history tracking
+```mermaid
+graph TD
+    subgraph Frontend ["Frontend (React)"]
+        AC[AppContext] -->|Hydrates| AL[AdminLayout & Navigation]
+        CoreUI["Core UI (Roster, Users)"]
+        FeatureUI["Feature UI (WarRoom, Squads, Redemption)"]
+        AL --> CoreUI
+        AL -.->|Conditional Render| FeatureUI
+    end
 
----
+    subgraph Backend ["Backend (Go)"]
+        Config[appsettings.json] --> Router[router.go]
+        CoreAPI["Core API & DB Services"]
+        ModCtrl["Modular Controllers & Background Workers"]
+        Router --> CoreAPI
+        Router -.->|If Enabled| ModCtrl
+    end
 
-## Fortress & Stronghold Allocation
+    subgraph ExtServices ["External Services"]
+        GameAPI[WoS API]
+        CaptchaAPI[2Captcha]
+        DiscordAPI[Discord Bot]
+    end
 
-Plan seasonal fortress rotations.
-
-- Full season schedule
-- Alliance allocation management
-- Visual reward representation
-
----
-
-## Transfer Manager
-
-Manage incoming and outgoing player transfers.
-
-- WoS API integration
-- Track invitation counts
-- Predefined seasonal settings
-- "Transfer Out" option from the roster page
-- Complete transfer history
-
----
-
-## Foundry & Canyon Clash Management
-
-Alliance-based event coordination.
-
-- Legion assignment interface
-- Player bench based on alliance roster
-- Attendance history visibility
-- Full event history
-
----
-
-## Discord Integration
-
-Integrated reminder system with Discord.
-
-Supports reminders for:
-
-- Fortress allocations
-- Fighting alliance assignments
-- Rally teams
-- Pet schedules
-- Troop ratios
-- Ministry reservations
-- Foundry & Canyon Clash assignments
-
-Features include:
-
-- Separate **state and alliance Discord configurations**
-- Role tagging support
-- Fully customizable reminder messages
-
----
-
-## Gift Code Redemption
-
-Redeem gift codes directly from the dashboard.
-
-- Live redemption tracking
-- CSV reporting
-
-⚠ Requires an **external captcha solving service**.
-
----
-
-## Role-Based Access Control
-
-Flexible permission system for leadership teams.
-
-### Moderator
-- Limited permissions
-- Can manage their own alliance roster
-
-### Admin
-- Full system access
-
-Security features:
-
-- Two-step alliance access approval
-- Multi-factor authentication
-    - TOTP
-    - biometric authentication support
-
----
-
-## Player Dashboard
-
-Players can log in using their **game ID** to view:
-
-- Fighting alliance assignments
-- Rally team assignments
-- Upcoming ministry reservations
-- Fortress and Stronghold allocations
-
----
-
-## Audit Logs
-
-All administrative actions are logged.
-
-- Track changes
-- Maintain accountability
-- Simplify debugging
-
----
-
-## Automatic Database Backups
-
-Encrypted backups supported via:
-
-- AWS
-- Google Cloud
-- Cloudflare R2
-
-Features:
-
-- Scheduled backups
-- GPG encryption
-- Full restore capability
-
----
-
-# Tech Stack
-
-| Component | Technology |
-|---|---|
-| Backend | Go |
-| Frontend | React + Vite |
-| Reverse Proxy | OpenResty / Nginx |
-| Database | MySQL |
-| Cache | Redis |
-| Deployment | Docker |
-| Captcha Service | 2captcha |
-
----
-
-# Architecture
-
-*(Diagram will be added later)*
-
-Typical deployment structure:
-
-```
-React UI
-   │
-   ▼
-OpenResty / Nginx
-   │
-   ▼
-Go API
-   │
-   ├── MySQL
-   └── Redis
-```
-
----
-
-# Repository Structure
-
-```
-/cmd/server
-    Go backend 
+    AC <-->|GET /api/system/features| Router
+    FeatureUI <--> ModCtrl
+    CoreUI <--> CoreAPI
     
-/cmd/scraper
-    Go assets scraper
-
-/internal
-    Go backend packages
-
-/dashboard
-    React frontend
-    
-/migrations
-    MySQL automatic migration history
-
-/shared-assets
-    fonts and images
-
-/ops
-    MySQL automatic backup scripts
-
-/appsettings.json
-    main backend configuration
-
-/docker-compose.yml
-    full stack deployment
+    CoreAPI <--> GameAPI
+    ModCtrl <--> CaptchaAPI
+    ModCtrl <--> DiscordAPI
 ```
+
+### Tech Stack
+* **Backend:** Go (Gorilla Mux / Gin)
+* **Frontend:** React + Vite + TailwindCSS
+* **Database & Cache:** MySQL + Redis
+* **Deployment:** Docker + OpenResty/Nginx Reverse Proxy
 
 ---
 
-# Installation
+## 🚀 Installation & Deployment
 
-The project can be deployed with **Docker Compose**.
+The project is designed to be deployed via **Docker Compose**.
 
-## 1. Configure Backend
-
+### 1. Configure the Backend Toggles (`appsettings.json`)
 ```bash
 mv appsettings-example.json appsettings.json
 vim appsettings.json
 ```
-
-Configure:
-
-- MySQL credentials
-- JWT secret
-- 2captcha API key
-- WoS state ID
-- Discord bot token
-- Fortress rotation settings
-- Dashboard name and domain
-- Access/refresh token lifetimes
-
-⚠ Remove comments from the configuration file before starting the application.
-
----
-
-## 2. Configure Frontend API URL
-
+Define your MySQL credentials, Discord token, and WoS State ID. **Crucially, configure your active modules here:**
+```json
+"Features": {
+    "GameApi": true,
+    "GiftCodes": false, 
+    "Discord": true,
+    "WarRoom": true,
+    "Transfers": true
+    // ... toggle features to tailor your dashboard
+}
 ```
-vim dashboard/src/api/client.js
-```
+*(Note: Remove all comments from the JSON file before starting the application).*
 
-Default:
-
-```
-http://localhost:8080/api
-```
-
----
-
-## 3. Configure Environment Variables
-
-```
+### 2. Configure Environment Variables (`.env`)
+```bash
 mv .env.example .env
 vim .env
 ```
+Set your secure credentials:
+* MySQL passwords
+* S3-compatible backup credentials
+* GPG key email identifier
 
-Set:
-
-- MySQL credentials
-- S3-compatible backup credentials
-- GPG key email identifier
-
----
-
-## 4. Start Services
-
+### 3. Configure Frontend API Target
+```bash
+vim dashboard/src/api/client.js
 ```
+Point this to your backend (Default: `http://localhost:8080/api`).
+
+### 4. Start the Stack & Fetch Assets
+```bash
 docker compose up -d
-```
 
----
-
-## 5. Download Assets
-
-Run once after first startup:
-
-```
+# Run the asset scraper once after the first startup to populate hero/item images:
 docker exec scraper ./scraper
 ```
 
----
-
-# Production Deployment
-
-The included **nginx configuration is for testing only**.
-
-For production:
-
-- configure a domain
-- enable HTTPS
-- reconfigure nginx to act as reverse proxy
-
-Recommended services:
-
-Dynamic DNS  
-https://www.noip.com
-
-Free SSL certificates  
-https://letsencrypt.org
+### 💡 Production Recommendations
+The included Nginx configuration is for local testing. For production deployments, it is highly recommended to:
+* Configure a proper domain via Dynamic DNS (e.g., [No-IP](https://www.noip.com)).
+* Enable HTTPS via [Let's Encrypt](https://letsencrypt.org).
+* Reconfigure Nginx to act as a secure reverse proxy.
 
 ---
 
-# Roadmap
+## 🗺️ Roadmap
 
-Possible future improvements:
-
-- function modularity
-- build and integration tests
+* Write comprehensive unit and integration tests for the Go API.
+* Expand multi-state support for cross-server coalitions.
+* Enriched SSE Payloads.
 
 ---
 
-# Contributing
+## 🤝 Contributing & Support
 
-Contributions are welcome.
-
+Contributions are highly encouraged!
 1. Fork the repository
 2. Create a feature branch
 3. Submit a pull request
 
----
-
-# Support
-
-If you find this project useful:
-
-- Donate via [PayPal](https://www.paypal.com/donate/?business=J56LZPAC5G5YA&no_recurring=0&currency_code=EUR)
-- Or send me some [frost stars - 57030176](https://store.centurygames.com/wos)
+**Support the Project:**
+If this dashboard brings order to your state's chaos, consider supporting the development:
+* ☕ [Donate via PayPal](https://www.paypal.com/donate/?business=J56LZPAC5G5YA&no_recurring=0&currency_code=EUR)
+* ❄️ Send some Frost Stars in-game to: **57030176** ([Top-up Center](https://store.centurygames.com/wos))
 
 ---
 
-# License
+## 📄 License
 
-This project is licensed under the **MIT License**.
-
-You are free to:
-
-- use
-- modify
-- distribute
-- run privately
-
-as long as the original license is included.
+This project is licensed under the **MIT License**. You are free to use, modify, distribute, and run this privately, provided the original license is included.

@@ -1,0 +1,50 @@
+﻿graph TD
+    subgraph "Public Internet"
+        Client[Web Browser / Mobile]
+    end
+
+    subgraph "Your Infrastructure (e.g., VPS / AWS / Docker)"
+        Nginx[Reverse Proxy / Nginx / Caddy]
+
+        subgraph "Frontend Container"
+            React[React SPA - Static Files]
+        end
+
+        subgraph "Backend Container"
+            GoApp[Go API Server :8080]
+            Cron[Cron & Background Workers]
+        end
+
+        subgraph "Data Layer Containers"
+            MySQL[(MySQL Database :3306)]
+            Redis[(Redis Cache :6379)]
+        end
+    end
+
+    subgraph "Third-Party APIs"
+        Discord[Discord API / Webhooks]
+        Game[Game Servers API]
+        Captcha[2Captcha API]
+    end
+
+%% Network Flow
+    Client -->|HTTPS :443| Nginx
+    Nginx -->|Serve Static| React
+    Nginx -->|Route /api/*| GoApp
+    Nginx -->|Route /api/moderator/stream| GoApp
+
+    GoApp <--> MySQL
+    GoApp <--> Redis
+    Cron <--> MySQL
+    Cron <--> Redis
+
+%% Egress Traffic
+    GoApp --> Game
+    GoApp --> Captcha
+    Cron --> Discord
+    GoApp --> Discord
+
+    classDef infra fill:#1e293b,stroke:#475569,stroke-width:2px,color:#fff
+    classDef external fill:#4c1d95,stroke:#8b5cf6,stroke-width:2px,color:#fff
+    class Nginx,React,GoApp,Cron,MySQL,Redis infra
+    class Discord,Game,Captcha external

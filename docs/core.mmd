@@ -1,0 +1,77 @@
+﻿graph TD
+    subgraph Frontend ["Frontend (React)"]
+        AC[AppContext] -->|Hydrates| AL[AdminLayout & Navigation]
+
+        subgraph CoreUI ["Core UI (Always On)"]
+            Dash[Dashboard Core]
+            Roster[Roster Ledger]
+            Users[User Admin]
+        end
+
+        subgraph FeatureUI ["Feature UI (Toggleable)"]
+            RW[RedemptionWidget]
+            WR_UI[War Room UI]
+            SQ_UI[Squads UI]
+            Disc_UI[Discord Announce Buttons]
+        end
+
+        AL --> CoreUI
+        AL -.->|Conditional Render| FeatureUI
+    end
+
+    subgraph Backend ["Backend (Go)"]
+        Config[appsettings.json] --> Main[main.go Loader]
+        Main --> Router[router.go]
+
+        subgraph CoreAPI ["Core API & Services"]
+            DB[(MySQL)]
+            Redis[(Redis)]
+            AuthCtrl[Auth Controller]
+            PClient[Player Client]
+        end
+
+        subgraph ModCtrl ["Modular Controllers"]
+            RedeemCtrl[Redeem Controller]
+            WarCtrl[War Controller]
+            DiscCtrl[Discord Controller]
+            Engine[Processor / Workers]
+            Solver[Captcha Solver]
+        end
+
+        Main --> CoreAPI
+        Main -.->|If Enabled| ModCtrl
+        Router --> CoreAPI
+        Router -.->|If Enabled| ModCtrl
+    end
+
+    subgraph ExtServices ["External Services"]
+        GameAPI[Game Servers]
+        CaptchaAPI[2Captcha API]
+        DiscordAPI[Discord Bot/API]
+    end
+
+%% Connections
+    AC <-->|GET /api/system/features| Router
+    FeatureUI <--> ModCtrl
+    CoreUI <--> CoreAPI
+
+    WarCtrl --> PClient
+    RedeemCtrl --> Engine
+    Engine --> Solver
+    Engine --> PClient
+    Engine --> GClient[Gift Client]
+
+    PClient <--> GameAPI
+    GClient <--> GameAPI
+    Solver <--> CaptchaAPI
+    DiscCtrl <--> DiscordAPI
+    Disc_UI -.->|POST /notify| DiscCtrl
+
+%% Styling
+    classDef core fill:#1e3a8a,stroke:#3b82f6,stroke-width:2px,color:#fff
+    classDef toggle fill:#374151,stroke:#9ca3af,stroke-width:2px,stroke-dasharray: 5 5,color:#fff
+    classDef ext fill:#4c1d95,stroke:#8b5cf6,stroke-width:2px,color:#fff
+
+    class Dash,Roster,Users,AuthCtrl,PClient,DB,Redis,CoreAPI,CoreUI core
+    class RW,WR_UI,SQ_UI,Disc_UI,RedeemCtrl,WarCtrl,DiscCtrl,Engine,Solver,FeatureUI,ModCtrl toggle
+    class GameAPI,CaptchaAPI,DiscordAPI,ExtServices ext

@@ -1,0 +1,28 @@
+﻿sequenceDiagram
+    participant Admin as Client 1 (Admin)
+    participant Mod as Client 2 (Mod)
+    participant API as Go API (Controllers)
+    participant SSE as SSE Broker
+    participant DB as MySQL DB
+
+    Note over Admin, Mod: 1. Clients establish persistent connection
+    Admin->>SSE: GET /api/moderator/stream
+    Mod->>SSE: GET /api/moderator/stream
+
+    Note over Admin: 2. Admin performs a mutating action
+    Admin->>API: POST /api/moderator/war-room/deploy
+    API->>DB: Update Player's FightingAllianceID
+    DB-->>API: Transaction Success
+
+    Note over API, SSE: 3. API notifies the Broker
+    API->>SSE: sseBroker.Notifier <- "REFRESH_WARROOM"
+
+    Note over SSE, Mod: 4. Broker broadcasts to all connected clients
+    SSE-->>Admin: Event stream message: "REFRESH_WARROOM"
+    SSE-->>Mod: Event stream message: "REFRESH_WARROOM"
+
+    Note over Admin, Mod: 5. LiveSyncManager intercepts & triggers refetch
+    Admin->>API: Background GET /moderator/war-room/stats
+    Mod->>API: Background GET /moderator/war-room/stats
+
+    Note over Admin, Mod: UIs update seamlessly in real-time

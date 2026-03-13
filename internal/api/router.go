@@ -75,16 +75,10 @@ func SetupRouter(engine *processor.Processor, store *db.Store, cfg *config.Confi
 
 	sseBroker := services.NewSSEBroker()
 
-	discordCtrl := NewDiscordController(store, cfg, cronManager, redisStore, sseBroker)
 	authCtrl := NewAuthController(store, cfg, pClient, redisStore, sseBroker)
 	playerCtrl := NewPlayerController(store, cfg)
-	strategyCtrl := NewStrategyController(store, cfg, redisStore)
-	transfersCtrl := NewTransfersController(store, cfg, pClient, sseBroker)
 	adminCtrl := NewAdminController(store, sseBroker)
-	ministryCtrl := NewMinistryController(store, sseBroker)
-	foundryCtrl := NewFoundryController(store, cfg, sseBroker)
-	fortressCtrl := NewFortressController(store, cfg, sseBroker)
-	warCtrl := NewWarController(store, cfg, engine, sseBroker)
+	warCtrl := NewWarController(store, cfg, pClient, sseBroker)
 	redeemCtrl := NewRedeemController(store, cfg, pClient, redisStore, engine)
 	allianceCtrl := NewAllianceController(store, sseBroker)
 
@@ -92,10 +86,20 @@ func SetupRouter(engine *processor.Processor, store *db.Store, cfg *config.Confi
 	r.POST("/api/login/mfa", authCtrl.VerifyMFA)
 	r.POST("/api/refresh", authCtrl.Refresh)
 	r.POST("/api/login/player", authCtrl.PlayerLogin)
-	r.GET("/api/moderator/discord/callback", discordCtrl.CallbackHandler)
-	r.GET("/api/shared-assets/heroes/:filename", strategyCtrl.HeroIcon)
+	if cfg.FeaturesConfig.Discord {
+		discordCtrl := NewDiscordController(store, cfg, cronManager, redisStore, sseBroker)
+		r.GET("/api/moderator/discord/callback", discordCtrl.CallbackHandler)
+	}
+	if cfg.FeaturesConfig.Strategy {
+		strategyCtrl := NewStrategyController(store, cfg, redisStore)
+		r.GET("/api/shared-assets/heroes/:filename", strategyCtrl.HeroIcon)
+	}
 	r.GET("/api/webauthn/login/begin", authCtrl.WebAuthNLoginBegin)
 	r.POST("/api/webauthn/login/finish", authCtrl.WebAuthNLoginEnd)
+
+	r.GET("/api/system/features", func(c *gin.Context) {
+		c.JSON(200, cfg.FeaturesConfig)
+	})
 
 	playerGroup := r.Group("/api/player")
 	playerGroup.Use(AuthMiddleware(store))
@@ -128,13 +132,74 @@ func SetupRouter(engine *processor.Processor, store *db.Store, cfg *config.Confi
 			}
 		})
 
-		authorized.GET("/strategy/heroes", strategyCtrl.GetHeroes)
-		authorized.POST("/strategy/meta", strategyCtrl.SaveStrategy)
-		authorized.GET("/strategy/active", strategyCtrl.GetActiveStrategy)
-		authorized.GET("/strategy/captains", strategyCtrl.GetCaptains)
-		authorized.POST("/strategy/pets", strategyCtrl.SavePetSchedule)
-		authorized.GET("/strategy/pets", strategyCtrl.GetPetSchedule)
-		authorized.POST("/strategy/notify", discordCtrl.PostStrategy)
+		if cfg.FeaturesConfig.GiftCodes && engine != nil {
+			authorized.GET("/captcha-balance", redeemCtrl.GetBalance)
+			authorized.POST("/redeem", redeemCtrl.Redeem)
+			authorized.GET("/jobs", redeemCtrl.GetRecentJobs)
+			authorized.GET("/job/current", redeemCtrl.GetActiveJob)
+			authorized.GET("/reports/:filename", redeemCtrl.GetActiveJob)
+		}
+
+		if cfg.FeaturesConfig.WarRoom {
+			authorized.GET("/war-room/stats", warCtrl.GetWarStats)
+			authorized.POST("/war-room/deploy", warCtrl.DeployToWarRoom)
+			authorized.POST("/war-room/lock", warCtrl.LockWarRoom)
+			authorized.POST("/war-room/reset", warCtrl.ArchiveAndResetEvent)
+			authorized.GET("/war-room/history", warCtrl.GetEventHistory)
+			authorized.GET("/war-room/history/:id", warCtrl.GetPastEvent)
+			authorized.GET("/war-room/filters", warCtrl.GetWarRoomFilter)
+		}
+
+		if cfg.FeaturesConfig.Squads {
+			authorized.GET("/squads/:allianceId", warCtrl.GetSquads)
+			authorized.POST("/squads/promote", warCtrl.PromoteCaptain)
+			authorized.POST("/squads/demote", warCtrl.DemoteCaptain)
+			authorized.POST("/squads/assign", warCtrl.AssignPlayerToSquad)
+		}
+
+		if cfg.FeaturesConfig.Strategy {
+			strategyCtrl := NewStrategyController(store, cfg, redisStore)
+			authorized.GET("/strategy/heroes", strategyCtrl.GetHeroes)
+			authorized.POST("/strategy/meta", strategyCtrl.SaveStrategy)
+			authorized.GET("/strategy/active", strategyCtrl.GetActiveStrategy)
+			authorized.GET("/strategy/captains", strategyCtrl.GetCaptains)
+			authorized.POST("/strategy/pets", strategyCtrl.SavePetSchedule)
+			authorized.GET("/strategy/pets", strategyCtrl.GetPetSchedule)
+			if cfg.FeaturesConfig.Discord {
+				discordCtrl := NewDiscordController(store, cfg, cronManager, redisStore, sseBroker)
+				authorized.POST("/strategy/notify", discordCtrl.PostStrategy)
+			}
+		}
+
+		if cfg.FeaturesConfig.Ministry {
+			ministryCtrl := NewMinistryController(store, sseBroker)
+			ministry := authorized.Group("/ministry")
+			{
+				ministry.GET("/active", ministryCtrl.GetActiveEvent)
+				ministry.POST("/events", ministryCtrl.CreateEvent)
+				ministry.PUT("/events/:id/status", ministryCtrl.UpdateActiveEvent)
+				ministry.PUT("/slots/:id", ministryCtrl.UpdateMinistrySlot)
+				ministry.PUT("/events/:id/announce", ministryCtrl.ToggleNotifications)
+				ministry.GET("/history", ministryCtrl.GetHistory)
+				ministry.GET("/history/:id", ministryCtrl.GetHistorySlots)
+			}
+		}
+
+		if cfg.FeaturesConfig.Foundry {
+			foundryCtrl := NewFoundryController(store, cfg, sseBroker)
+			foundry := authorized.Group("/foundry")
+			{
+				foundry.GET("/state", foundryCtrl.GetEventState)
+				foundry.POST("/deploy", foundryCtrl.DeployPlayer)
+				foundry.POST("/lock", foundryCtrl.LockEvent)
+				foundry.POST("/attendance", foundryCtrl.UpdateAttendance)
+				foundry.POST("/reset", foundryCtrl.ResetAndArchiveEvent)
+				foundry.GET("/history", foundryCtrl.GetEventHistory)
+				foundry.GET("/history/:id", foundryCtrl.GetEventInHistory)
+				foundry.POST("/announce", foundryCtrl.AnnounceFoundry)
+			}
+		}
+
 		authorized.GET("/admin/alliances", adminCtrl.ListAlliances)
 		authorized.POST("/admin/alliances", adminCtrl.CreateAlliance)
 		authorized.PUT("/admin/alliances/:id", adminCtrl.UpdateAlliance)
@@ -143,31 +208,20 @@ func SetupRouter(engine *processor.Processor, store *db.Store, cfg *config.Confi
 		authorized.POST("/admin/request", allianceCtrl.HandleTransferRequest)
 		authorized.GET("/admin/pending", allianceCtrl.GetNotifications)
 		authorized.PUT("/admin/:id/resolve", allianceCtrl.HandleResolve)
-		authorized.GET("/captcha-balance", redeemCtrl.GetBalance)
-		authorized.POST("/redeem", redeemCtrl.Redeem)
 		authorized.POST("/players", warCtrl.AddPlayer)
-		authorized.POST("/players/:fid/transfer-out", transfersCtrl.ConfirmOutbandTransfer)
+		if cfg.FeaturesConfig.Transfers {
+			transfersCtrl := NewTransfersController(store, cfg, pClient, sseBroker)
+			authorized.POST("/players/:fid/transfer-out", transfersCtrl.ConfirmOutbandTransfer)
+
+		}
 		authorized.DELETE("/players/:fid", warCtrl.DeletePlayer)
 		authorized.GET("/profile", authCtrl.GetUserProfile)
 		authorized.POST("/change-password", authCtrl.ChangePassword)
 		authorized.GET("/mfa/generate", authCtrl.GenerateMfa)
 		authorized.POST("/mfa/enable", authCtrl.EnableMfa)
-		authorized.GET("/jobs", redeemCtrl.GetRecentJobs)
-		authorized.GET("/job/current", redeemCtrl.GetActiveJob)
-		authorized.GET("/reports/:filename", redeemCtrl.GetActiveJob)
-		authorized.GET("/war-room/stats", warCtrl.GetWarStats)
-		authorized.POST("/war-room/deploy", warCtrl.DeployToWarRoom)
-		authorized.POST("/war-room/lock", warCtrl.LockWarRoom)
-		authorized.POST("/war-room/reset", warCtrl.ArchiveAndResetEvent)
-		authorized.GET("/war-room/history", warCtrl.GetEventHistory)
-		authorized.GET("/war-room/history/:id", warCtrl.GetPastEvent)
-		authorized.GET("/squads/:allianceId", warCtrl.GetSquads)
-		authorized.POST("/squads/promote", warCtrl.PromoteCaptain)
-		authorized.POST("/squads/demote", warCtrl.DemoteCaptain)
-		authorized.POST("/squads/assign", warCtrl.AssignPlayerToSquad)
+
 		authorized.GET("/players", warCtrl.GetPlayerRoster)
 		authorized.PUT("/players/:fid", warCtrl.UpdatePlayer)
-		authorized.GET("/war-room/filters", warCtrl.GetWarRoomFilter)
 
 		authorized.GET("/options", func(c *gin.Context) {
 			alliances, _ := store.GetAlliances()
@@ -176,28 +230,6 @@ func SetupRouter(engine *processor.Processor, store *db.Store, cfg *config.Confi
 			c.JSON(200, gin.H{"alliances": alliances, "teams": teams, "rosterstats": rosterstats})
 		})
 
-		ministry := authorized.Group("/ministry")
-		{
-			ministry.GET("/active", ministryCtrl.GetActiveEvent)
-			ministry.POST("/events", ministryCtrl.CreateEvent)
-			ministry.PUT("/events/:id/status", ministryCtrl.UpdateActiveEvent)
-			ministry.PUT("/slots/:id", ministryCtrl.UpdateMinistrySlot)
-			ministry.PUT("/events/:id/announce", ministryCtrl.ToggleNotifications)
-			ministry.GET("/history", ministryCtrl.GetHistory)
-			ministry.GET("/history/:id", ministryCtrl.GetHistorySlots)
-		}
-
-		foundry := authorized.Group("/foundry")
-		{
-			foundry.GET("/state", foundryCtrl.GetEventState)
-			foundry.POST("/deploy", foundryCtrl.DeployPlayer)
-			foundry.POST("/lock", foundryCtrl.LockEvent)
-			foundry.POST("/attendance", foundryCtrl.UpdateAttendance)
-			foundry.POST("/reset", foundryCtrl.ResetAndArchiveEvent)
-			foundry.GET("/history", foundryCtrl.GetEventHistory)
-			foundry.GET("/history/:id", foundryCtrl.GetEventInHistory)
-			foundry.POST("/announce", foundryCtrl.AnnounceFoundry)
-		}
 	}
 
 	admin := r.Group("/api/admin")
@@ -222,44 +254,53 @@ func SetupRouter(engine *processor.Processor, store *db.Store, cfg *config.Confi
 		admin.POST("/sync-roster", warCtrl.SyncRoster)
 		admin.DELETE("/users/:id", adminCtrl.DeleteUser)
 
-		transfers := authorized.Group("/transfers")
-		{
-			transfers.GET("/active", transfersCtrl.GetActiveSeason)
-			transfers.POST("/seasons", transfersCtrl.CreateTransferSeason)
-			transfers.POST("/bulk-add", transfersCtrl.AddPlayersForTransfer)
-			transfers.PUT("/:id", transfersCtrl.UpdateTransferRecord)
-			transfers.POST("/:id/confirm-inbound", transfersCtrl.ConfirmTransfer)
-			transfers.PUT("/seasons/:id/status", transfersCtrl.UpdateSeasonStatus)
-			transfers.GET("/history", transfersCtrl.GetTransferHistory)
-			transfers.GET("/seasons/:id/records", transfersCtrl.GetTransferRecords)
-			transfers.PUT("/seasons/:id", transfersCtrl.EditTransferSeason)
+		if cfg.FeaturesConfig.Transfers {
+			transfersCtrl := NewTransfersController(store, cfg, pClient, sseBroker)
+			transfers := authorized.Group("/transfers")
+			{
+				transfers.GET("/active", transfersCtrl.GetActiveSeason)
+				transfers.POST("/seasons", transfersCtrl.CreateTransferSeason)
+				transfers.POST("/bulk-add", transfersCtrl.AddPlayersForTransfer)
+				transfers.PUT("/:id", transfersCtrl.UpdateTransferRecord)
+				transfers.POST("/:id/confirm-inbound", transfersCtrl.ConfirmTransfer)
+				transfers.PUT("/seasons/:id/status", transfersCtrl.UpdateSeasonStatus)
+				transfers.GET("/history", transfersCtrl.GetTransferHistory)
+				transfers.GET("/seasons/:id/records", transfersCtrl.GetTransferRecords)
+				transfers.PUT("/seasons/:id", transfersCtrl.EditTransferSeason)
+			}
 		}
 
-		rotation := authorized.Group("/rotation")
-		{
-			rotation.GET("/buildings", fortressCtrl.GetAllBuildings)
-			rotation.GET("/schedule/:seasonId", fortressCtrl.GetSeasonSchedule)
-			rotation.GET("/rewards/:week", fortressCtrl.GetWeeklyRewards)
-			rotation.POST("/save", AdminOnlyMiddleware(), fortressCtrl.UpdateSeason)
-			rotation.GET("/seasons", fortressCtrl.GetSeasonHistory)
+		if cfg.FeaturesConfig.Rotation {
+			fortressCtrl := NewFortressController(store, cfg, sseBroker)
+			rotation := authorized.Group("/rotation")
+			{
+				rotation.GET("/buildings", fortressCtrl.GetAllBuildings)
+				rotation.GET("/schedule/:seasonId", fortressCtrl.GetSeasonSchedule)
+				rotation.GET("/rewards/:week", fortressCtrl.GetWeeklyRewards)
+				rotation.POST("/save", AdminOnlyMiddleware(), fortressCtrl.UpdateSeason)
+				rotation.GET("/seasons", fortressCtrl.GetSeasonHistory)
+			}
 		}
 
-		discord := authorized.Group("/discord")
-		{
-			discord.GET("/login", AuthMiddleware(store), discordCtrl.LoginHandler)
-			discord.POST("/rotation/:seasonId/:week", discordCtrl.PostSeasonRotation)
-			discord.POST("/announce", discordCtrl.PostAnnouncement)
-			discord.GET("/status", discordCtrl.GetRoutes)
-			discord.GET("/channels", discordCtrl.GetChannels)
-			discord.POST("/routes", discordCtrl.SaveRoute)
-			discord.GET("/roles", discordCtrl.GetRoles)
-			discord.GET("/crons", discordCtrl.GetCustomCrons)
-			discord.POST("/crons", discordCtrl.CreateCustomCron)
-			discord.DELETE("/crons/:id", discordCtrl.DeleteCustomCron)
-			discord.PUT("/crons/:id/toggle", discordCtrl.ToggleCustomCron)
-			discord.DELETE("/routes/:eventType", discordCtrl.DeleteRoute)
-			discord.DELETE("/disconnect", discordCtrl.DisconnectServer)
-			discord.PUT("/crons/:id", discordCtrl.EditCustomCron)
+		if cfg.FeaturesConfig.Discord {
+			discordCtrl := NewDiscordController(store, cfg, cronManager, redisStore, sseBroker)
+			discord := authorized.Group("/discord")
+			{
+				discord.GET("/login", AuthMiddleware(store), discordCtrl.LoginHandler)
+				discord.POST("/rotation/:seasonId/:week", discordCtrl.PostSeasonRotation)
+				discord.POST("/announce", discordCtrl.PostAnnouncement)
+				discord.GET("/status", discordCtrl.GetRoutes)
+				discord.GET("/channels", discordCtrl.GetChannels)
+				discord.POST("/routes", discordCtrl.SaveRoute)
+				discord.GET("/roles", discordCtrl.GetRoles)
+				discord.GET("/crons", discordCtrl.GetCustomCrons)
+				discord.POST("/crons", discordCtrl.CreateCustomCron)
+				discord.DELETE("/crons/:id", discordCtrl.DeleteCustomCron)
+				discord.PUT("/crons/:id/toggle", discordCtrl.ToggleCustomCron)
+				discord.DELETE("/routes/:eventType", discordCtrl.DeleteRoute)
+				discord.DELETE("/disconnect", discordCtrl.DisconnectServer)
+				discord.PUT("/crons/:id", discordCtrl.EditCustomCron)
+			}
 		}
 	}
 	return r

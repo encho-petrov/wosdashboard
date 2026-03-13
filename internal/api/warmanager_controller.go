@@ -2,9 +2,9 @@ package api
 
 import (
 	"fmt"
+	"gift-redeemer/internal/client"
 	"gift-redeemer/internal/config"
 	"gift-redeemer/internal/db"
-	"gift-redeemer/internal/processor"
 	"gift-redeemer/internal/services"
 	"net/http"
 	"strconv"
@@ -17,15 +17,15 @@ import (
 type WarController struct {
 	store     *db.Store
 	cfg       *config.Config
-	engine    *processor.Processor
+	pClient   *client.PlayerClient
 	sseBroker *services.SSEBroker
 }
 
-func NewWarController(s *db.Store, c *config.Config, e *processor.Processor, b *services.SSEBroker) *WarController {
+func NewWarController(s *db.Store, c *config.Config, pClient *client.PlayerClient, b *services.SSEBroker) *WarController {
 	return &WarController{
 		store:     s,
 		cfg:       c,
-		engine:    e,
+		pClient:   pClient,
 		sseBroker: b,
 	}
 }
@@ -335,7 +335,7 @@ func (wc *WarController) SyncRoster(c *gin.Context) {
 		fmt.Printf("[SYNC] Starting roster refresh for %d players...\n", len(ids))
 
 		for i, fid := range ids {
-			info, err := wc.engine.PlayerClient.GetPlayerInfo(fid)
+			info, err := wc.pClient.GetPlayerInfo(fid)
 
 			if err == nil && info.Code == 0 {
 				wc.store.UpsertPlayer(

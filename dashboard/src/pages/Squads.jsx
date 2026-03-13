@@ -11,6 +11,7 @@ import { useRateLimit } from '../hooks/useRateLimit';
 
 export default function Squads() {
     const { user } = useAuth();
+    const { features } = useApp();
     const isAdmin = user?.role === 'admin';
     const isMod = user?.role === 'moderator';
 
@@ -179,7 +180,7 @@ export default function Squads() {
 
     const headerActions = (
         <div className="flex gap-2">
-            {isAdmin && squads.length > 0 && (
+            {isAdmin && features?.Discord && squads.length > 0 && (
                 <button
                     onClick={handleAnnounceSquads}
                     disabled={isAnnounceLocked}
