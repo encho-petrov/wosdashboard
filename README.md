@@ -108,7 +108,6 @@ vim appsettings.json
 Define your MySQL credentials, Discord token, and WoS State ID. **Crucially, configure your active modules here:**
 ```json
 "Features": {
-    "GameApi": true,
     "GiftCodes": false, 
     "Discord": true,
     "WarRoom": true,
@@ -152,6 +151,7 @@ The included Nginx configuration is for local testing. For production deployment
 
 ## 🗺️ Roadmap
 
+* Enhance audit logging
 * Write comprehensive unit and integration tests for the Go API.
 * Expand multi-state support for cross-server coalitions.
 * Enriched SSE Payloads.
