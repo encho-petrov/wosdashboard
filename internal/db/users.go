@@ -229,8 +229,7 @@ func (s *Store) ResetUserSecurity(userID int, newPasswordHash string) error {
 		return err
 	}
 
-	webauthnQuery := `DELETE FROM webauthn_credentials WHERE user_id = $1`
-	s.db.Exec(webauthnQuery, userID)
+	s.db.Exec("DELETE FROM webauthn_credentials WHERE user_id = ?", userID)
 
 	return nil
 }
