@@ -22,7 +22,7 @@ export const AppProvider = ({ children }) => {
         if (!silent) setGlobalLoading(true);
 
         try {
-            const [optionsRes, rosterRes] = await Promise.all([
+            const [optionsRes, rosterRes, featuresRes] = await Promise.all([
                 client.get('/moderator/options'),
                 client.get('/moderator/players'),
                 client.get('/system/features')

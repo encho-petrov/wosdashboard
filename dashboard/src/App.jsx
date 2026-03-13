@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { AppProvider } from './context/AppContext';
+import { AppProvider, useApp } from './context/AppContext';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -34,14 +34,24 @@ const Home = () => {
   return <Dashboard />;
 };
 
-const ProtectedRoute = ({ children, allowedRoles }) => {
+const ProtectedRoute = ({ children, allowedRoles, featureSet }) => {
   const { user, loading } = useAuth();
+  const { features } = useApp();
   if (loading) return null;
   if (!user) return <Navigate to="/login" />;
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     return <Navigate to="/" />;
   }
+
+  if (featureSet && featureSet.length > 0) {
+    const allFeaturesEnabled = featureSet.every(key => features[key] === true);
+
+    if (!allFeaturesEnabled) {
+      return <Navigate to="/" replace />;
+    }
+  }
+
   return children;
 };
 
@@ -67,18 +77,18 @@ function App() {
                 } />
 
                 <Route path="/war-room" element={
-                  <ProtectedRoute>
+                  <ProtectedRoute featureSet={['WarRoom']}>
                     <WarRoom />
                   </ProtectedRoute>
                 } />
 
-                <Route path="/squads" element={
+                <Route path="/squads" featureSet={['Squads', 'WarRoom']} element={
                   <ProtectedRoute>
                     <Squads />
                   </ProtectedRoute>
                 } />
 
-                <Route path="/transfer-manager" element={
+                <Route path="/transfer-manager" featureSet={['Tramsfers']} element={
                   <ProtectedRoute>
                     <TransferManager />
                   </ProtectedRoute>
@@ -93,7 +103,7 @@ function App() {
                 <Route
                     path="/rotation"
                     element={
-                      <ProtectedRoute>
+                      <ProtectedRoute featureSet={['Rotation']} >
                         <Rotation />
                       </ProtectedRoute>
                     }
@@ -121,25 +131,25 @@ function App() {
                   </ProtectedRoute>
                 }
                 />
-                <Route path="/ministry" element={
+                <Route path="/ministry" featureSet={['Ministry']} element={
                   <ProtectedRoute>
                     <MinistryReservations />
                   </ProtectedRoute>
                 }
                 />
-                <Route path="/strategy" element={
+                <Route path="/strategy" featureSet={['Strategy']} element={
                   <ProtectedRoute>
                     <Strategy />
                   </ProtectedRoute>
                 }
                 />
-                <Route path="/event-history" element={
+                <Route path="/event-history" featureSet={['WarRoom']} element={
                   <ProtectedRoute>
                     <EventHistory />
                   </ProtectedRoute>
                 }
                 />
-                <Route path="/foundry" element={
+                <Route path="/foundry" featureSet={['Foundry']} element={
                   <ProtectedRoute>
                     <RequireAlliance>
                       <Foundry />
@@ -147,7 +157,7 @@ function App() {
                   </ProtectedRoute>
                 }
                 />
-                <Route path="/discord" element={
+                <Route path="/discord" featureSet={['Discord']} element={
                   <ProtectedRoute>
                     <RequireAlliance>
                       <Discord />

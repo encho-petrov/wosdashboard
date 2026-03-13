@@ -83,7 +83,7 @@ graph TD
     FeatureUI <--> ModCtrl
     CoreUI <--> CoreAPI
     
-    ModCtrl <--> GameAPI
+    CoreAPI <--> GameAPI
     ModCtrl <--> CaptchaAPI
     ModCtrl <--> DiscordAPI
 ```
@@ -154,7 +154,7 @@ The included Nginx configuration is for local testing. For production deployment
 
 * Write comprehensive unit and integration tests for the Go API.
 * Expand multi-state support for cross-server coalitions.
-* Migrate long-polling data streams to native WebSockets.
+* Enriched SSE Payloads.
 
 ---
 

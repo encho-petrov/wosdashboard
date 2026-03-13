@@ -130,8 +130,12 @@ func main() {
 	pClient := client.NewPlayerClient(cfg.ApiSecrets.GiftSecret)
 	redisStore := cache.NewRedisStore(cfg.Redis.Host, cfg.Redis.Password, cfg.Redis.DB)
 
+	if !cfg.FeaturesConfig.WarRoom {
+		cfg.FeaturesConfig.Squads = false
+	}
+
 	var engine *processor.Processor
-	if cfg.FeaturesConfig.GiftCodes && cfg.FeaturesConfig.GameApi {
+	if cfg.FeaturesConfig.GiftCodes {
 		solver := captcha.NewSolver(cfg.ApiSecrets.CaptchaApiKey)
 		defer solver.Close()
 		gClient := client.NewGiftClient(cfg.ApiSecrets.GiftSecret)

@@ -259,12 +259,14 @@ export default function Strategy() {
                             >
                                 <Shield size={16} className="md:w-5 md:h-5" /> Defense Formations
                             </button>
-                            <button
-                                onClick={() => setActiveTab('Pet Schedule')}
-                                className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-3 md:px-6 py-3 rounded-t-xl font-bold transition-colors whitespace-nowrap text-xs sm:text-sm md:text-base ${activeTab === 'Pet Schedule' ? 'bg-gray-800 text-yellow-400 border-t-2 border-yellow-500' : 'text-gray-500 hover:text-gray-300'}`}
-                            >
-                                <PawPrint size={16} className="md:w-5 md:h-5" /> Pet Schedule
-                            </button>
+                            {( features?.Squads &&
+                                <button
+                                    onClick={() => setActiveTab('Pet Schedule')}
+                                    className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-3 md:px-6 py-3 rounded-t-xl font-bold transition-colors whitespace-nowrap text-xs sm:text-sm md:text-base ${activeTab === 'Pet Schedule' ? 'bg-gray-800 text-yellow-400 border-t-2 border-yellow-500' : 'text-gray-500 hover:text-gray-300'}`}
+                                >
+                                    <PawPrint size={16} className="md:w-5 md:h-5" /> Pet Schedule
+                                </button>
+                            )}
                         </div>
 
                         <div className="flex gap-3 w-full md:w-auto">
@@ -341,7 +343,7 @@ export default function Strategy() {
                         )}
 
                         {/* VIEW 2: PET SCHEDULE */}
-                        {activeTab === 'Pet Schedule' && (
+                        {activeTab === 'Pet Schedule' && features?.Squads &&  (
                             <div className="space-y-6">
                                 <div className="flex justify-between items-end border-b border-gray-700 pb-4">
                                     <div>

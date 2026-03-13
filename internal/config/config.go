@@ -53,7 +53,6 @@ type Config struct {
 	} `mapstructure:"Auth"`
 
 	FeaturesConfig struct {
-		GameApi   bool `json:"GameApi"`
 		GiftCodes bool `json:"GiftCodes"`
 		Discord   bool `json:"Discord"`
 		WarRoom   bool `json:"WarRoom"`
@@ -74,6 +73,7 @@ func LoadConfig() (*Config, error) {
 	viper.SetConfigFile("appsettings.json")
 	viper.SetConfigType("json")
 	viper.SetDefault("Game.TargetState", 391)
+	viper.SetDefault("Server.Port", 8080)
 
 	if err := viper.ReadInConfig(); err != nil {
 		return nil, err
