@@ -65,6 +65,16 @@ type HistoryPlayer struct {
 	FightingAllianceID *int   `db:"fighting_alliance_id" json:"fightingAllianceId"`
 }
 
+type PlayerAttendance struct {
+	FID        int64  `json:"fid" binding:"required"`
+	Attendance string `json:"attendance" binding:"required"`
+}
+
+type WarRoomAttendanceStat struct {
+	FID   int64 `db:"fid" json:"fid"`
+	Score int   `db:"score" json:"score"`
+}
+
 func (s *Store) GetTeams() ([]TeamOption, error) {
 	var list []TeamOption
 	err := s.db.Select(&list, "SELECT id, name, alliance_id FROM teams ORDER BY name ASC")
@@ -103,7 +113,8 @@ func (s *Store) ToggleAllianceLock(allianceID int, isLocked bool) error {
 	_, err := s.db.Exec("UPDATE alliances SET is_locked = ? WHERE id = ?", isLocked, allianceID)
 	return err
 }
-func (s *Store) ArchiveAndResetEvent(adminUsername string, notes string) error {
+
+func (s *Store) ArchiveAndResetEvent(adminUsername string, notes string, eventType string, attendance []PlayerAttendance) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -115,6 +126,21 @@ func (s *Store) ArchiveAndResetEvent(adminUsername string, notes string) error {
 		return err
 	}
 	eventID, _ := res.LastInsertId()
+
+	if len(attendance) > 0 {
+		stmt, err := tx.Prepare("INSERT INTO war_room_attendance (fid, event_type, status) VALUES (?, ?, ?)")
+		if err != nil {
+			return err
+		}
+		defer stmt.Close()
+
+		for _, p := range attendance {
+			_, err = stmt.Exec(p.FID, eventType, p.Attendance)
+			if err != nil {
+				return err
+			}
+		}
+	}
 
 	_, err = tx.Exec(`
         INSERT INTO history_teams (event_id, original_team_id, name, captain_fid, fighting_alliance_id)
@@ -151,7 +177,7 @@ func (s *Store) ArchiveAndResetEvent(adminUsername string, notes string) error {
 		return err
 	}
 
-	// EP: change this logic if we decided to keep a history
+	// EP: Change this logic if we decide to keep history of pet schedules
 	_, err = tx.Exec("DELETE FROM pet_skill_schedule")
 	if err != nil {
 		return err
@@ -297,4 +323,23 @@ func (s *Store) GetWarRoomBroadcastRoutes() ([]DiscordRoute, error) {
 		routes = []DiscordRoute{}
 	}
 	return routes, err
+}
+
+func (s *Store) GetWarRoomAttendanceStats(eventType string) ([]WarRoomAttendanceStat, error) {
+	query := `
+        SELECT 
+            fid,
+            ROUND((SUM(CASE WHEN status = 'Attended' THEN 1 ELSE 0 END) * 100.0) / 
+            NULLIF(SUM(CASE WHEN status IN ('Attended', 'Missed') THEN 1 ELSE 0 END), 0)) as score
+        FROM war_room_attendance
+        WHERE event_type = ?
+        GROUP BY fid
+        HAVING SUM(CASE WHEN status IN ('Attended', 'Missed') THEN 1 ELSE 0 END) > 0
+    `
+	var stats []WarRoomAttendanceStat
+	err := s.db.Select(&stats, query, eventType)
+	if err != nil {
+		return nil, err
+	}
+	return stats, nil
 }

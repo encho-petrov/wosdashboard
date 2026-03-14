@@ -148,6 +148,7 @@ func SetupRouter(engine *processor.Processor, store *db.Store, cfg *config.Confi
 			authorized.GET("/war-room/history", warCtrl.GetEventHistory)
 			authorized.GET("/war-room/history/:id", warCtrl.GetPastEvent)
 			authorized.GET("/war-room/filters", warCtrl.GetWarRoomFilter)
+			authorized.GET("/war-room/attendance-stats", warCtrl.GetWarAttendanceStats)
 		}
 
 		if cfg.FeaturesConfig.Squads {

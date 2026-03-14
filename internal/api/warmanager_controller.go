@@ -140,19 +140,25 @@ func (wc *WarController) ArchiveAndResetEvent(c *gin.Context) {
 	}
 
 	var input struct {
-		Notes string `json:"notes"`
+		Notes      string                `json:"notes"`
+		EventType  string                `json:"eventType"`
+		Attendance []db.PlayerAttendance `json:"attendance"`
 	}
-	_ = c.ShouldBindJSON(&input)
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload format"})
+		return
+	}
 
 	adminUsername := c.GetString("username")
 
-	if err := wc.store.ArchiveAndResetEvent(adminUsername, input.Notes); err != nil {
+	if err := wc.store.ArchiveAndResetEvent(adminUsername, input.Notes, input.EventType, input.Attendance); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Archive and Reset failed"})
 		return
 	}
 
 	wc.sseBroker.Notifier <- "REFRESH_WARROOM"
-	c.JSON(http.StatusOK, gin.H{"message": "Event archived and reset! All troops returned to reserve."})
+	c.JSON(http.StatusOK, gin.H{"message": "Event archived and attendance recorded! All troops returned to reserve."})
 }
 
 func (wc *WarController) GetEventHistory(c *gin.Context) {
@@ -360,4 +366,22 @@ func (wc *WarController) SyncRoster(c *gin.Context) {
 		"message": fmt.Sprintf("Started background update for %d players. This will take about %d seconds.",
 			len(playerIDs), len(playerIDs)/2),
 	})
+}
+
+func (wc *WarController) GetWarAttendanceStats(c *gin.Context) {
+	eventType := c.Query("eventType")
+	if eventType == "" {
+		eventType = "SvS"
+	}
+
+	stats, err := wc.store.GetWarRoomAttendanceStats(eventType)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load attendance stats"})
+		return
+	}
+
+	if stats == nil {
+		stats = []db.WarRoomAttendanceStat{}
+	}
+	c.JSON(http.StatusOK, stats)
 }

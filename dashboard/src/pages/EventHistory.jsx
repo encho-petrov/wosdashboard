@@ -2,7 +2,7 @@
 import client from '../api/client';
 import { useApp } from '../context/AppContext';
 import { toast } from 'react-toastify';
-import { Clock, Users, Shield, CalendarDays, ChevronDown } from 'lucide-react'; // <-- Added ChevronDown
+import { Clock, Users, Shield, CalendarDays, ChevronDown } from 'lucide-react';
 import AdminLayout from '../components/layout/AdminLayout';
 
 export default function WarRoomHistory() {
@@ -18,9 +18,10 @@ export default function WarRoomHistory() {
         const fetchHistoryList = async () => {
             try {
                 const res = await client.get('/moderator/war-room/history');
-                setEvents(res.data);
-                if (res.data.length > 0) {
-                    setSelectedEventId(res.data[0].id);
+                const fetchedEvents = res.data || []; // Safety fallback
+                setEvents(fetchedEvents);
+                if (fetchedEvents.length > 0) {
+                    setSelectedEventId(fetchedEvents[0].id);
                 }
             } catch (err) {
                 toast.error("Failed to load history timeline.");
@@ -37,7 +38,7 @@ export default function WarRoomHistory() {
         const fetchSnapshotDetails = async () => {
             try {
                 const res = await client.get(`/moderator/war-room/history/${selectedEventId}`);
-                setSnapshot(res.data);
+                setSnapshot(res.data || { teams: [], players: [] });
             } catch (err) {
                 toast.error("Failed to load snapshot details.");
             }
@@ -51,7 +52,12 @@ export default function WarRoomHistory() {
         weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
     });
 
-    const selectedEvent = events.find(e => e.id === selectedEventId);
+    const safeEvents = events || [];
+    const selectedEvent = safeEvents.find(e => e.id === selectedEventId);
+
+    // Safely extract arrays
+    const safePlayers = snapshot?.players || [];
+    const safeTeams = snapshot?.teams || [];
 
     return (
         <AdminLayout title="Event History">
@@ -85,10 +91,10 @@ export default function WarRoomHistory() {
                         md:static md:flex md:flex-1 md:max-h-none md:border-b-0 md:shadow-none
                         bg-gray-900 overflow-y-auto p-2 space-y-2 custom-scrollbar flex-col
                     `}>
-                        {events.length === 0 ? (
+                        {safeEvents.length === 0 ? (
                             <div className="p-4 text-center text-gray-600 text-sm">No archived events found.</div>
                         ) : (
-                            events.map(ev => (
+                            safeEvents.map(ev => (
                                 <button
                                     key={ev.id}
                                     onClick={() => {
@@ -130,16 +136,16 @@ export default function WarRoomHistory() {
                         <div className="space-y-12 max-w-5xl mx-auto pb-12">
 
                             {[...new Set([
-                                ...snapshot.players.map(p => p.fightingAllianceId),
-                                ...snapshot.teams.map(t => t.fightingAllianceId)
+                                ...safePlayers.map(p => p.fightingAllianceId),
+                                ...safeTeams.map(t => t.fightingAllianceId)
                             ])]
-                                .filter(id => id !== null)
+                                .filter(id => id !== null && id !== undefined)
                                 .map(allianceId => {
                                     const allianceObj = alliances.find(a => a.id === allianceId);
                                     const allianceName = allianceObj ? allianceObj.name : `Alliance #${allianceId}`;
 
-                                    const alliancePlayers = snapshot.players.filter(p => p.fightingAllianceId === allianceId);
-                                    const allianceTeams = snapshot.teams.filter(t => t.fightingAllianceId === allianceId);
+                                    const alliancePlayers = safePlayers.filter(p => p.fightingAllianceId === allianceId);
+                                    const allianceTeams = safeTeams.filter(t => t.fightingAllianceId === allianceId);
 
                                     return (
                                         <div key={allianceId} className="space-y-6">
@@ -187,8 +193,8 @@ export default function WarRoomHistory() {
                                                         <div className="text-gray-600 text-sm italic">No squads created.</div>
                                                     ) : (
                                                         allianceTeams.map(team => {
-                                                            const teamPlayers = snapshot.players.filter(p => p.teamId === team.originalTeamId);
-                                                            const captain = snapshot.players.find(p => p.playerId === team.captainFid);
+                                                            const teamPlayers = safePlayers.filter(p => p.teamId === team.originalTeamId);
+                                                            const captain = safePlayers.find(p => p.playerId === team.captainFid);
 
                                                             return (
                                                                 <div key={team.id} className="bg-gray-950 border border-gray-800 rounded-xl p-4 flex flex-col">
