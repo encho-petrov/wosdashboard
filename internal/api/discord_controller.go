@@ -10,9 +10,12 @@ import (
 	"gift-redeemer/internal/db"
 	"gift-redeemer/internal/models"
 	"gift-redeemer/internal/services"
+	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -771,4 +774,79 @@ func (dc *DiscordController) EditCustomCron(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Alert updated"})
+}
+
+func (dc *DiscordController) AnnounceTacticalMap(c *gin.Context) {
+	if dc.cfg.Discord.BotToken == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Webhook not configured"})
+		return
+	}
+
+	userID := getInt64FromContext(c, "userId")
+	actionType = "tactical_map_announce"
+	redisKey := fmt.Sprintf("ratelimit:discord_btn:%s:user:%d", actionType, userID)
+
+	allowed, err := dc.redisStore.AllowRequest(c.Request.Context(), redisKey, limit, cooldown)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Rate limiter unavailable"})
+		return
+	}
+
+	if !allowed {
+		rem, err := dc.redisStore.GetTimeRemaining(c.Request.Context(), redisKey)
+		if err == nil && rem > 0 {
+			remainingStr = fmt.Sprintf("%d", rem)
+		}
+
+		c.JSON(http.StatusTooManyRequests, gin.H{
+			"error":       fmt.Sprintf("Please wait %s seconds before pinging again.", remainingStr),
+			"retry_after": rem,
+		})
+		return
+	}
+
+	file, header, err := c.Request.FormFile("image")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No image file provided"})
+		return
+	}
+	defer func(file multipart.File) {
+		_ = file.Close()
+	}(file)
+
+	var imgBuffer bytes.Buffer
+	if _, err := io.Copy(&imgBuffer, file); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process image"})
+		return
+	}
+
+	message := c.PostForm("message")
+	if message == "" {
+		message = "🗺️ **New Tactical Map Deployed!**"
+	}
+
+	eventType := c.PostForm("eventType")
+
+	targets := dc.store.GetBroadcastTargets("global_war_room", "general_announcements")
+	successCount := 0
+
+	fileName := fmt.Sprintf("tactical_map_%d%s", time.Now().Unix(), filepath.Ext(header.Filename))
+
+	for _, route := range targets {
+		msg := message
+		pingStr := services.FormatDiscordPing(route.PingRoleID)
+		if pingStr != "" {
+			msg = fmt.Sprintf("%s\n%s", pingStr, message)
+		}
+
+		err := services.SendDiscordImage(dc.cfg.Discord.BotToken, route.ChannelID, &imgBuffer, fileName, msg)
+		if err == nil {
+			successCount++
+		} else {
+			fmt.Printf("Failed to broadcast tactical map to channel %s: %v\n", route.ChannelID, err)
+		}
+	}
+
+	logAction(c, dc.store, "DISCORD", fmt.Sprintf("Announced %s Tactical Map to %d servers", eventType, successCount))
+	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("Map published to %d Discord servers", successCount)})
 }

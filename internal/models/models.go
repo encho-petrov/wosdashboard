@@ -75,15 +75,17 @@ type Hero struct {
 }
 
 type BattleMetaRequest struct {
-	Type          string `json:"type"`
-	InfantryRatio int    `json:"infantryRatio"`
-	LancerRatio   int    `json:"lancerRatio"`
-	MarksmanRatio int    `json:"marksmanRatio"`
-	Leads         []int  `json:"leads"`
-	Joiners       []int  `json:"joiners"`
+	Type          string                 `json:"type"`
+	InfantryRatio int                    `json:"infantryRatio"`
+	LancerRatio   int                    `json:"lancerRatio"`
+	MarksmanRatio int                    `json:"marksmanRatio"`
+	Leads         []int                  `json:"leads"`
+	Joiners       []int                  `json:"joiners"`
+	MapData       map[string]interface{} `json:"mapData"`
 }
 
 type ActiveStrategyResponse struct {
-	Attack  *BattleMetaRequest `json:"attack"`
-	Defense *BattleMetaRequest `json:"defense"`
+	Attack  *BattleMetaRequest     `json:"attack"`
+	Defense *BattleMetaRequest     `json:"defense"`
+	MapData map[string]interface{} `json:"mapData"`
 }

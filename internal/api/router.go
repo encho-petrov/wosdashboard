@@ -301,6 +301,7 @@ func SetupRouter(engine *processor.Processor, store *db.Store, cfg *config.Confi
 				discord.DELETE("/routes/:eventType", discordCtrl.DeleteRoute)
 				discord.DELETE("/disconnect", discordCtrl.DisconnectServer)
 				discord.PUT("/crons/:id", discordCtrl.EditCustomCron)
+				discord.POST("/announce-map", discordCtrl.AnnounceTacticalMap)
 			}
 		}
 	}

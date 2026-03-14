@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"gift-redeemer/internal/models"
 	"strconv"
@@ -40,10 +41,19 @@ func (s *Store) SaveBattleStrategy(req models.BattleMetaRequest) (int64, error) 
 		return 0, err
 	}
 
+	var mapDataJSON *string
+	if req.MapData != nil {
+		b, err := json.Marshal(req.MapData)
+		if err == nil {
+			str := string(b)
+			mapDataJSON = &str
+		}
+	}
+
 	res, err := tx.Exec(`
-        INSERT INTO battle_strategy (type, infantry_ratio, lancer_ratio, marksman_ratio, is_active) 
-        VALUES (?, ?, ?, ?, TRUE)`,
-		req.Type, req.InfantryRatio, req.LancerRatio, req.MarksmanRatio)
+        INSERT INTO battle_strategy (type, infantry_ratio, lancer_ratio, marksman_ratio, is_active, map_data) 
+        VALUES (?, ?, ?, ?, TRUE, ?)`,
+		req.Type, req.InfantryRatio, req.LancerRatio, req.MarksmanRatio, mapDataJSON)
 
 	if err != nil {
 		return 0, err
@@ -79,19 +89,32 @@ func (s *Store) GetActiveStrategy() (*models.ActiveStrategyResponse, error) {
 	response := &models.ActiveStrategyResponse{}
 
 	var strategies []struct {
-		ID            int    `db:"id"`
-		Type          string `db:"type"`
-		InfantryRatio int    `db:"infantry_ratio"`
-		LancerRatio   int    `db:"lancer_ratio"`
-		MarksmanRatio int    `db:"marksman_ratio"`
+		ID            int     `db:"id"`
+		Type          string  `db:"type"`
+		InfantryRatio int     `db:"infantry_ratio"`
+		LancerRatio   int     `db:"lancer_ratio"`
+		MarksmanRatio int     `db:"marksman_ratio"`
+		MapData       *string `db:"map_data"`
 	}
 
-	query := "SELECT id, type, infantry_ratio, lancer_ratio, marksman_ratio FROM battle_strategy WHERE is_active = TRUE"
+	query := "SELECT id, type, infantry_ratio, lancer_ratio, marksman_ratio, map_data FROM battle_strategy WHERE is_active = TRUE"
 	if err := s.db.Select(&strategies, query); err != nil {
 		return nil, err
 	}
 
 	for _, strat := range strategies {
+
+		if strat.MapData != nil && response.MapData == nil {
+			var md map[string]interface{}
+			if err := json.Unmarshal([]byte(*strat.MapData), &md); err == nil {
+				response.MapData = md
+			}
+		}
+
+		if strat.Type == "TacticalMap" {
+			continue
+		}
+
 		meta := &models.BattleMetaRequest{
 			Type:          strat.Type,
 			InfantryRatio: strat.InfantryRatio,

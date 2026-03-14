@@ -1,0 +1,1 @@
+ALTER TABLE battle_strategy MODIFY COLUMN type ENUM('Attack', 'Defense', 'TacticalMap') NOT NULL;

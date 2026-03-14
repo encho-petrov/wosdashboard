@@ -1,0 +1,1 @@
+ALTER TABLE battle_strategy DROP COLUMN map_data;
