@@ -86,7 +86,7 @@ func (s *Store) ConfirmInboundTransfer(recordID int, fid int64, nickname string,
 	}
 
 	upsertQuery := `
-        INSERT INTO players (fid, nickname, alliance_id, status) 
+        INSERT INTO players (player_id, nickname, alliance_id, status) 
         VALUES (?, ?, ?, 'Active') 
         ON DUPLICATE KEY UPDATE nickname = VALUES(nickname), alliance_id = VALUES(alliance_id), status = 'Active'`
 	if _, err = tx.Exec(upsertQuery, fid, nickname, targetAllianceID); err != nil {
@@ -103,7 +103,7 @@ func (s *Store) ConfirmOutboundTransfer(fid int64, seasonID int, nickname string
 	}
 	defer tx.Rollback()
 
-	if _, err = tx.Exec("UPDATE players SET status = 'Archived', alliance_id = NULL, team_id = NULL WHERE fid = ?", fid); err != nil {
+	if _, err = tx.Exec("UPDATE players SET status = 'Archived', alliance_id = NULL, team_id = NULL WHERE player_id = ?", fid); err != nil {
 		return err
 	}
 
