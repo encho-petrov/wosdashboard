@@ -94,7 +94,13 @@ func (wc *WarController) GetWarStats(c *gin.Context) {
 		c.JSON(500, gin.H{"error": "Failed to load stats"})
 		return
 	}
-	c.JSON(200, stats)
+
+	session, _ := wc.store.GetWarRoomSession()
+
+	c.JSON(http.StatusOK, gin.H{
+		"eventType": session,
+		"alliances": stats,
+	})
 }
 
 func (wc *WarController) DeployToWarRoom(c *gin.Context) {
@@ -384,4 +390,28 @@ func (wc *WarController) GetWarAttendanceStats(c *gin.Context) {
 		stats = []db.WarRoomAttendanceStat{}
 	}
 	c.JSON(http.StatusOK, stats)
+}
+
+func (wc *WarController) SetWarSession(c *gin.Context) {
+	if c.GetString("role") != "admin" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Only Admins can start a session"})
+		return
+	}
+
+	var req struct {
+		EventType string `json:"eventType" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
+		return
+	}
+
+	if err := wc.store.SetWarRoomSession(req.EventType); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to lock session"})
+		return
+	}
+
+	wc.sseBroker.Notifier <- "REFRESH_WARROOM"
+	c.JSON(http.StatusOK, gin.H{"message": "Session locked globally"})
 }

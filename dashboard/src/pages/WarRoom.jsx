@@ -6,7 +6,7 @@ import { toast } from 'react-toastify';
 import {
     Shield, Lock, Unlock,
     Megaphone, RotateCcw, Search, UserPlus, X, ChevronRight,
-    ChevronDown, CheckSquare, Square, CheckCircle2, XCircle
+    ChevronDown, CheckSquare, Square, CheckCircle2, XCircle, AlertTriangle
 } from 'lucide-react';
 import AdminLayout from '../components/layout/AdminLayout';
 import formatPower from '../components/FormatPower.jsx';
@@ -14,40 +14,24 @@ import { useRateLimit } from '../hooks/useRateLimit';
 
 const MultiSelectDropdown = ({ options, selected, onChange, placeholder, activeColorClass }) => {
     const [isOpen, setIsOpen] = useState(false);
-
     const toggleOption = (opt) => {
-        if (selected.includes(opt)) {
-            onChange(selected.filter(v => v !== opt));
-        } else {
-            onChange([...selected, opt]);
-        }
+        if (selected.includes(opt)) onChange(selected.filter(v => v !== opt));
+        else onChange([...selected, opt]);
     };
-
     return (
         <div className="relative">
-            <div
-                onClick={() => setIsOpen(!isOpen)}
-                className={`bg-black border rounded-lg p-2 text-[10px] outline-none cursor-pointer flex justify-between items-center transition-colors ${selected.length > 0 ? activeColorClass : 'border-gray-800 text-gray-400 hover:border-gray-700'}`}
-            >
-                <span className="truncate font-black uppercase tracking-widest">
-                    {selected.length === 0 ? placeholder : `${selected.length} Selected`}
-                </span>
+            <div onClick={() => setIsOpen(!isOpen)} className={`bg-black border rounded-lg p-2 text-[10px] outline-none cursor-pointer flex justify-between items-center transition-colors ${selected.length > 0 ? activeColorClass : 'border-gray-800 text-gray-400 hover:border-gray-700'}`}>
+                <span className="truncate font-black uppercase tracking-widest">{selected.length === 0 ? placeholder : `${selected.length} Selected`}</span>
                 <ChevronDown size={12} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
             </div>
-
             {isOpen && <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />}
-
             {isOpen && (
                 <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl overflow-hidden">
                     <div className="max-h-48 overflow-y-auto custom-scrollbar p-1.5 flex flex-col gap-1">
                         {options.map(opt => {
                             const isSelected = selected.includes(opt);
                             return (
-                                <button
-                                    key={opt}
-                                    onClick={() => toggleOption(opt)}
-                                    className={`flex items-center gap-2 px-2 py-2 text-[10px] rounded-md transition-colors w-full text-left font-bold uppercase tracking-widest ${isSelected ? 'bg-gray-800 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'}`}
-                                >
+                                <button key={opt} onClick={() => toggleOption(opt)} className={`flex items-center gap-2 px-2 py-2 text-[10px] rounded-md transition-colors w-full text-left font-bold uppercase tracking-widest ${isSelected ? 'bg-gray-800 text-white' : 'text-gray-400 hover:bg-gray-800 hover:text-gray-200'}`}>
                                     {isSelected ? <CheckSquare size={14} className="text-blue-500 shrink-0" /> : <Square size={14} className="opacity-50 shrink-0" />}
                                     <span className="truncate">{opt}</span>
                                 </button>
@@ -70,16 +54,16 @@ export default function WarRoom() {
 
     const [stats, setStats] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [filterOptions, setFilterOptions] = useState({
-        troopTypes: [],
-        battleAvailability: [],
-        tundraAvailability: []
-    });
+    const [filterOptions, setFilterOptions] = useState({ troopTypes: [], battleAvailability: [], tundraAvailability: [] });
 
-    // --- Attendance & Event Type State ---
-    const [eventType, setEventType] = useState('SvS');
-    const [attendanceStats, setAttendanceStats] = useState({}); // Historical % map
-    const [attendanceMap, setAttendanceMap] = useState({}); // Current session manual status map
+    // --- Global Event State ---
+    const [eventType, setEventType] = useState('');
+    const [attendanceStats, setAttendanceStats] = useState({});
+    const [attendanceMap, setAttendanceMap] = useState({});
+
+    // --- Modal States ---
+    const [showArchiveModal, setShowArchiveModal] = useState(false);
+    const [archiveName, setArchiveName] = useState('');
 
     const [filterText, setFilterText] = useState('');
     const [filterTroops, setFilterTroops] = useState('All');
@@ -92,39 +76,28 @@ export default function WarRoom() {
     const [mobileTab, setMobileTab] = useState('bench');
 
     const postAnnounceData = (payload) => client.post('/moderator/discord/announce', payload);
-    const {
-        execute: executeAnnounce,
-        isPending: isAnnouncePending,
-        cooldown: announceCooldown
-    } = useRateLimit(postAnnounceData);
+    const { execute: executeAnnounce, isPending: isAnnouncePending, cooldown: announceCooldown } = useRateLimit(postAnnounceData);
 
-    useEffect(() => {
-        void fetchData();
-    }, []);
+    useEffect(() => { void fetchData(); }, []);
 
-    // Fetch Historical Attendance Stats when eventType changes
     useEffect(() => {
         const fetchAttendanceStats = async () => {
+            if (!eventType) {
+                setAttendanceStats({});
+                return;
+            }
             try {
                 const res = await client.get(`/moderator/war-room/attendance-stats?eventType=${eventType}`);
                 const map = {};
-                (res.data || []).forEach(s => {
-                    map[s.fid] = s.score;
-                });
+                (res.data || []).forEach(s => { map[s.fid] = s.score; });
                 setAttendanceStats(map);
-            } catch (err) {
-                console.error("Failed to fetch attendance stats");
-            }
+            } catch (err) { console.error("Failed to fetch attendance stats"); }
         };
         void fetchAttendanceStats();
     }, [eventType]);
 
     useEffect(() => {
-        const handleSync = () => {
-            console.log("[LiveSync] WarRoom updated!");
-            void fetchData();
-        };
-
+        const handleSync = () => { void fetchData(true); };
         window.addEventListener('REFRESH_WARROOM', handleSync);
         return () => window.removeEventListener('REFRESH_WARROOM', handleSync);
     }, []);
@@ -136,7 +109,9 @@ export default function WarRoom() {
                 client.get('/moderator/war-room/stats'),
                 client.get('/moderator/war-room/filters')
             ]);
-            setStats(sRes.data);
+            // Extract the new nested response
+            setStats(sRes.data.alliances || []);
+            setEventType(sRes.data.eventType || '');
             setFilterOptions(fRes.data);
         } catch (err) {
             toast.error("Failed to load war room data");
@@ -145,27 +120,33 @@ export default function WarRoom() {
         }
     };
 
-    const handleReset = async () => {
+    const handleStartSession = async (type) => {
         if (!isAdmin) return;
+        try {
+            await client.post('/moderator/war-room/session', { eventType: type });
+            setEventType(type);
+            toast.success(`Started global session for ${type}!`);
+        } catch (err) {
+            toast.error("Failed to lock global session");
+        }
+    };
 
-        // 1. Validate Attendance
+    const validateAndOpenArchive = () => {
         const deployedPlayers = (players || []).filter(p => p.fightingAllianceId);
         if (deployedPlayers.length > 0) {
             const hasPending = deployedPlayers.some(p => !attendanceMap[p.fid] || attendanceMap[p.fid] === 'Pending');
-            if (hasPending) {
-                return toast.error("Cannot archive: Please resolve all pending attendance records.");
-            }
+            if (hasPending) return toast.error("Cannot archive: Please resolve all pending attendance records.");
         }
+        setShowArchiveModal(true);
+    };
 
-        if (!window.confirm(`Are you sure you want to archive and reset the ${eventType} deployments?`)) return;
-
-        const eventName = window.prompt(`Name this ${eventType} event for the History logs (e.g., 'vs State 390').\nLeave blank and click OK to save without a name, or Cancel to abort.`);
-        if (eventName === null) return;
+    const confirmArchive = async () => {
+        if (!isAdmin) return;
 
         try {
-            // Construct the expanded payload
+            const deployedPlayers = (players || []).filter(p => p.fightingAllianceId);
             const payload = {
-                notes: eventName,
+                notes: archiveName,
                 eventType: eventType,
                 attendance: deployedPlayers.map(p => ({
                     fid: p.fid,
@@ -174,11 +155,11 @@ export default function WarRoom() {
             };
 
             await client.post('/moderator/war-room/reset', payload);
+            toast.success("Event archived and board wiped!");
 
-            toast.success("Event archived and attendance recorded!");
-
-            // Clear current session attendance
             setAttendanceMap({});
+            setArchiveName('');
+            setShowArchiveModal(false);
 
             void fetchData(true);
             await refreshGlobalData(true);
@@ -190,10 +171,7 @@ export default function WarRoom() {
     const toggleLock = async (allianceId, currentLock) => {
         if (!isAdmin) return;
         try {
-            await client.post('/moderator/war-room/lock', {
-                allianceId,
-                isLocked: !currentLock
-            });
+            await client.post('/moderator/war-room/lock', { allianceId, isLocked: !currentLock });
             await fetchData(true);
         } catch (err) { toast.error("Failed to update lock"); }
     };
@@ -201,16 +179,8 @@ export default function WarRoom() {
     const handleDeploy = async (fid, allianceId) => {
         if (isMod) return toast.warning("Moderators have read-only access.");
         try {
-            await client.post('/moderator/war-room/deploy', {
-                playerIds: [parseInt(fid)],
-                allianceId: allianceId
-            });
-
-            // Set default attendance to Pending when deployed
-            if (allianceId !== null) {
-                setAttendanceMap(prev => ({ ...prev, [fid]: 'Pending' }));
-            }
-
+            await client.post('/moderator/war-room/deploy', { playerIds: [parseInt(fid)], allianceId: allianceId });
+            if (allianceId !== null) setAttendanceMap(prev => ({ ...prev, [fid]: 'Pending' }));
             await refreshGlobalData(true);
             await fetchData(true);
             setSelectedPlayer(null);
@@ -227,9 +197,7 @@ export default function WarRoom() {
         const members = (players || []).filter(p => p.fightingAllianceId === allianceId);
         setAttendanceMap(prev => {
             const nextMap = { ...prev };
-            members.forEach(m => {
-                nextMap[m.fid] = status;
-            });
+            members.forEach(m => { nextMap[m.fid] = status; });
             return nextMap;
         });
     };
@@ -251,27 +219,18 @@ export default function WarRoom() {
         });
 
         try {
-            await executeAnnounce({
-                title: `⚔️ War Room Locked & Deployed`,
-                description: description,
-                color: 15158332
-            });
+            await executeAnnounce({ title: `⚔️ War Room Locked & Deployed`, description: description, color: 15158332 });
             toast.success("War Room deployed to Discord!");
         } catch (err) {
-            if (err?.response?.status !== 429) {
-                toast.error("Failed to announce deployments.");
-            }
+            if (err?.response?.status !== 429) toast.error("Failed to announce deployments.");
         }
     };
 
     const filteredPlayers = useMemo(() => {
         return (players || []).filter(p => {
-            const matchesText = (p.nickname || '').toLowerCase().includes(filterText.toLowerCase()) ||
-                (p.fid || '').toString().includes(filterText);
-
+            const matchesText = (p.nickname || '').toLowerCase().includes(filterText.toLowerCase()) || (p.fid || '').toString().includes(filterText);
             const matchesTroops = filterTroops === 'All' || p.troopType === filterTroops;
             const matchesAvail = filterAvail.length === 0 || filterAvail.includes(p.battleAvailability);
-
             let matchesTundra = true;
             if (filterTundra.length > 0) {
                 matchesTundra = filterTundra.some(slot => {
@@ -282,7 +241,6 @@ export default function WarRoom() {
                     return false;
                 });
             }
-
             return matchesText && matchesTroops && matchesAvail && matchesTundra && !p.fightingAllianceId;
         }).sort((a, b) => {
             if (sortBy === 'Power') return (b.power || 0) - (a.power || 0);
@@ -312,29 +270,35 @@ export default function WarRoom() {
     const handleMobileSelect = (p) => {
         if (isMod) return;
         setSelectedPlayer(p);
-        if (window.innerWidth < 1024) {
-            setMobileTab('alliances');
-        }
+        if (window.innerWidth < 1024) setMobileTab('alliances');
+    };
+
+    const renderPlayerBadge = (fid) => {
+        const reliability = attendanceStats[fid];
+        if (reliability === undefined) return null;
+        return (
+            <span className={`text-[8px] px-1.5 py-0.5 rounded font-black tracking-widest ${
+                reliability >= 85 ? 'bg-green-900/40 text-green-400 border border-green-800/50' :
+                    reliability >= 50 ? 'bg-yellow-900/40 text-yellow-500 border border-yellow-800/50' :
+                        'bg-red-900/40 text-red-400 border border-red-800/50'
+            }`}>
+                {reliability}%
+            </span>
+        );
     };
 
     const headerActions = (
         <div className="flex gap-2 items-center">
 
-            {/* Event Type Dropdown */}
-            <div className="hidden sm:flex bg-gray-900 border border-gray-800 rounded-lg overflow-hidden mr-2">
-                {['SvS', 'Tyrant', 'Tundra'].map(type => (
-                    <button
-                        key={type}
-                        onClick={() => setEventType(type)}
-                        className={`px-3 py-1.5 text-xs font-black uppercase transition-colors ${eventType === type ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-800'}`}
-                    >
-                        {type}
-                    </button>
-                ))}
-            </div>
+            {eventType && (
+                <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-green-900/20 border border-green-800 rounded-lg mr-2">
+                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                    <span className="text-[10px] font-black uppercase text-green-400 tracking-widest">{eventType} Session</span>
+                </div>
+            )}
 
-            {isAdmin && (
-                <button onClick={handleReset} className="flex items-center gap-2 px-3 py-1.5 bg-red-900/20 text-red-400 border border-red-800/50 rounded-lg text-[10px] font-black uppercase transition-colors hover:bg-red-900/40">
+            {isAdmin && eventType && (
+                <button onClick={validateAndOpenArchive} className="flex items-center gap-2 px-3 py-1.5 bg-red-900/20 text-red-400 border border-red-800/50 rounded-lg text-[10px] font-black uppercase transition-colors hover:bg-red-900/40">
                     <RotateCcw size={14} /> <span className="hidden sm:inline">Archive & Reset</span>
                 </button>
             )}
@@ -358,102 +322,92 @@ export default function WarRoom() {
         </div>
     );
 
-    const renderPlayerBadge = (fid) => {
-        const reliability = attendanceStats[fid];
-        if (reliability === undefined) return null;
-
-        return (
-            <span className={`text-[8px] px-1.5 py-0.5 rounded font-black tracking-widest ${
-                reliability >= 85 ? 'bg-green-900/40 text-green-400 border border-green-800/50' :
-                    reliability >= 50 ? 'bg-yellow-900/40 text-yellow-500 border border-yellow-800/50' :
-                        'bg-red-900/40 text-red-400 border border-red-800/50'
-            }`}>
-                {reliability}%
-            </span>
-        );
-    };
-
     if (loading || globalLoading) return <div className="p-10 text-white font-mono bg-gray-950 min-h-screen">LOADING STRATEGIC ASSETS...</div>;
 
     return (
         <AdminLayout title="War Room" actions={headerActions}>
-            <div className="flex flex-col lg:flex-row h-[calc(100dvh-64px)] lg:h-full overflow-hidden bg-gray-950">
+            <div className="flex flex-col lg:flex-row h-[calc(100dvh-64px)] lg:h-full overflow-hidden bg-gray-950 relative">
 
-                {/* Mobile Event Selector */}
-                <div className="sm:hidden flex bg-gray-900 p-2 border-b border-gray-800 shrink-0 gap-2 z-20">
-                    {['SvS', 'Tyrant', 'Tundra'].map(type => (
-                        <button
-                            key={type}
-                            onClick={() => setEventType(type)}
-                            className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-colors border ${eventType === type ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-500'}`}
-                        >
-                            {type}
-                        </button>
-                    ))}
-                </div>
+                {/* 1. NULL STATE / INIT MODAL OVERLAY */}
+                {!eventType && (
+                    <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+                        <div className="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl max-w-lg w-full p-8 text-center animate-in zoom-in-95">
+                            <Shield className="w-16 h-16 text-blue-500 mx-auto mb-4" />
+                            <h2 className="text-2xl font-black text-white uppercase tracking-widest mb-2">Initialize Session</h2>
+                            <p className="text-gray-400 text-sm mb-8">Select the upcoming event type to lock the War Room globally and load historical reliability data.</p>
 
+                            {isAdmin ? (
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    {['SvS', 'Tyrant', 'Tundra'].map(type => (
+                                        <button
+                                            key={type}
+                                            onClick={() => handleStartSession(type)}
+                                            className="bg-gray-800 hover:bg-blue-600 border border-gray-700 hover:border-blue-500 text-white font-black uppercase tracking-widest py-4 rounded-xl transition-all shadow-lg hover:scale-105"
+                                        >
+                                            {type}
+                                        </button>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="bg-yellow-900/20 border border-yellow-700/50 text-yellow-500 p-4 rounded-xl text-sm font-bold uppercase tracking-widest animate-pulse">
+                                    Waiting for an Admin to start the session...
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* 2. ARCHIVE MODAL */}
+                {showArchiveModal && (
+                    <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+                        <div className="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl max-w-md w-full p-6 animate-in zoom-in-95">
+                            <div className="flex items-center gap-3 text-red-500 mb-4">
+                                <AlertTriangle size={24} />
+                                <h2 className="text-xl font-black uppercase tracking-widest">Archive Session</h2>
+                            </div>
+                            <p className="text-gray-400 text-sm mb-6">This will clear the War Room and save all attendance data permanently. Name this event for the history ledger.</p>
+
+                            <input
+                                type="text"
+                                placeholder="e.g. Vs State 390"
+                                value={archiveName}
+                                onChange={(e) => setArchiveName(e.target.value)}
+                                className="w-full bg-black border border-gray-700 rounded-xl px-4 py-3 text-white focus:border-red-500 outline-none mb-6 font-bold"
+                            />
+
+                            <div className="flex gap-3">
+                                <button onClick={() => setShowArchiveModal(false)} className="flex-1 py-3 bg-gray-800 text-gray-400 font-bold uppercase rounded-xl hover:bg-gray-700 transition-colors">Cancel</button>
+                                <button onClick={confirmArchive} className="flex-1 py-3 bg-red-600 text-white font-black uppercase rounded-xl hover:bg-red-500 transition-colors shadow-lg shadow-red-900/20">Confirm</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Mobile Tabs */}
                 <div className="lg:hidden flex bg-gray-900 p-2 border-b border-gray-800 shrink-0 gap-2">
-                    <button
-                        onClick={() => setMobileTab('bench')}
-                        className={`flex-1 py-2.5 text-xs font-black uppercase rounded-lg transition-colors ${mobileTab === 'bench' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 bg-gray-800 hover:text-white'}`}
-                    >
-                        Bench ({filteredPlayers.length})
-                    </button>
-                    <button
-                        onClick={() => setMobileTab('alliances')}
-                        className={`flex-1 py-2.5 text-xs font-black uppercase rounded-lg transition-colors ${mobileTab === 'alliances' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 bg-gray-800 hover:text-white'}`}
-                    >
-                        Deployments
-                    </button>
+                    <button onClick={() => setMobileTab('bench')} className={`flex-1 py-2.5 text-xs font-black uppercase rounded-lg transition-colors ${mobileTab === 'bench' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 bg-gray-800 hover:text-white'}`}>Bench ({filteredPlayers.length})</button>
+                    <button onClick={() => setMobileTab('alliances')} className={`flex-1 py-2.5 text-xs font-black uppercase rounded-lg transition-colors ${mobileTab === 'alliances' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 bg-gray-800 hover:text-white'}`}>Deployments</button>
                 </div>
 
                 <aside className={`w-full lg:w-80 bg-gray-900 border-b lg:border-r border-gray-800 shrink-0 overflow-hidden ${mobileTab === 'bench' ? 'flex flex-col' : 'hidden lg:flex lg:flex-col h-full'}`}>
                     <div className="p-4 space-y-3 bg-gray-900/50 border-b border-gray-800">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                            <input
-                                type="text" placeholder="Filter Players..."
-                                className="w-full bg-black border border-gray-800 rounded-xl pl-10 pr-4 py-2 text-xs text-white focus:border-blue-500 outline-none"
-                                value={filterText} onChange={e => {setFilterText(e.target.value); setDisplayLimit(30);}}
-                            />
+                            <input type="text" placeholder="Filter Players..." className="w-full bg-black border border-gray-800 rounded-xl pl-10 pr-4 py-2 text-xs text-white focus:border-blue-500 outline-none" value={filterText} onChange={e => {setFilterText(e.target.value); setDisplayLimit(30);}} />
                         </div>
                         <div className="grid grid-cols-3 gap-2">
-                            <select
-                                value={filterTroops}
-                                onChange={e => {setFilterTroops(e.target.value); setDisplayLimit(30);}}
-                                className="bg-black border border-gray-800 text-[10px] rounded-lg p-1 text-gray-400 outline-none font-black uppercase tracking-widest cursor-pointer"
-                            >
+                            <select value={filterTroops} onChange={e => {setFilterTroops(e.target.value); setDisplayLimit(30);}} className="bg-black border border-gray-800 text-[10px] rounded-lg p-1 text-gray-400 outline-none font-black uppercase tracking-widest cursor-pointer">
                                 <option value="All">All Troops</option>
                                 {(filterOptions.troopTypes || []).map(o => <option key={o} value={o}>{o}</option>)}
                             </select>
-
-                            <MultiSelectDropdown
-                                options={filterOptions.battleAvailability || []}
-                                selected={filterAvail}
-                                onChange={(newSelection) => { setFilterAvail(newSelection); setDisplayLimit(30); }}
-                                placeholder="Battle Avail"
-                                activeColorClass="border-blue-500 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.2)]"
-                            />
-
-                            <MultiSelectDropdown
-                                options={filterOptions.tundraAvailability || []}
-                                selected={filterTundra}
-                                onChange={(newSelection) => { setFilterTundra(newSelection); setDisplayLimit(30); }}
-                                placeholder="Tundra Slots"
-                                activeColorClass="border-purple-500 text-purple-400 shadow-[0_0_10px_rgba(168,85,247,0.2)]"
-                            />
+                            <MultiSelectDropdown options={filterOptions.battleAvailability || []} selected={filterAvail} onChange={(newSelection) => { setFilterAvail(newSelection); setDisplayLimit(30); }} placeholder="Battle Avail" activeColorClass="border-blue-500 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.2)]" />
+                            <MultiSelectDropdown options={filterOptions.tundraAvailability || []} selected={filterTundra} onChange={(newSelection) => { setFilterTundra(newSelection); setDisplayLimit(30); }} placeholder="Tundra Slots" activeColorClass="border-purple-500 text-purple-400 shadow-[0_0_10px_rgba(168,85,247,0.2)]" />
                         </div>
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
                         {filteredPlayers.slice(0, displayLimit).map(p => (
-                            <div
-                                key={p.fid}
-                                draggable={!isMod}
-                                onDragStart={(e) => onDragStart(e, p.fid)}
-                                onClick={() => handleMobileSelect(p)}
-                                className={`p-3 rounded-2xl border transition-all select-none ${isMod ? 'cursor-default border-gray-800' : 'cursor-pointer'} ${selectedPlayer?.fid === p.fid ? 'bg-blue-600 border-blue-400 scale-95 shadow-lg' : 'bg-gray-950 border-gray-800 hover:border-gray-700'}`}
-                            >
+                            <div key={p.fid} draggable={!isMod} onDragStart={(e) => onDragStart(e, p.fid)} onClick={() => handleMobileSelect(p)} className={`p-3 rounded-2xl border transition-all select-none ${isMod ? 'cursor-default border-gray-800' : 'cursor-pointer'} ${selectedPlayer?.fid === p.fid ? 'bg-blue-600 border-blue-400 scale-95 shadow-lg' : 'bg-gray-950 border-gray-800 hover:border-gray-700'}`}>
                                 <div className="flex items-center gap-3">
                                     <div className="relative shrink-0">
                                         <img src={p.avatar} className="w-10 h-10 rounded-xl object-cover" alt="" />
@@ -464,12 +418,10 @@ export default function WarRoom() {
                                             <p className={`text-[11px] font-black truncate ${selectedPlayer?.fid === p.fid ? 'text-white' : 'text-gray-200'}`}>{p.nickname}</p>
                                             {renderPlayerBadge(p.fid)}
                                         </div>
-
                                         <div className="flex items-center gap-1.5 flex-wrap">
                                             <div className={`text-[8px] px-1.5 rounded-sm border font-black uppercase tracking-tighter ${getTroopColor(p.troopType)}`}>{p.troopType || 'NONE'}</div>
                                             <div className={`text-[8px] px-1.5 rounded-sm border font-black tracking-tighter text-gray-400 border-gray-700 bg-gray-800/40`}>{p.allianceName || 'NONE'}</div>
                                         </div>
-
                                         <div className="flex items-center gap-2 pt-0.5">
                                             <span className="text-[9px] text-blue-400 font-mono" title="Base Power">⚡ ⚡ {formatPower(p.normalPower)}</span>
                                             <span className="text-[9px] text-gray-600">|</span>
@@ -479,12 +431,8 @@ export default function WarRoom() {
                                 </div>
                             </div>
                         ))}
-
                         {filteredPlayers.length > displayLimit && (
-                            <button
-                                onClick={() => setDisplayLimit(prev => prev + 30)}
-                                className="w-full py-4 text-[10px] font-black uppercase tracking-widest text-blue-400 hover:text-blue-300 transition-colors border-t border-gray-800 mt-2"
-                            >
+                            <button onClick={() => setDisplayLimit(prev => prev + 30)} className="w-full py-4 text-[10px] font-black uppercase tracking-widest text-blue-400 hover:text-blue-300 transition-colors border-t border-gray-800 mt-2">
                                 + Load More ({filteredPlayers.length - displayLimit} Remaining)
                             </button>
                         )}
@@ -496,20 +444,11 @@ export default function WarRoom() {
                         {(stats || []).map(alliance => {
                             const roster = (players || []).filter(p => p.fightingAllianceId === alliance.id);
                             const isLocked = alliance.isLocked;
-
                             const totalBasePower = roster.reduce((sum, p) => sum + (p.normalPower || 0), 0);
                             const totalTundraPower = roster.reduce((sum, p) => sum + (p.power || 0), 0);
 
                             return (
-                                <div
-                                    key={alliance.id}
-                                    onDragOver={(e) => !isLocked && !isMod && e.preventDefault()}
-                                    onDrop={(e) => !isLocked && !isMod && onDrop(e, alliance.id)}
-                                    onClick={() => !isLocked && !isMod && selectedPlayer && handleDeploy(selectedPlayer.fid, alliance.id)}
-                                    className={`bg-gray-900 rounded-3xl border transition-all flex flex-col overflow-hidden min-h-[400px] 
-                                        ${selectedPlayer && !isLocked && !isMod ? 'border-blue-500 ring-4 ring-blue-500/20 animate-pulse scale-[1.02] cursor-crosshair' : 'border-gray-800 shadow-2xl'} 
-                                        ${isLocked ? 'bg-red-950/5' : ''}`}
-                                >
+                                <div key={alliance.id} onDragOver={(e) => !isLocked && !isMod && e.preventDefault()} onDrop={(e) => !isLocked && !isMod && onDrop(e, alliance.id)} onClick={() => !isLocked && !isMod && selectedPlayer && handleDeploy(selectedPlayer.fid, alliance.id)} className={`bg-gray-900 rounded-3xl border transition-all flex flex-col overflow-hidden min-h-[400px] ${selectedPlayer && !isLocked && !isMod ? 'border-blue-500 ring-4 ring-blue-500/20 animate-pulse scale-[1.02] cursor-crosshair' : 'border-gray-800 shadow-2xl'} ${isLocked ? 'bg-red-950/5' : ''}`}>
                                     <div className={`p-4 flex justify-between items-center border-b ${isLocked ? 'bg-red-900/10 border-red-900/20' : 'bg-gray-900/50 border-gray-800'}`}>
                                         <div className="flex items-center gap-3">
                                             <Shield size={20} className={isLocked ? 'text-red-500' : 'text-blue-500'} />
@@ -524,19 +463,17 @@ export default function WarRoom() {
                                         </div>
 
                                         <div className="flex items-center gap-2">
-                                            {/* Bulk Action Buttons when Locked */}
                                             {isAdmin && isLocked && (
                                                 <div className="hidden sm:flex items-center gap-1 mr-2 bg-gray-950 p-1 rounded-lg border border-gray-800">
                                                     <button onClick={(e) => { e.stopPropagation(); handleBulkAttendance(alliance.id, 'Attended'); }} className="p-1 text-green-500 hover:bg-green-500/20 rounded-md transition-colors" title="Mark All YES"><CheckCircle2 size={14} /></button>
+                                                    <button onClick={(e) => { e.stopPropagation(); handleBulkAttendance(alliance.id, 'Majority'); }} className="p-1 text-blue-400 hover:bg-blue-400/20 rounded-md transition-colors" title="Mark All MAJ"><CheckCircle2 size={14} /></button>
+                                                    <button onClick={(e) => { e.stopPropagation(); handleBulkAttendance(alliance.id, 'Minimal'); }} className="p-1 text-orange-400 hover:bg-orange-400/20 rounded-md transition-colors" title="Mark All MIN"><CheckCircle2 size={14} /></button>
                                                     <button onClick={(e) => { e.stopPropagation(); handleBulkAttendance(alliance.id, 'Missed'); }} className="p-1 text-red-500 hover:bg-red-500/20 rounded-md transition-colors" title="Mark All NO"><XCircle size={14} /></button>
                                                 </div>
                                             )}
 
                                             {isAdmin && (
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); void toggleLock(alliance.id, isLocked); }}
-                                                    className={`p-2 rounded-xl border transition-all ${isLocked ? 'bg-red-500 text-white border-red-400 shadow-lg shadow-red-500/20' : 'bg-gray-800 text-gray-500 border-gray-700 hover:text-white'}`}
-                                                >
+                                                <button onClick={(e) => { e.stopPropagation(); void toggleLock(alliance.id, isLocked); }} className={`p-2 rounded-xl border transition-all ${isLocked ? 'bg-red-500 text-white border-red-400 shadow-lg shadow-red-500/20' : 'bg-gray-800 text-gray-500 border-gray-700 hover:text-white'}`}>
                                                     {isLocked ? <Lock size={16} /> : <Unlock size={16} />}
                                                 </button>
                                             )}
@@ -546,7 +483,6 @@ export default function WarRoom() {
                                     <div className="flex-1 p-4 grid grid-cols-1 md:grid-cols-2 gap-2 content-start">
                                         {roster.map(m => {
                                             const pStatus = attendanceMap[m.fid] || 'Pending';
-
                                             return (
                                                 <div key={m.fid} className="flex items-center justify-between p-2.5 bg-black/40 border border-gray-800 rounded-xl group transition-all hover:border-gray-600">
                                                     <div className="flex items-center gap-3 min-w-0">
@@ -565,7 +501,6 @@ export default function WarRoom() {
                                                     </div>
 
                                                     <div className="flex items-center gap-2 shrink-0">
-                                                        {/* Foundry-Style Select Dropdown when Locked */}
                                                         {isAdmin && isLocked ? (
                                                             <select
                                                                 value={pStatus}
@@ -588,10 +523,7 @@ export default function WarRoom() {
                                                                 <option className="bg-gray-900 text-gray-400" value="Exempt">EXC</option>
                                                             </select>
                                                         ) : isAdmin && !isLocked ? (
-                                                            <button
-                                                                onClick={(e) => { e.stopPropagation(); void handleDeploy(m.fid, null); }}
-                                                                className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 p-1.5 text-red-500 lg:hover:bg-red-500/10 rounded-lg transition-all"
-                                                            >
+                                                            <button onClick={(e) => { e.stopPropagation(); void handleDeploy(m.fid, null); }} className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 p-1.5 text-red-500 lg:hover:bg-red-500/10 rounded-lg transition-all">
                                                                 <X size={14} />
                                                             </button>
                                                         ) : null}
@@ -614,15 +546,8 @@ export default function WarRoom() {
                 {selectedPlayer && (
                     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] lg:hidden animate-in slide-in-from-bottom-5">
                         <div className="bg-blue-600 text-white pl-6 pr-2 py-2 rounded-full font-black text-xs tracking-widest shadow-2xl flex items-center gap-4 border border-blue-400">
-                            <span className="flex items-center gap-2">
-                                <ChevronRight size={16} /> Deploy {selectedPlayer.nickname.substring(0, 10)}
-                            </span>
-                            <button
-                                onClick={() => setSelectedPlayer(null)}
-                                className="p-2 bg-blue-800 rounded-full hover:bg-blue-900 transition-colors"
-                            >
-                                <X size={14} />
-                            </button>
+                            <span className="flex items-center gap-2"><ChevronRight size={16} /> Deploy {selectedPlayer.nickname.substring(0, 10)}</span>
+                            <button onClick={() => setSelectedPlayer(null)} className="p-2 bg-blue-800 rounded-full hover:bg-blue-900 transition-colors"><X size={14} /></button>
                         </div>
                     </div>
                 )}

@@ -183,6 +183,11 @@ func (s *Store) ArchiveAndResetEvent(adminUsername string, notes string, eventTy
 		return err
 	}
 
+	_, err = tx.Exec("UPDATE war_room_state SET active_event_type = NULL WHERE id = 1")
+	if err != nil {
+		return err
+	}
+
 	return tx.Commit()
 }
 
@@ -352,4 +357,21 @@ func (s *Store) GetWarRoomAttendanceStats(eventType string) ([]WarRoomAttendance
 		return nil, err
 	}
 	return stats, nil
+}
+
+func (s *Store) GetWarRoomSession() (string, error) {
+	var eventType *string
+	err := s.db.Get(&eventType, "SELECT active_event_type FROM war_room_state WHERE id = 1")
+	if err != nil {
+		return "", err
+	}
+	if eventType == nil {
+		return "", nil
+	}
+	return *eventType, nil
+}
+
+func (s *Store) SetWarRoomSession(eventType string) error {
+	_, err := s.db.Exec("UPDATE war_room_state SET active_event_type = ? WHERE id = 1", eventType)
+	return err
 }
