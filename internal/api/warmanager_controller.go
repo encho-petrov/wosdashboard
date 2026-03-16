@@ -97,6 +97,10 @@ func (wc *WarController) GetWarStats(c *gin.Context) {
 
 	session, _ := wc.store.GetWarRoomSession()
 
+	if stats == nil {
+		stats = []db.WarStats{}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"eventType": session,
 		"alliances": stats,

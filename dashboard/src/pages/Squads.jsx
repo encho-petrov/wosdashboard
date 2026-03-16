@@ -34,14 +34,24 @@ export default function Squads() {
         cooldown: announceCooldown
     } = useRateLimit(postAnnounceData);
 
-    // --- INITIALIZATION (STRICTLY FROM SOURCE) ---
     useEffect(() => {
         const init = async () => {
             try {
                 const res = await client.get('/moderator/war-room/stats');
-                setAlliances(res.data || []);
-                if (res.data.length > 0) setActiveAlliance(res.data[0].id);
-            } catch (err) { toast.error("Failed to load alliances"); }
+
+                // ACCESS THE NESTED alliances ARRAY
+                const alliancesData = res.data.alliances || [];
+
+                setAlliances(alliancesData);
+
+                // USE THE EXTRACTED ARRAY FOR LENGTH CHECK
+                if (alliancesData.length > 0) {
+                    setActiveAlliance(alliancesData[0].id);
+                }
+            } catch (err) {
+                console.error(err);
+                toast.error("Failed to load alliances");
+            }
         };
         void init();
     }, []);
