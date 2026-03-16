@@ -1,5 +1,6 @@
 FROM node:18-alpine AS base
 WORKDIR /app
+ENV NPM_CONFIG_UPDATE_NOTIFIER=false
 COPY package*.json ./
 
 FROM base AS development
