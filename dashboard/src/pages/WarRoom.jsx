@@ -573,13 +573,17 @@ export default function WarRoom() {
                                                                 onClick={(e) => e.stopPropagation()}
                                                                 className={`text-[10px] font-black uppercase rounded px-1.5 py-1 outline-none border cursor-pointer ${
                                                                     pStatus === 'Attended' ? 'bg-green-900/30 text-green-400 border-green-800' :
-                                                                        pStatus === 'Missed' ? 'bg-red-900/30 text-red-400 border-red-800' :
-                                                                            pStatus === 'Exempt' ? 'bg-gray-800 text-gray-400 border-gray-600' :
-                                                                                'bg-yellow-900/30 text-yellow-500 border-yellow-800 animate-pulse'
+                                                                        pStatus === 'Majority' ? 'bg-blue-900/30 text-blue-400 border-blue-800' :
+                                                                            pStatus === 'Minimal' ? 'bg-orange-900/30 text-orange-400 border-orange-800' :
+                                                                                pStatus === 'Missed' ? 'bg-red-900/30 text-red-400 border-red-800' :
+                                                                                    pStatus === 'Exempt' ? 'bg-gray-800 text-gray-400 border-gray-600' :
+                                                                                        'bg-yellow-900/30 text-yellow-500 border-yellow-800 animate-pulse'
                                                                 }`}
                                                             >
                                                                 <option className="bg-gray-900 text-yellow-500" value="Pending">?</option>
                                                                 <option className="bg-gray-900 text-green-500" value="Attended">YES</option>
+                                                                <option className="bg-gray-900 text-blue-400" value="Majority">MAJ</option>
+                                                                <option className="bg-gray-900 text-orange-500" value="Minimal">MIN</option>
                                                                 <option className="bg-gray-900 text-red-500" value="Missed">NO</option>
                                                                 <option className="bg-gray-900 text-gray-400" value="Exempt">EXC</option>
                                                             </select>

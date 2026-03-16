@@ -329,15 +329,25 @@ func (s *Store) GetWarRoomAttendanceStats(eventType string) ([]WarRoomAttendance
 	query := `
         SELECT 
             fid,
-            ROUND((SUM(CASE WHEN status = 'Attended' THEN 1 ELSE 0 END) * 100.0) / 
-            NULLIF(SUM(CASE WHEN status IN ('Attended', 'Missed') THEN 1 ELSE 0 END), 0)) as score
+            ROUND(
+                (SUM(
+                    CASE 
+                        WHEN status = 'Attended' THEN 1.0 
+                        WHEN status = 'Majority' THEN 0.75 
+                        WHEN status = 'Minimal' THEN 0.25 
+                        ELSE 0 
+                    END
+                ) * 100.0) / 
+                NULLIF(SUM(CASE WHEN status IN ('Attended', 'Majority', 'Minimal', 'Missed') THEN 1 ELSE 0 END), 0)
+            ) as score
         FROM war_room_attendance
         WHERE event_type = ?
         GROUP BY fid
-        HAVING SUM(CASE WHEN status IN ('Attended', 'Missed') THEN 1 ELSE 0 END) > 0
+        HAVING SUM(CASE WHEN status IN ('Attended', 'Majority', 'Minimal', 'Missed') THEN 1 ELSE 0 END) > 0
     `
 	var stats []WarRoomAttendanceStat
 	err := s.db.Select(&stats, query, eventType)
+
 	if err != nil {
 		return nil, err
 	}
