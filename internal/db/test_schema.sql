@@ -1,6 +1,7 @@
 DROP TABLE IF EXISTS players;
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS pet_skill_schedule;
+DROP TABLE IF EXISTS building_rewards;
 
 CREATE TABLE IF NOT EXISTS alliances (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(50), type VARCHAR(20) DEFAULT 'Fighting', is_locked BOOLEAN DEFAULT FALSE);
 CREATE TABLE IF NOT EXISTS teams (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(50), captain_fid BIGINT, fighting_alliance_id INT NULL, alliance_id INT NULL);

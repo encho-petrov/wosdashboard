@@ -137,7 +137,7 @@ func SetupRouter(engine *processor.Processor, store *db.Store, cfg *config.Confi
 			authorized.POST("/redeem", redeemCtrl.Redeem)
 			authorized.GET("/jobs", redeemCtrl.GetRecentJobs)
 			authorized.GET("/job/current", redeemCtrl.GetActiveJob)
-			authorized.GET("/reports/:filename", redeemCtrl.GetActiveJob)
+			authorized.GET("/reports/:filename", redeemCtrl.DownloadReport)
 		}
 
 		if cfg.FeaturesConfig.WarRoom {
