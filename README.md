@@ -2,6 +2,7 @@
 
 ![Status](https://img.shields.io/badge/status-active-success)
 ![Backend](https://img.shields.io/badge/backend-Go-00ADD8)
+[![Backend Tests](https://github.com/encho-petrov/wosdashboard/actions/workflows/test.yml/badge.svg)](https://github.com/encho-petrov/wosdashboard/actions/workflows/test.yml)
 ![Frontend](https://img.shields.io/badge/frontend-React-61DAFB)
 ![Database](https://img.shields.io/badge/database-MySQL-orange)
 ![Deployment](https://img.shields.io/badge/deployment-Docker-blue)
@@ -152,7 +153,6 @@ The included Nginx configuration is for local testing. For production deployment
 ## 🗺️ Roadmap
 
 * Enhance audit logging
-* Write comprehensive unit and integration tests for the Go API.
 * Expand multi-state support for cross-server coalitions.
 * Enriched SSE Payloads.
 
