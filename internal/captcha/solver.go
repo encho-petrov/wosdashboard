@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log" // Changed to log for immediate output
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -12,14 +12,20 @@ import (
 )
 
 type Solver struct {
-	ApiKey string
-	Client *http.Client
+	ApiKey      string
+	Client      *http.Client
+	BaseURL     string
+	InitialWait time.Duration
+	PollDelay   time.Duration
 }
 
 func NewSolver(apiKey string) *Solver {
 	return &Solver{
-		ApiKey: apiKey,
-		Client: &http.Client{Timeout: 60 * time.Second},
+		ApiKey:      apiKey,
+		Client:      &http.Client{Timeout: 60 * time.Second},
+		BaseURL:     "https://2captcha.com",
+		InitialWait: 5 * time.Second,
+		PollDelay:   2 * time.Second,
 	}
 }
 
@@ -36,7 +42,7 @@ func (s *Solver) Solve(base64Image string) (string, error) {
 	log.Println("[Solver] Sending image to 2Captcha...")
 	startTime := time.Now()
 
-	submitUrl := "https://2captcha.com/in.php"
+	submitUrl := s.BaseURL + "/in.php"
 	data := url.Values{}
 	data.Set("key", s.ApiKey)
 	data.Set("method", "base64")
@@ -66,13 +72,13 @@ func (s *Solver) Solve(base64Image string) (string, error) {
 	captchaID := submitResp.Request
 	log.Printf("[Solver] Job ID: %s. Waiting...", captchaID)
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(s.InitialWait)
 
 	for i := 0; i < 30; i++ {
-		solveUrl := fmt.Sprintf("https://2captcha.com/res.php?key=%s&action=get&id=%s&json=1", s.ApiKey, captchaID)
+		solveUrl := fmt.Sprintf("%s/res.php?key=%s&action=get&id=%s&json=1", s.BaseURL, s.ApiKey, captchaID)
 		resp, err := s.Client.Get(solveUrl)
 		if err != nil {
-			time.Sleep(2 * time.Second)
+			time.Sleep(s.PollDelay)
 			continue
 		}
 
@@ -81,7 +87,7 @@ func (s *Solver) Solve(base64Image string) (string, error) {
 
 		var solveResp twoCaptchaResponse
 		if err := json.Unmarshal(bodyBytes, &solveResp); err != nil {
-			time.Sleep(2 * time.Second)
+			time.Sleep(s.PollDelay)
 			continue
 		}
 
@@ -92,7 +98,7 @@ func (s *Solver) Solve(base64Image string) (string, error) {
 		}
 
 		if solveResp.Request == "CAPCHA_NOT_READY" {
-			time.Sleep(2 * time.Second)
+			time.Sleep(s.PollDelay)
 			continue
 		}
 
@@ -104,5 +110,3 @@ func (s *Solver) Solve(base64Image string) (string, error) {
 }
 
 func (s *Solver) Close() {}
-
-//func (s *Solver) SaveDebugImage(base64Image string, filename string) error { return nil }

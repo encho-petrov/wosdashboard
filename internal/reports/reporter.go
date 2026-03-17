@@ -5,15 +5,24 @@ import (
 	"fmt"
 	"gift-redeemer/internal/models"
 	"os"
+	"path/filepath"
 	"time"
 )
 
 func ExportJobResults(job *models.RedeemJob, entries []models.RedeemJobEntry) (string, error) {
 	timestamp := time.Now().Format("2006-01-02_15-04-05")
 	folder := "reports"
-	filename := fmt.Sprintf("report_%s_%s.csv", job.JobID, timestamp)
 
-	file, err := os.Create(folder + "/" + filename)
+	if _, err := os.Stat(folder); os.IsNotExist(err) {
+		if err := os.MkdirAll(folder, 0755); err != nil {
+			return "", fmt.Errorf("failed to create reports directory: %w", err)
+		}
+	}
+
+	filename := fmt.Sprintf("report_%s_%s.csv", job.JobID, timestamp)
+	filePath := filepath.Join(folder, filename)
+
+	file, err := os.Create(filePath)
 	if err != nil {
 		return "", fmt.Errorf("could not create file: %w", err)
 	}

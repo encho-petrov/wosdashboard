@@ -1,6 +1,7 @@
 package processor
 
 import (
+	"context"
 	"fmt"
 	"gift-redeemer/internal/cache"
 	"gift-redeemer/internal/captcha"
@@ -14,8 +15,6 @@ import (
 	"sync"
 	"time"
 )
-
-const WorkerCount = 2
 
 var (
 	isPaused   bool
@@ -31,9 +30,12 @@ type Processor struct {
 	Solver       *captcha.Solver
 	Redis        *cache.RedisStore
 	JobQueue     chan *models.RedeemJob
+	ctx          context.Context
+	cancel       context.CancelFunc
 }
 
 func NewProcessor(pClient *client.PlayerClient, gClient *client.GiftClient, store *db.Store, solver *captcha.Solver, redis *cache.RedisStore) *Processor {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Processor{
 		PlayerClient: pClient,
 		GiftClient:   gClient,
@@ -41,11 +43,21 @@ func NewProcessor(pClient *client.PlayerClient, gClient *client.GiftClient, stor
 		Solver:       solver,
 		Redis:        redis,
 		JobQueue:     make(chan *models.RedeemJob, 100),
+		ctx:          ctx,
+		cancel:       cancel,
 	}
 }
 
+func (p *Processor) Stop() {
+	p.cancel()
+}
+
 func (p *Processor) IsJobRunning() bool {
-	return !p.Redis.AcquireJobLock("check_only")
+	status := p.Redis.GetCurrentJobStatus()
+	if status != nil && (status.Status == "PENDING" || status.Status == "RUNNING") {
+		return true
+	}
+	return false
 }
 
 func (p *Processor) GetStatus() (bool, *models.RedeemJob) {
@@ -77,11 +89,11 @@ func triggerPause() {
 	if !isPaused {
 		isPaused = true
 		pauseUntil = time.Now().Add(60 * time.Second)
-		log.Println("🚨 WAF_BLOCK Detected! Triggering 60-second Global Pause for all workers.")
+		log.Println("🚨 WAF_BLOCK Detected! Triggering 60-second Global Pause.")
 	}
 }
 
-func checkPause() {
+func (p *Processor) checkPause() {
 	pauseMutex.RLock()
 	paused := isPaused
 	until := pauseUntil
@@ -91,7 +103,12 @@ func checkPause() {
 		if time.Now().Before(until) {
 			sleepDur := time.Until(until)
 			log.Printf("Worker sleeping for %v to respect Global Pause...", sleepDur)
-			time.Sleep(sleepDur)
+
+			select {
+			case <-time.After(sleepDur):
+			case <-p.ctx.Done():
+				return
+			}
 		}
 		pauseMutex.Lock()
 		if isPaused && time.Now().After(pauseUntil) {
@@ -103,7 +120,7 @@ func checkPause() {
 }
 
 func (p *Processor) safeAPICall(call func() error) error {
-	checkPause()
+	p.checkPause()
 
 	apiMutex.Lock()
 	defer apiMutex.Unlock()
@@ -111,26 +128,36 @@ func (p *Processor) safeAPICall(call func() error) error {
 	err := call()
 
 	jitter := time.Duration(1000+rand.Intn(1500)) * time.Millisecond
-	time.Sleep(jitter)
+	select {
+	case <-time.After(jitter):
+	case <-p.ctx.Done():
+	}
 
 	return err
 }
 
 func (p *Processor) StartWorkers() {
-	for i := 1; i <= WorkerCount; i++ {
-		go p.worker(i)
-	}
+	go p.worker(1)
 }
 
 func (p *Processor) worker(id int) {
-	for job := range p.JobQueue {
-		p.processJob(job, id)
+	for {
+		select {
+		case job := <-p.JobQueue:
+			p.processJob(job, id)
+		case <-p.ctx.Done():
+			log.Printf("[Worker %d] Shutting down...", id)
+			return
+		}
 	}
 }
 
 func (p *Processor) processJob(job *models.RedeemJob, workerID int) {
 	log.Printf("[Worker %d] Starting Job %s", workerID, job.JobID)
-	p.Redis.AcquireJobLock(job.JobID)
+	if !p.Redis.AcquireJobLock(job.JobID) {
+		log.Printf("[Worker %d] Failed to acquire lock for job %s", workerID, job.JobID)
+		return
+	}
 	defer p.Redis.ReleaseJobLock()
 
 	p.Store.UpdateJobProgress(job.JobID, 0)
@@ -138,6 +165,12 @@ func (p *Processor) processJob(job *models.RedeemJob, workerID int) {
 	processedCount := 0
 
 	for _, target := range job.Targets {
+		select {
+		case <-p.ctx.Done():
+			return
+		default:
+		}
+
 		for _, code := range job.GiftCodes {
 			status, msg, updatedNick := p.redeemForPlayer(target.Fid, target.Nickname, code)
 
@@ -159,6 +192,8 @@ func (p *Processor) processJob(job *models.RedeemJob, workerID int) {
 	if err == nil {
 		p.Store.CompleteJob(job.JobID, "COMPLETED", reportPath)
 	}
+
+	p.Redis.SetJobProgress(job.JobID, processedCount, job.Total, "COMPLETED")
 }
 
 func (p *Processor) redeemForPlayer(fid int64, nickname, code string) (int, string, string) {
@@ -167,8 +202,6 @@ func (p *Processor) redeemForPlayer(fid int64, nickname, code string) (int, stri
 	fidStr := fmt.Sprintf("%d", fid)
 
 	for attempt <= maxAttempts {
-		checkPause()
-
 		var loginErr error
 		p.safeAPICall(func() error {
 			_, loginErr = p.PlayerClient.GetPlayerInfo(fid)
@@ -248,7 +281,7 @@ func (p *Processor) redeemForPlayer(fid int64, nickname, code string) (int, stri
 			strings.Contains(msg, "CDK NOT FOUND") ||
 			strings.Contains(msg, "TIME EXPIRED") ||
 			strings.Contains(msg, "NOT MEET CONDITIONS") ||
-			strings.Contains(msg, "NOT IN THE REDEMPTION") || 
+			strings.Contains(msg, "NOT IN THE REDEMPTION") ||
 			strings.Contains(msg, "RECHARGE_MONEY_VIP ERROR.") {
 			return errCode, msg, nickname
 		}

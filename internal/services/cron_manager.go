@@ -34,8 +34,8 @@ func (cm *CronManager) Start() {
 			case <-ticker.C:
 				cm.processPendingCustomJobs()
 
-				CheckMinistrySchedule(cm.store, cm.botToken)
-				CheckPetSchedule(cm.store, cm.botToken)
+				//CheckMinistrySchedule(cm.store, cm.botToken)
+				//CheckPetSchedule(cm.store, cm.botToken)
 
 			case <-cm.stopChan:
 				return

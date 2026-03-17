@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-const discordAPIBase = "https://discord.com/api/v10"
+var DiscordAPIBase = "https://discord.com/api/v10"
 
 type DiscordEmbed struct {
 	Title       string `json:"title,omitempty"`
@@ -41,7 +41,8 @@ func SendCustomDiscordEmbed(botToken, channelID, title, description string, colo
 	}
 
 	body, _ := json.Marshal(payload)
-	req, _ := http.NewRequest("POST", "https://discord.com/api/v10/channels/"+channelID+"/messages", bytes.NewBuffer(body))
+	url := fmt.Sprintf("%s/channels/%s/messages", DiscordAPIBase, channelID)
+	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(body))
 	req.Header.Set("Authorization", "Bot "+botToken)
 	req.Header.Set("Content-Type", "application/json")
 
@@ -139,7 +140,7 @@ func SendDiscordImage(botToken, channelID string, imageBuf *bytes.Buffer, filena
 		return err
 	}
 
-	url := fmt.Sprintf("%s/channels/%s/messages", discordAPIBase, channelID)
+	url := fmt.Sprintf("%s/channels/%s/messages", DiscordAPIBase, channelID)
 	req, err := http.NewRequest("POST", url, body)
 	if err != nil {
 		return err
