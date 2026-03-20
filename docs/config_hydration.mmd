@@ -1,0 +1,40 @@
+﻿sequenceDiagram
+    participant Admin as User (Admin)
+    participant React as React (AppContext)
+    participant Router as Go (router.go)
+    participant Main as Go (main.go)
+    participant Config as appsettings.json
+
+%% Server Boot Sequence
+    Note over Main, Config: Server Startup
+    Main->>Config: Read Configuration
+    Config-->>Main: Return Features Map
+    Main->>Main: Init DB & Redis (Always)
+
+    alt Features.GiftCodes == true
+        Main->>Main: Init Captcha Solver & Processor Workers
+    else Features.GiftCodes == false
+        Main->>Main: Skip Processor (Save Memory)
+    end
+
+    Main->>Router: SetupRoutes(cfg, store, pClient, engine)
+    Note over Router: Registers only enabled routes
+
+%% Client Boot Sequence
+    Note over Admin, React: Client Initialization
+    Admin->>React: Visit Application
+    React->>Router: GET /api/system/features
+    Router-->>React: 200 OK (JSON Feature Map)
+
+    React->>React: Update Context State
+    React->>React: Filter navLinks array
+
+    alt Features.WarRoom == false
+        React->>React: Drop War Room from Sidebar
+    end
+
+    alt Features.Discord == false
+        React->>React: Hide Megaphone Buttons in active views
+    end
+
+    React-->>Admin: Render Clean, Modularized UI

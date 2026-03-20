@@ -1,0 +1,2 @@
+UPDATE building_rewards SET reward_icon = REPLACE(reward_icon, '.png', '.webp') WHERE reward_icon LIKE '%.png';
+UPDATE heroes SET local_image_path = REPLACE(local_image_path, '.png', '.webp') WHERE local_image_path LIKE '%.png';

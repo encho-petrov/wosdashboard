@@ -1,0 +1,1 @@
+DROP TABLE discord_custom_crons;

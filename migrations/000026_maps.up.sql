@@ -1,0 +1,1 @@
+ALTER TABLE battle_strategy ADD COLUMN map_data JSON DEFAULT NULL;

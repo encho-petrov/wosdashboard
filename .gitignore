@@ -1,0 +1,77 @@
+# =========================
+# General
+# =========================
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.swp
+.vscode/
+.idea/
+
+# Ignore CSV data files anywhere
+*.csv
+
+# =========================
+# Environment / secrets
+# =========================
+.env
+.env.*
+!.env.example
+
+# App settings
+appsettings.json
+!appsettings-example.json
+
+# =========================
+# Go backend
+# =========================
+# Binaries
+/bin/
+/build/
+/dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go test & coverage
+*.test
+*.out
+coverage.*
+*.coverprofile
+
+# Go workspace files
+go.work.sum
+
+# Dependency vendoring (optional — comment out if you commit vendor/)
+vendor/
+
+# =========================
+# React frontend (Node)
+# =========================
+# Dependencies
+node_modules/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Cache
+.npm/
+.eslintcache
+.cache/
+
+# =========================
+# Testing
+# =========================
+coverage/
+
+# =========================
+# Misc
+# =========================
+*.local
+*.pid

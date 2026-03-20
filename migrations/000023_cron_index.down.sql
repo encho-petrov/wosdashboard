@@ -1,0 +1,1 @@
+ALTER TABLE discord_custom_crons DROP INDEX idx_active_next_run;

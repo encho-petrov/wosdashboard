@@ -1,0 +1,1 @@
+ALTER TABLE players ADD COLUMN normal_power BIGINT DEFAULT 0;

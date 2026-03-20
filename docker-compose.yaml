@@ -1,0 +1,110 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    networks:
+      - wos-net
+
+  redis:
+    image: redis:alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - wos-net
+
+  backend:
+    build: .
+    container_name: backend
+    depends_on:
+      - mysql
+      - redis
+    ports:
+      - "8080:8080"
+    environment:
+      Database__Host: "mysql:3306"
+      Database__Password: "${MYSQL_ROOT_PASSWORD}"
+      Redis__Host: "redis:6379"
+    volumes:
+      - shared_assets:/app/shared-assets/heroes
+      - ./server_reports:/app/reports
+    networks:
+      - wos-net
+
+  frontend:
+    build:
+      context: ./dashboard
+      target: development
+    container_name: frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+    restart: always
+    networks:
+      - wos-net
+
+  scraper:
+    build:
+      context: .
+      dockerfile: Dockerfile.scraper
+    container_name: scraper
+    depends_on:
+      - mysql
+    environment:
+      Database__Host: "mysql:3306"
+      Database__Password: "${MYSQL_ROOT_PASSWORD}"
+    volumes:
+      - shared_assets:/app/shared-assets/heroes
+    networks:
+      - wos-net
+
+  backup-worker:
+    image: debian:bookworm-slim
+    container_name: backup
+    restart: unless-stopped
+    depends_on:
+      - mysql
+    networks:
+      - wos-net
+    volumes:
+      - ./ops/backup.sh:/scripts/backup.sh:ro
+      - ./ops/backup_pub.asc:/keys/pubkey.asc:ro
+    environment:
+      - DB_HOST=mysql
+      - DB_USER=${MYSQL_USER}
+      - DB_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - DB_NAME=${MYSQL_DATABASE}
+      - GPG_RECIPIENT=${GPG_RECIPIENT}
+      - AWS_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - AWS_DEFAULT_REGION=auto
+      - S3_BUCKET=${S3_BUCKET}
+      - R2_ENDPOINT_URL=${R2_ENDPOINT_URL}
+    command: >
+      bash -c "
+        apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y default-mysql-client gnupg awscli cron tzdata &&
+        gpg --import /keys/pubkey.asc &&
+        echo '0 */12 * * * bash /scripts/backup.sh >> /proc/1/fd/1 2>&1' > /etc/cron.d/backup-cron &&
+        chmod 0644 /etc/cron.d/backup-cron &&
+        crontab /etc/cron.d/backup-cron &&
+        printenv > /etc/environment &&
+        cron -f
+      "
+
+volumes:
+  mysql_data:
+  shared_assets:
+
+networks:
+  wos-net:
+    driver: bridge

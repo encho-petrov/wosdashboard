@@ -1,0 +1,145 @@
+import {
+    LayoutDashboard, Swords, Users, Calendar, Crown,
+    Send, Shield, Terminal, List, LayoutGrid, UserCircle,
+    History
+} from 'lucide-react';
+
+import { FaDiscord } from 'react-icons/fa';
+import { FoundryIcon } from "../components/CustomIcon.jsx";
+
+export const navLinks = [
+    {
+        name: 'Dashboard',
+        path: '/',
+        icon: LayoutDashboard,
+        requiredRoles: ['admin', 'moderator'],
+        description: 'System overview and redemption launcher.',
+        requiresAlliance: false,
+        featureKey: null
+    },
+    {
+        name: 'Roster',
+        path: '/roster',
+        icon: List,
+        requiredRoles: ['admin', 'moderator'],
+        description: 'Full player database and attribute editing.',
+        requiresAlliance: false,
+        featureKey: null
+    },
+    {
+        name: 'War Room',
+        path: '/war-room',
+        icon: Swords,
+        requiredRoles: ['admin', 'moderator'],
+        description: 'Event deployment and troop assignments.',
+        requiresAlliance: false,
+        featureKey: 'WarRoom'
+    },
+    {
+        name: 'Squads',
+        path: '/squads',
+        icon: Users,
+        requiredRoles: ['admin', 'moderator'],
+        description: 'Manage specialized squad formations.',
+        requiresAlliance: false,
+        featureKey: 'Squads'
+    },
+    {
+        name: 'Strategy',
+        path: '/strategy',
+        icon: Crown,
+        requiredRoles: ['admin', 'moderator'],
+        description: 'Event deployment and troop assignments.',
+        requiresAlliance: false,
+        featureKey: 'Strategy'
+    },
+    {
+        name: 'Event History',
+        path: '/event-history',
+        icon: History,
+        requiredRoles: ['admin','moderator'],
+        description: 'Event history assignments.',
+        requiresAlliance: false,
+        featureKey: 'WarRoom'
+    },
+    {
+        name: 'Ministry',
+        path: '/ministry',
+        icon: Calendar,
+        requiredRoles: ['admin', 'moderator'],
+        description: 'Buff reservations and schedule management.',
+        requiresAlliance: false,
+        featureKey: 'Ministry'
+    },
+    {
+        name: 'Transfers',
+        path: '/transfer-manager',
+        icon: Send,
+        requiredRoles: ['admin', 'moderator'],
+        description: 'Monitor inbound and outbound movements.',
+        requiresAlliance: false,
+        featureKey: 'Transfers'
+    },
+    {
+        name: 'Rotation',
+        path: '/rotation',
+        icon: LayoutGrid,
+        requiredRoles: ['admin', 'moderator'],
+        description: 'Fortress and Stronghold season planning.',
+        requiresAlliance: false,
+        featureKey: 'Rotation'
+    },
+    {
+        name: 'Alliances',
+        path: '/alliances',
+        icon: Shield,
+        requiredRoles: ['admin'],
+        description: 'Configure state alliance entities.',
+        requiresAlliance: false
+    },
+    {
+        name: 'Foundry',
+        path: '/foundry',
+        icon: FoundryIcon,
+        requiredRoles: ['admin','moderator'],
+        description: 'Configure Foundry and Canyon Clash legions.',
+        requiresAlliance: true,
+        featureKey: 'Foundry'
+    },
+    {
+        name: 'Discord',
+        path: '/discord',
+        icon: FaDiscord,
+        requiredRoles: ['admin','moderator'],
+        description: 'Configure Discord integrations.',
+        requiresAlliance: true,
+        featureKey: 'Discord'
+    },
+    {
+        name: 'Audit Logs',
+        path: '/audit-logs',
+        icon: Terminal,
+        requiredRoles: ['admin'],
+        description: 'Review administrative action history.',
+        requiresAlliance: false,
+        featureKey: null
+    },
+    {
+        name: 'Users',
+        path: '/users',
+        icon: Users,
+        requiredRoles: ['admin'],
+        description: 'User administration.',
+        requiresAlliance: false,
+        featureKey: null
+    },
+    {
+        name: 'User Profile',
+        path: '/profile',
+        icon: UserCircle,
+        requiredRoles: ['admin', 'moderator'],
+        description: 'User profile.',
+        requiresAlliance: false,
+        featureKey: null
+    }
+];

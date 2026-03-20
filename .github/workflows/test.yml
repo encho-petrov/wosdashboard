@@ -1,0 +1,30 @@
+name: Backend Tests
+
+# Run this workflow on every push to master/main, 
+# and on EVERY Pull Request targeting master/main.
+on:
+  push:
+    branches: [ "master", "main" ]
+  pull_request:
+    branches: [ "master", "main" ]
+
+jobs:
+  test:
+    name: Run Unit Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Go Environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true        # Automatically caches modules to speed up runs
+
+      - name: Install Dependencies
+        run: go mod download
+
+      - name: Run Tests with Race Detector
+        run: go test -race ./internal/...

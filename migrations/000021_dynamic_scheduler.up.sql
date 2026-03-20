@@ -1,0 +1,5 @@
+ALTER TABLE discord_custom_crons
+DROP COLUMN cron_expression,
+ADD COLUMN next_run_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ADD COLUMN recurrence_type VARCHAR(20) NOT NULL DEFAULT 'ONCE',
+ADD COLUMN recurrence_config JSON;

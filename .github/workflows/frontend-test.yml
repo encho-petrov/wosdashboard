@@ -1,0 +1,36 @@
+name: Frontend Tests
+
+# Run this workflow on every push to master/main,
+# and on EVERY Pull Request targeting master/main.
+on:
+  push:
+    branches: [ "master", "main" ]
+  pull_request:
+    branches: [ "master", "main" ]
+
+jobs:
+  test:
+    name: Run Dashboard Unit Tests
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ./dashboard
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'       # Automatically caches node_modules to speed up runs
+          cache-dependency-path: './dashboard/package-lock.json'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Tests
+        # Vitest automatically detects the CI environment and runs in non-watch mode
+        run: npx vitest run

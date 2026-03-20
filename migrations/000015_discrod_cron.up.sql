@@ -1,0 +1,12 @@
+CREATE TABLE discord_custom_crons (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    alliance_id INT DEFAULT NULL,
+    channel_id VARCHAR(255) NOT NULL,
+    cron_expression VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    ping_role_id VARCHAR(255) DEFAULT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (alliance_id) REFERENCES alliances(id) ON DELETE CASCADE
+);

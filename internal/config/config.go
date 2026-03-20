@@ -1,0 +1,88 @@
+package config
+
+import (
+	"github.com/spf13/viper"
+)
+
+type Config struct {
+	Database struct {
+		User     string `mapstructure:"User"`
+		Password string `mapstructure:"Password"`
+		Host     string `mapstructure:"Host"`
+		DBName   string `mapstructure:"DBName"`
+	} `mapstructure:"Database"`
+
+	Redis struct {
+		Host     string `mapstructure:"Host"`
+		Password string `mapstructure:"Password"`
+		DB       int    `mapstructure:"DB"`
+	} `mapstructure:"Redis"`
+
+	ApiSecrets struct {
+		GiftSecret    string `mapstructure:"GiftSecret"`
+		CaptchaApiKey string `mapstructure:"CaptchaApiKey"`
+		JwtSecret     string `mapstructure:"JwtSecret"`
+	} `mapstructure:"ApiSecrets"`
+
+	Game struct {
+		TargetState int `mapstructure:"TargetState"`
+	} `mapstructure:"Game"`
+
+	Discord struct {
+		BotToken    string `mapstructure:"BotToken"`
+		ClientID    string `mapstructure:"ClientID"`
+		RedirectURI string `mapstructure:"RedirectURI"`
+	} `mapstructure:"Discord"`
+
+	Rotation struct {
+		SeasonReferenceDate string `mapstructure:"SeasonReferenceDate"`
+		AnchorSeason        int    `json:"AnchorSeason"`
+		AnnounceTimeUTC     string `mapstructure:"AnnounceTimeUTC"`
+		AnnounceDay         string `mapstructure:"AnnounceDay"`
+	} `mapstructure:"Rotation"`
+
+	BioID struct {
+		ApplicationName   string `mapstructure:"ApplicationName"`
+		ApplicationDomain string `mapstructure:"ApplicationDomain"`
+		ApplicationURL    string `mapstructure:"ApplicationUrl"`
+	} `mapstructure:"BioID"`
+
+	Auth struct {
+		AccessTokenDuration  int `mapstructure:"AccessTokenDuration"`
+		RefreshTokenDuration int `mapstructure:"RefreshTokenDuration"`
+	} `mapstructure:"Auth"`
+
+	FeaturesConfig struct {
+		GiftCodes bool `json:"GiftCodes"`
+		Discord   bool `json:"Discord"`
+		WarRoom   bool `json:"WarRoom"`
+		Squads    bool `json:"Squads"`
+		Strategy  bool `json:"Strategy"`
+		Ministry  bool `json:"Ministry"`
+		Transfers bool `json:"Transfers"`
+		Rotation  bool `json:"Rotation"`
+		Foundry   bool `json:"Foundry"`
+	} `mapstructure:"Features"`
+
+	Server struct {
+		Port int `json:"Port"`
+	} `mapstructure:"Server"`
+}
+
+func LoadConfig() (*Config, error) {
+	viper.SetConfigFile("appsettings.json")
+	viper.SetConfigType("json")
+	viper.SetDefault("Game.TargetState", 391)
+	viper.SetDefault("Server.Port", 8080)
+
+	if err := viper.ReadInConfig(); err != nil {
+		return nil, err
+	}
+
+	var config Config
+	if err := viper.Unmarshal(&config); err != nil {
+		return nil, err
+	}
+
+	return &config, nil
+}

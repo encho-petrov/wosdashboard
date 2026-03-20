@@ -1,0 +1,2 @@
+ALTER TABLE transfer_seasons
+DROP COLUMN normal_invites_available;

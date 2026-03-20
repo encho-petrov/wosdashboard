@@ -1,0 +1,22 @@
+FROM golang:1.26-alpine AS builder
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o main ./cmd/server
+
+FROM alpine:latest
+WORKDIR /app
+RUN apk --no-cache add ca-certificates tzdata
+RUN apk add --no-cache fontconfig
+
+COPY --from=builder /app/main .
+COPY --from=builder /app/appsettings.json .
+COPY --from=builder /app/migrations ./migrations
+COPY --from=builder /app/shared-assets ./shared-assets
+
+RUN mkdir -p /app/shared-assets/heroes
+RUN mkdir reports
+
+EXPOSE 8080
+CMD ["./main"]

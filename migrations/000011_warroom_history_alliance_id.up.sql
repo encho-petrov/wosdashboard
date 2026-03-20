@@ -1,0 +1,1 @@
+ALTER TABLE history_players ADD COLUMN alliance_id int DEFAULT NULL AFTER nickname;

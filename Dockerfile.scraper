@@ -1,0 +1,18 @@
+FROM golang:1.26-alpine AS builder
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o scraper ./cmd/scraper
+
+FROM alpine:latest
+WORKDIR /app
+RUN apk --no-cache add ca-certificates tzdata libwebp-tools
+
+COPY --from=builder /app/scraper .
+COPY --from=builder /app/appsettings.json .
+COPY --from=builder /app/shared-assets ./shared-assets
+RUN mkdir -p /app/shared-assets/heroes
+
+RUN echo "0 0 * */1 * cd /app && ./scraper" > /etc/crontabs/root
+CMD ["crond", "-f", "-d", "8"]

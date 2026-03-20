@@ -1,0 +1,32 @@
+﻿stateDiagram-v2
+    direction TB
+
+    [*] --> Season_Planning : Admin Creates Season
+
+    state Season_Planning {
+        [*] --> Draft_Candidates : Bulk Import IDs
+        Draft_Candidates --> Edit_Parameters : Adjust Power Cap / Slots
+    }
+
+    Season_Planning --> Season_Active : Admin Opens Window
+
+    state Season_Active {
+        direction LR
+        state "Candidate Drafted" as Drafted
+        state "Power Validation" as Validation
+        state "Status: Pending" as Pending
+
+        [*] --> Drafted
+        Drafted --> Validation
+
+        Validation --> Pending : Power <= Cap
+        Validation --> OverCapWarning : Power > Cap
+        OverCapWarning --> Pending : Admin Overrides Power
+
+        Pending --> Status_Confirmed : Admin Approves (Inbound)
+        Pending --> Status_Declined : Admin Rejects
+        Pending --> Exiting_State : Marked as Outbound
+    }
+
+    Season_Active --> Season_Closed : Admin Archives Season
+    Season_Closed --> [*] : Locked to History Ledger

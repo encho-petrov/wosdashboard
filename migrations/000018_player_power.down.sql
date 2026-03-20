@@ -1,0 +1,1 @@
+ALTER TABLE players DROP COLUMN normal_power;
