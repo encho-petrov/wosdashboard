@@ -7,7 +7,7 @@
 [![Frontend Tests](https://github.com/encho-petrov/wosdashboard/actions/workflows/frontend-test.yml/badge.svg)](https://github.com/encho-petrov/wosdashboard/actions/workflows/frontend-test.yml)
 ![Database](https://img.shields.io/badge/database-MySQL-orange)
 ![Deployment](https://img.shields.io/badge/deployment-Docker-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+![License](https://img.shields.io/badge/license-GPLv3-blue)
 
 A lightweight, modular **state management dashboard for Whiteout Survival (WoS)**.
 
@@ -175,4 +175,8 @@ If this dashboard brings order to your state's chaos, consider supporting the de
 
 ## 📄 License
 
-This project is licensed under the **MIT License**. You are free to use, modify, distribute, and run this privately, provided the original license is included.
+This project is licensed under the GNU General Public License v3.0 (GPLv3).
+
+You are free to use, modify, and distribute this software, but any derivative work must also be distributed under the same license and include the source code.
+
+See the [LICENSE](./LICENSE) file for details.
