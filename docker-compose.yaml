@@ -31,9 +31,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      Database__Host: "mysql:3306"
-      Database__Password: "${MYSQL_ROOT_PASSWORD}"
-      Redis__Host: "redis:6379"
+      GIN_MODE: release
     volumes:
       - shared_assets:/app/shared-assets/heroes
       - ./server_reports:/app/reports
@@ -60,9 +58,6 @@ services:
     container_name: scraper
     depends_on:
       - mysql
-    environment:
-      Database__Host: "mysql:3306"
-      Database__Password: "${MYSQL_ROOT_PASSWORD}"
     volumes:
       - shared_assets:/app/shared-assets/heroes
     networks:

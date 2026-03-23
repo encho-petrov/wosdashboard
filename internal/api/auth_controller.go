@@ -91,7 +91,8 @@ func (ac *AuthController) Login(c *gin.Context) {
 	token, _ := auth.GenerateToken(user.Username, user.Role)
 	refreshToken, _ := auth.GenerateRefreshToken(user.Username, user.Role)
 
-	c.SetCookie("refresh_token", refreshToken, ac.cfg.Auth.RefreshTokenDuration*60, "/", "", false, true)
+	isSecure := gin.Mode() == gin.ReleaseMode
+	c.SetCookie("refresh_token", refreshToken, ac.cfg.Auth.RefreshTokenDuration*60, "/", "", isSecure, true)
 
 	c.JSON(http.StatusOK, gin.H{
 		"token":       token,
@@ -127,7 +128,8 @@ func (ac *AuthController) VerifyMFA(c *gin.Context) {
 	token, _ := auth.GenerateToken(user.Username, user.Role)
 	refreshToken, _ := auth.GenerateRefreshToken(user.Username, user.Role)
 
-	c.SetCookie("refresh_token", refreshToken, ac.cfg.Auth.RefreshTokenDuration*60, "/", "", false, true)
+	isSecure := gin.Mode() == gin.ReleaseMode
+	c.SetCookie("refresh_token", refreshToken, ac.cfg.Auth.RefreshTokenDuration*60, "/", "", isSecure, true)
 
 	c.JSON(http.StatusOK, gin.H{
 		"token":       token,
@@ -194,7 +196,8 @@ func (ac *AuthController) PlayerLogin(c *gin.Context) {
 	token, _ := auth.GenerateToken(fidStr, "player")
 	refreshToken, _ := auth.GenerateRefreshToken(fidStr, "player")
 
-	c.SetCookie("refresh_token", refreshToken, ac.cfg.Auth.RefreshTokenDuration*60, "/", "", false, true)
+	isSecure := gin.Mode() == gin.ReleaseMode
+	c.SetCookie("refresh_token", refreshToken, ac.cfg.Auth.RefreshTokenDuration*60, "/", "", isSecure, true)
 
 	c.JSON(200, gin.H{"token": token, "role": "player", "nickname": info.Data.Nickname})
 }
@@ -280,7 +283,8 @@ func (ac *AuthController) WebAuthNLoginEnd(c *gin.Context) {
 	token, _ := auth.GenerateToken(user.Username, user.Role)
 	refreshToken, _ := auth.GenerateRefreshToken(user.Username, user.Role)
 
-	c.SetCookie("refresh_token", refreshToken, ac.cfg.Auth.RefreshTokenDuration*60, "/", "", false, true)
+	isSecure := gin.Mode() == gin.ReleaseMode
+	c.SetCookie("refresh_token", refreshToken, ac.cfg.Auth.RefreshTokenDuration*60, "/", "", isSecure, true)
 
 	c.JSON(http.StatusOK, gin.H{
 		"token":       token,
