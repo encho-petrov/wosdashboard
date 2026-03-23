@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -128,9 +127,10 @@ func (rc *RedeemController) GetActiveJob(c *gin.Context) {
 
 func (rc *RedeemController) DownloadReport(c *gin.Context) {
 	filename := c.Param("filename")
+	filename = filepath.Base(filename)
 
-	if strings.Contains(filename, "/") || strings.Contains(filename, "\\") {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid filename"})
+	if filepath.Ext(filename) != ".csv" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid file request"})
 		return
 	}
 

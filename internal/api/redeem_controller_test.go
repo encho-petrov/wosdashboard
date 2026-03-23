@@ -55,15 +55,26 @@ func TestRedeemController(t *testing.T) {
 	})
 
 	t.Run("DownloadReport - Path Traversal Blocked", func(t *testing.T) {
-		// We use a backslash (\) because Go's HTTP client automatically cleans "../" out of paths
-		// before the request even reaches the Gin router. Your controller smartly catches both!
 		req, _ := http.NewRequest("GET", "/reports/malicious\\file.csv", nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
-		// Verifies your controller catches the malicious character and aborts
+		// Expect 404 Not Found
+		assert.Equal(t, http.StatusNotFound, w.Code)
+
+		// Expect "Report not found"
+		assert.Contains(t, w.Body.String(), "Report not found")
+	})
+
+	t.Run("DownloadReport - Invalid Extension Blocked", func(t *testing.T) {
+		// An attacker tries to grab a sensitive system file without a .csv extension
+		req, _ := http.NewRequest("GET", "/reports/passwd", nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		// This should hit filepath.Ext() != ".csv" check and return 400
 		assert.Equal(t, http.StatusBadRequest, w.Code)
-		assert.Contains(t, w.Body.String(), "Invalid filename")
+		assert.Contains(t, w.Body.String(), "Invalid file request")
 	})
 
 	t.Run("DownloadReport - Success", func(t *testing.T) {
