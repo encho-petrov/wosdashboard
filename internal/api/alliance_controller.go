@@ -51,7 +51,10 @@ func getInt64FromContext(c *gin.Context, key string) int64 {
 		}
 		return *v
 	case string:
-		parsed, _ := strconv.ParseInt(v, 10, 64)
+		parsed, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return 0
+		}
 		return parsed
 	default:
 		return 0
@@ -59,11 +62,39 @@ func getInt64FromContext(c *gin.Context, key string) int64 {
 }
 
 func getIntFromContext(c *gin.Context, key string) int {
-	val64 := getInt64FromContext(c, key)
-	if val64 > int64(math.MaxInt) || val64 < int64(math.MinInt) {
+	val, exists := c.Get(key)
+	if !exists {
 		return 0
 	}
-	return int(val64)
+	switch v := val.(type) {
+	case float64:
+		return int(v)
+	case int:
+		return v
+	case int64:
+		if v > int64(math.MaxInt) || v < int64(math.MinInt) {
+			return 0
+		}
+		return int(v)
+	case *int:
+		if v == nil {
+			return 0
+		}
+		return *v
+	case *int64:
+		if v == nil {
+			return 0
+		}
+		return int(*v)
+	case string:
+		parsed, err := strconv.Atoi(v)
+		if err != nil {
+			return 0
+		}
+		return parsed
+	default:
+		return 0
+	}
 }
 
 func (ac *AllianceController) HandleTransferRequest(c *gin.Context) {
