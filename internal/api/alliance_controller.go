@@ -3,6 +3,7 @@ package api
 import (
 	"gift-redeemer/internal/db"
 	"gift-redeemer/internal/services"
+	"math"
 	"net/http"
 	"strconv"
 
@@ -58,7 +59,11 @@ func getInt64FromContext(c *gin.Context, key string) int64 {
 }
 
 func getIntFromContext(c *gin.Context, key string) int {
-	return int(getInt64FromContext(c, key))
+	val64 := getInt64FromContext(c, key)
+	if val64 > int64(math.MaxInt) || val64 < int64(math.MinInt) {
+		return 0
+	}
+	return int(val64)
 }
 
 func (ac *AllianceController) HandleTransferRequest(c *gin.Context) {
