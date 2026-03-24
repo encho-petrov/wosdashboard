@@ -108,7 +108,7 @@ func (s *Store) CreateAuditLog(log AuditLog) error {
 
 func (s *Store) GetAuditLogs() ([]AuditLog, error) {
 	var logs []AuditLog
-	query := `SELECT a.*, u.username as username 
+	query := `SELECT a.*, COALESCE(u.username, 'Deleted User') as username 
               FROM audit_logs a 
               LEFT JOIN users u ON a.user_id = u.id 
               ORDER BY a.created_at DESC LIMIT 200`
