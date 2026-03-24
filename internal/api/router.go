@@ -15,14 +15,17 @@ import (
 )
 
 func logAction(c *gin.Context, store *db.Store, action string, details string) {
-	userId, _ := c.Get("userId")
-	uid, ok := userId.(int64)
-	if !ok {
-		uid = 0
+	var uidPtr *int64
+	userId, exists := c.Get("userId")
+	if exists {
+		if uid, ok := userId.(int64); ok && uid != 0 {
+			uidCopy := uid
+			uidPtr = &uidCopy
+		}
 	}
 
 	_ = store.CreateAuditLog(db.AuditLog{
-		UserID:    uid,
+		UserID:    uidPtr,
 		Action:    action,
 		Details:   details,
 		IPAddress: c.ClientIP(),
