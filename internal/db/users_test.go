@@ -128,28 +128,6 @@ func TestUsersSuite(t *testing.T) {
 	})
 
 	t.Run("Audit Logs", func(t *testing.T) {
-		store.CreateUser("AuditedUser", "hash", "User", 0)
-		user, _ := store.GetUserByUsername("AuditedUser")
-
-		// Create a log
-		log := AuditLog{
-			UserID:    int64(user.ID),
-			Action:    "LOGIN_SUCCESS",
-			Details:   "User logged in",
-			IPAddress: "192.168.1.1",
-		}
-		err := store.CreateAuditLog(log)
-		require.NoError(t, err)
-
-		// Fetch logs
-		logs, err := store.GetAuditLogs()
-		require.NoError(t, err)
-		require.Len(t, logs, 1)
-		assert.Equal(t, "LOGIN_SUCCESS", logs[0].Action)
-		assert.Equal(t, "AuditedUser", logs[0].UserName, "JOIN should resolve the username")
-	})
-
-	t.Run("Audit Logs", func(t *testing.T) {
 		// --- 1. Normal Log Setup ---
 		store.CreateUser("AuditedUser", "hash", "User", 0)
 		user, _ := store.GetUserByUsername("AuditedUser")
