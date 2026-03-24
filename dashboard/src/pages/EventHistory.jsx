@@ -52,6 +52,37 @@ export default function WarRoomHistory() {
         weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
     });
 
+    // Helper to render the same color-coded badge used in the War Room
+    const renderAttendanceBadge = (status) => {
+        if (!status || status === 'Pending') return null;
+
+        let bgColor = '';
+        let textColor = '';
+        let borderColor = '';
+        let label = '';
+
+        switch (status) {
+            case 'Attended':
+                bgColor = 'bg-green-900/30'; textColor = 'text-green-400'; borderColor = 'border-green-800'; label = 'YES'; break;
+            case 'Majority':
+                bgColor = 'bg-blue-900/30'; textColor = 'text-blue-400'; borderColor = 'border-blue-800'; label = 'MAJ'; break;
+            case 'Minimal':
+                bgColor = 'bg-orange-900/30'; textColor = 'text-orange-400'; borderColor = 'border-orange-800'; label = 'MIN'; break;
+            case 'Missed':
+                bgColor = 'bg-red-900/30'; textColor = 'text-red-400'; borderColor = 'border-red-800'; label = 'NO'; break;
+            case 'Exempt':
+                bgColor = 'bg-gray-800'; textColor = 'text-gray-400'; borderColor = 'border-gray-600'; label = 'EXC'; break;
+            default:
+                return null;
+        }
+
+        return (
+            <span className={`text-[9px] font-black uppercase rounded px-1.5 py-0.5 border ${bgColor} ${textColor} ${borderColor}`}>
+                {label}
+            </span>
+        );
+    };
+
     const safeEvents = events || [];
     const selectedEvent = safeEvents.find(e => e.id === selectedEventId);
 
@@ -174,7 +205,11 @@ export default function WarRoomHistory() {
                                                                     {p.nickname}
                                                                 </div>
                                                                 <div className="flex justify-between items-center mt-1">
-                                                                    <span className="text-xs text-gray-500 font-mono">{p.playerId}</span>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-xs text-gray-500 font-mono">{p.playerId}</span>
+                                                                        {/* Added the new badge right next to the ID */}
+                                                                        {renderAttendanceBadge(p.attendance)}
+                                                                    </div>
                                                                     <span className="text-[10px] font-black text-blue-400/80 truncate pl-2">{baseTag}</span>
                                                                 </div>
                                                             </div>

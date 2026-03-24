@@ -91,6 +91,7 @@ func TestWarRoomSuite(t *testing.T) {
 	t.Run("Archive and Reset Event", func(t *testing.T) {
 		// Set up pre-archive state
 		store.SetWarRoomSession("Tundra")
+		// We know Player 1 is deployed from the previous test block
 		attendance := []PlayerAttendance{{FID: 1, Attendance: "Attended"}}
 
 		// Run the Archive Transaction
@@ -103,11 +104,31 @@ func TestWarRoomSuite(t *testing.T) {
 		require.Len(t, history, 1)
 		assert.Equal(t, "Test Archive", history[0].Notes)
 
+		eventID := history[0].ID
+		_, snapshotPlayers, err := store.GetEventSnapshotDetails(eventID)
+		require.NoError(t, err)
+
+		// Player 1 and Player 2 were deployed in the previous test, so both should copy over
+		require.Len(t, snapshotPlayers, 2, "Expected deployed players to be copied to history")
+
+		// Find Player 1 and verify the attendance badge was stamped correctly
+		var foundPlayer1 *HistoryPlayer
+		for i := range snapshotPlayers {
+			if snapshotPlayers[i].PlayerID == 1 {
+				foundPlayer1 = &snapshotPlayers[i]
+				break
+			}
+		}
+		require.NotNil(t, foundPlayer1, "Player 1 should be in the snapshot")
+		require.NotNil(t, foundPlayer1.Attendance, "Player 1's attendance pointer should not be nil")
+		assert.Equal(t, "Attended", *foundPlayer1.Attendance, "The attendance status should be stamped on the history row")
+		// -------------------------------------------------
+
 		// 2. Verify Session was wiped
 		session, _ := store.GetWarRoomSession()
 		assert.Equal(t, "", session)
 
-		// 3. Verify Players were reset
+		// 3. Verify Live Players were reset
 		var count int
 		store.db.Get(&count, "SELECT COUNT(*) FROM players WHERE fighting_alliance_id IS NOT NULL")
 		assert.Equal(t, 0, count, "Expected all fighting_alliance_ids to be wiped")
