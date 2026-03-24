@@ -1,0 +1,1 @@
+ALTER TABLE history_players DROP COLUMN attendance;

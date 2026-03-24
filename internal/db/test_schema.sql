@@ -33,7 +33,7 @@ INSERT IGNORE INTO war_room_state (id, active_event_type) VALUES (1, NULL);
 CREATE TABLE IF NOT EXISTS war_room_attendance (id INT AUTO_INCREMENT PRIMARY KEY, fid BIGINT NOT NULL, event_type VARCHAR(50) NOT NULL, status VARCHAR(20) NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS event_snapshots (id INT AUTO_INCREMENT PRIMARY KEY, event_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP, created_by VARCHAR(50), notes VARCHAR(255));
 CREATE TABLE IF NOT EXISTS history_teams (id INT AUTO_INCREMENT PRIMARY KEY, event_id INT, original_team_id INT, name VARCHAR(50), captain_fid BIGINT NULL, fighting_alliance_id INT NULL);
-CREATE TABLE IF NOT EXISTS history_players (id INT AUTO_INCREMENT PRIMARY KEY, event_id INT, player_id BIGINT, nickname VARCHAR(50), alliance_id INT NULL, team_id INT NULL, fighting_alliance_id INT NULL);
+CREATE TABLE IF NOT EXISTS history_players (id INT AUTO_INCREMENT PRIMARY KEY, event_id INT, player_id BIGINT, nickname VARCHAR(50), alliance_id INT NULL, team_id INT NULL, fighting_alliance_id INT NULL, attendance VARCHAR(20) DEFAULT NULL);
 
 CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,

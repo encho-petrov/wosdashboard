@@ -57,12 +57,13 @@ type HistoryTeam struct {
 }
 
 type HistoryPlayer struct {
-	ID                 int    `db:"id" json:"id"`
-	PlayerID           int64  `db:"player_id" json:"playerId"`
-	Nickname           string `db:"nickname" json:"nickname"`
-	AllianceID         *int   `db:"alliance_id" json:"allianceId"`
-	TeamID             *int   `db:"team_id" json:"teamId"`
-	FightingAllianceID *int   `db:"fighting_alliance_id" json:"fightingAllianceId"`
+	ID                 int     `db:"id" json:"id"`
+	PlayerID           int64   `db:"player_id" json:"playerId"`
+	Nickname           string  `db:"nickname" json:"nickname"`
+	AllianceID         *int    `db:"alliance_id" json:"allianceId"`
+	TeamID             *int    `db:"team_id" json:"teamId"`
+	FightingAllianceID *int    `db:"fighting_alliance_id" json:"fightingAllianceId"`
+	Attendance         *string `db:"attendance" json:"attendance"`
 }
 
 type PlayerAttendance struct {
@@ -127,21 +128,6 @@ func (s *Store) ArchiveAndResetEvent(adminUsername string, notes string, eventTy
 	}
 	eventID, _ := res.LastInsertId()
 
-	if len(attendance) > 0 {
-		stmt, err := tx.Prepare("INSERT INTO war_room_attendance (fid, event_type, status) VALUES (?, ?, ?)")
-		if err != nil {
-			return err
-		}
-		defer stmt.Close()
-
-		for _, p := range attendance {
-			_, err = stmt.Exec(p.FID, eventType, p.Attendance)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
 	_, err = tx.Exec(`
         INSERT INTO history_teams (event_id, original_team_id, name, captain_fid, fighting_alliance_id)
         SELECT ?, id, name, captain_fid, fighting_alliance_id 
@@ -162,6 +148,30 @@ func (s *Store) ArchiveAndResetEvent(adminUsername string, notes string, eventTy
 		return err
 	}
 
+	if len(attendance) > 0 {
+		stmtGlobal, err := tx.Prepare("INSERT INTO war_room_attendance (fid, event_type, status) VALUES (?, ?, ?)")
+		if err != nil {
+			return err
+		}
+		defer stmtGlobal.Close()
+
+		stmtSnapshot, err := tx.Prepare("UPDATE history_players SET attendance = ? WHERE event_id = ? AND player_id = ?")
+		if err != nil {
+			return err
+		}
+		defer stmtSnapshot.Close()
+
+		for _, p := range attendance {
+			if _, err = stmtGlobal.Exec(p.FID, eventType, p.Attendance); err != nil {
+				return err
+			}
+
+			if _, err = stmtSnapshot.Exec(p.Attendance, eventID, p.FID); err != nil {
+				return err
+			}
+		}
+	}
+
 	_, err = tx.Exec("UPDATE alliances SET is_locked = FALSE")
 	if err != nil {
 		return err
@@ -177,7 +187,6 @@ func (s *Store) ArchiveAndResetEvent(adminUsername string, notes string, eventTy
 		return err
 	}
 
-	// EP: Change this logic if we decide to keep history of pet schedules
 	_, err = tx.Exec("DELETE FROM pet_skill_schedule")
 	if err != nil {
 		return err
@@ -311,7 +320,7 @@ func (s *Store) GetEventSnapshotDetails(eventID int) ([]HistoryTeam, []HistoryPl
 		return nil, nil, err
 	}
 
-	err = s.db.Select(&players, "SELECT id, player_id, nickname, alliance_id, team_id, fighting_alliance_id FROM history_players WHERE event_id = ?", eventID)
+	err = s.db.Select(&players, "SELECT id, player_id, nickname, alliance_id, team_id, fighting_alliance_id, attendance FROM history_players WHERE event_id = ?", eventID)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -1,0 +1,1 @@
+ALTER TABLE history_players ADD COLUMN attendance VARCHAR(20) DEFAULT NULL;
