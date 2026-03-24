@@ -9,6 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func ptrInt64(i int64) *int64 {
+	return &i
+}
+
 func TestUsersSuite(t *testing.T) {
 	resetDB(t)
 	store := testStore
@@ -133,7 +137,7 @@ func TestUsersSuite(t *testing.T) {
 		user, _ := store.GetUserByUsername("AuditedUser")
 
 		normalLog := AuditLog{
-			UserID:    int64(user.ID),
+			UserID:    ptrInt64(int64(user.ID)),
 			Action:    "LOGIN_SUCCESS",
 			Details:   "User logged in",
 			IPAddress: "192.168.1.1",
@@ -146,7 +150,7 @@ func TestUsersSuite(t *testing.T) {
 		doomedUser, _ := store.GetUserByUsername("DoomedUser")
 
 		orphanedLog := AuditLog{
-			UserID:    int64(doomedUser.ID),
+			UserID:    ptrInt64(int64(doomedUser.ID)),
 			Action:    "TEST_NULL_JOIN",
 			Details:   "Testing fallback for deleted users",
 			IPAddress: "127.0.0.1",
