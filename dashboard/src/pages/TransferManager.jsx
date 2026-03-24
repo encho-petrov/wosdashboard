@@ -323,6 +323,7 @@ export default function TransferManager() {
                                                 {historyRecords.map(r => {
                                                     const isConfirmed = r.status === 'Confirmed';
                                                     const isDeclined = r.status === 'Declined';
+                                                    const isOutbound = r.direction === 'Outbound';
                                                     return (
                                                         <tr key={r.id} className={`border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors ${
                                                             isConfirmed && !isOutbound ? 'bg-green-900/5 opacity-80' :
