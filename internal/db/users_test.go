@@ -148,4 +148,57 @@ func TestUsersSuite(t *testing.T) {
 		assert.Equal(t, "LOGIN_SUCCESS", logs[0].Action)
 		assert.Equal(t, "AuditedUser", logs[0].UserName, "JOIN should resolve the username")
 	})
+
+	t.Run("Audit Logs", func(t *testing.T) {
+		// --- 1. Normal Log Setup ---
+		store.CreateUser("AuditedUser", "hash", "User", 0)
+		user, _ := store.GetUserByUsername("AuditedUser")
+
+		normalLog := AuditLog{
+			UserID:    int64(user.ID),
+			Action:    "LOGIN_SUCCESS",
+			Details:   "User logged in",
+			IPAddress: "192.168.1.1",
+		}
+		err := store.CreateAuditLog(normalLog)
+		require.NoError(t, err)
+
+		// --- 2. Orphaned Log Setup  ---
+		store.CreateUser("DoomedUser", "hash", "User", 0)
+		doomedUser, _ := store.GetUserByUsername("DoomedUser")
+
+		orphanedLog := AuditLog{
+			UserID:    int64(doomedUser.ID),
+			Action:    "TEST_NULL_JOIN",
+			Details:   "Testing fallback for deleted users",
+			IPAddress: "127.0.0.1",
+		}
+		err = store.CreateAuditLog(orphanedLog)
+		require.NoError(t, err)
+
+		err = store.DeleteUser(doomedUser.ID)
+		require.NoError(t, err)
+
+		// --- 3. Execution & Assertions ---
+		logs, err := store.GetAuditLogs()
+
+		require.NoError(t, err, "GetAuditLogs should survive a NULL join")
+		require.True(t, len(logs) >= 2, "Should fetch at least our two test logs")
+
+		// Safely iterate through the logs to verify both scenarios
+		var foundNormal, foundOrphaned bool
+		for i := range logs {
+			if logs[i].Action == "LOGIN_SUCCESS" {
+				assert.Equal(t, "AuditedUser", logs[i].UserName, "Standard JOIN should resolve the username")
+				foundNormal = true
+			}
+			if logs[i].Action == "TEST_NULL_JOIN" {
+				assert.Equal(t, "Deleted User", logs[i].UserName, "COALESCE should provide the fallback string")
+				foundOrphaned = true
+			}
+		}
+
+		assert.True(t, foundNormal, "Normal log was missing from results")
+		assert.True(t, foundOrphaned, "Orphaned log was missing from results")
+	})
 }
