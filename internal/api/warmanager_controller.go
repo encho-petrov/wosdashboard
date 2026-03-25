@@ -290,9 +290,11 @@ func (wc *WarController) UpdatePlayer(c *gin.Context) {
 		TroopType          string `json:"troopType"`
 		BattleAvailability string `json:"battleAvailability"`
 		Avail0200          bool   `json:"avail_0200"`
+		Avail0700          bool   `json:"avail_0700"`
 		Avail1200          bool   `json:"avail_1200"`
 		Avail1400          bool   `json:"avail_1400"`
 		Avail1900          bool   `json:"avail_1900"`
+		AvailPB            bool   `json:"avail_pb"`
 		AllianceID         *int   `json:"allianceId"`
 		FightingAllianceID *int   `json:"fightingAllianceId"`
 		TeamID             *int   `json:"teamId"`
@@ -310,9 +312,11 @@ func (wc *WarController) UpdatePlayer(c *gin.Context) {
 		input.TroopType,
 		input.BattleAvailability,
 		input.Avail0200,
+		input.Avail0700,
 		input.Avail1200,
 		input.Avail1400,
 		input.Avail1900,
+		input.AvailPB,
 		input.AllianceID,
 		input.FightingAllianceID,
 		input.TeamID,

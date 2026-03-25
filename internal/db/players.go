@@ -10,9 +10,11 @@ type PlayerProfile struct {
 	TundraPower  int64   `db:"tundra_power" json:"power"`
 	NormalPower  int64   `db:"normal_power" json:"normalPower"`
 	Avail0200    bool    `db:"avail_0200" json:"avail_0200"`
+	Avail0700    bool    `db:"avail_0700" json:"avail_0700"`
 	Avail1200    bool    `db:"avail_1200" json:"avail_1200"`
 	Avail1400    bool    `db:"avail_1400" json:"avail_1400"`
 	Avail1900    bool    `db:"avail_1900" json:"avail_1900"`
+	AvailPB      bool    `db:"avail_pb" json:"avail_pb"`
 	AllianceName *string `db:"alliance_name" json:"allianceName"`
 	TeamName     *string `db:"team_name" json:"teamName"`
 	CaptainName  *string `db:"captain_name" json:"captainName"`
@@ -28,7 +30,7 @@ func (s *Store) GetPlayerProfile(fid int64) (*PlayerProfile, error) {
        SELECT 
           p.player_id, p.nickname, p.avatar_image, p.stove_lv, p.stove_lv_content, 
           p.troop_type, p.tundra_power, p.normal_power,
-          p.avail_0200, p.avail_1200, p.avail_1400, p.avail_1900, 
+          p.avail_0200, p.avail_1200, p.avail_0700, p.avail_1400, p.avail_1900, p.avail_pb, 
           a.name AS alliance_name,
           t.name AS team_name,
           c.nickname AS captain_name

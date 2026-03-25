@@ -50,8 +50,10 @@ type PlayerRow struct {
 	BattleAvailability   *string `db:"battle_availability" json:"battleAvailability"`
 	Avail0200            bool    `db:"avail_0200" json:"avail_0200"`
 	Avail1200            bool    `db:"avail_1200" json:"avail_1200"`
+	Avail0700            bool    `db:"avail_0700" json:"avail_0700"`
 	Avail1400            bool    `db:"avail_1400" json:"avail_1400"`
 	Avail1900            bool    `db:"avail_1900" json:"avail_1900"`
+	AvailPB              bool    `db:"avail_PB" json:"avail_PB"`
 	FightingAllianceID   *int    `db:"fighting_alliance_id" json:"fightingAllianceId"`
 	FightingAllianceName *string `db:"fighting_alliance_name" json:"fightingAllianceName"`
 }

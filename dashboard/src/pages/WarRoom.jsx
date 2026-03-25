@@ -235,9 +235,11 @@ export default function WarRoom() {
             if (filterTundra.length > 0) {
                 matchesTundra = filterTundra.some(slot => {
                     if (slot === '02:00') return p.avail_0200;
+                    if (slot === '07:00') return p.avail_0700;
                     if (slot === '12:00') return p.avail_1200;
                     if (slot === '14:00') return p.avail_1400;
                     if (slot === '19:00') return p.avail_1900;
+                    if (slot === 'Boost') return p.avail_PB;
                     return false;
                 });
             }
