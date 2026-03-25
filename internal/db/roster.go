@@ -48,14 +48,11 @@ func (s *Store) GetPlayers(allianceFilter *int) ([]PlayerRow, error) {
             p.normal_power AS normal_power,
             COALESCE(p.troop_type, 'None') AS troop_type,
             COALESCE(p.battle_availability, 'Unavailable') AS battle_availability,
-			p.avail_0200, p.avail_1200, p.avail_1400, p.avail_1900,
-			
+			p.avail_0200, p.avail_1200, p.avail_0700, p.avail_1400, p.avail_1900, p.avail_PB,
             p.alliance_id, 
             ga.name AS alliance_name,
-            
             p.fighting_alliance_id,
             fa.name AS fighting_alliance_name,
-            
             p.team_id, 
             t.name AS team_name
         FROM players p
@@ -79,16 +76,16 @@ func (s *Store) GetPlayers(allianceFilter *int) ([]PlayerRow, error) {
 	return players, err
 }
 
-func (s *Store) UpdatePlayerDetails(fid int64, tundraPower int64, normalPower int64, troopType string, battleAvail string, avail0200 bool, avail1200 bool, avail1400 bool, avail1900 bool, allianceID *int, fightingAllianceID *int, teamID *int) error {
+func (s *Store) UpdatePlayerDetails(fid int64, tundraPower int64, normalPower int64, troopType string, battleAvail string, avail0200 bool, avail0700 bool, avail1200 bool, avail1400 bool, avail1900 bool, availPB bool, allianceID *int, fightingAllianceID *int, teamID *int) error {
 	query := `
         UPDATE players 
         SET tundra_power = ?, normal_power = ?, troop_type = ?, 
             battle_availability = ?, 
-            avail_0200 = ?, avail_1200 = ?, avail_1400 = ?, avail_1900 = ?,
+            avail_0200 = ?, avail_0700 = ?, avail_1200 = ?, avail_1400 = ?, avail_1900 = ?, avail_PB = ?,
             alliance_id = ?, fighting_alliance_id = ?, team_id = ? 
         WHERE player_id = ?
     `
-	_, err := s.db.Exec(query, tundraPower, normalPower, troopType, battleAvail, avail0200, avail1200, avail1400, avail1900, allianceID, fightingAllianceID, teamID, fid)
+	_, err := s.db.Exec(query, tundraPower, normalPower, troopType, battleAvail, avail0200, avail0700, avail1200, avail1400, avail1900, availPB, allianceID, fightingAllianceID, teamID, fid)
 	return err
 }
 

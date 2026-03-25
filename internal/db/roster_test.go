@@ -61,7 +61,7 @@ func TestRosterSuite(t *testing.T) {
 		err := store.UpdatePlayerDetails(
 			fid,
 			5000, 4000, "Lancer", "Available",
-			true, false, true, false,
+			true, false, true, false, false, true,
 			&allianceID, nil, nil,
 		)
 		require.NoError(t, err)

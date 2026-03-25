@@ -270,7 +270,7 @@ func (s *Store) GetWarRoomFilterOptions() (FilterOptions, error) {
 		return opts, err
 	}
 
-	opts.TundraAvailability = []string{"02:00", "12:00", "14:00", "19:00"}
+	opts.TundraAvailability = []string{"02:00", "07:00", "12:00", "14:00", "19:00", "Boost"}
 
 	return opts, err
 }

@@ -1,0 +1,3 @@
+ALTER TABLE players
+DROP COLUMN avail_0700,
+DROP COLUMN avail_PB;

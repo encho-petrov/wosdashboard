@@ -12,9 +12,11 @@ import AdminLayout from '../components/layout/AdminLayout';
 const TundraPills = ({ player, isEditing, onChange }) => {
   const slots = [
     { key: 'avail_0200', label: '02:00' },
+    { key: 'avail_0700', label: '07:00' },
     { key: 'avail_1200', label: '12:00' },
     { key: 'avail_1400', label: '14:00' },
-    { key: 'avail_1900', label: '19:00' }
+    { key: 'avail_1900', label: '19:00' },
+    { key: 'avail_PB', label: 'Boost' }
   ];
 
   return (
