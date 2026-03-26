@@ -391,7 +391,7 @@ export default function WarRoom() {
                     <button onClick={() => setMobileTab('alliances')} className={`flex-1 py-2.5 text-xs font-black uppercase rounded-lg transition-colors ${mobileTab === 'alliances' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 bg-gray-800 hover:text-white'}`}>Deployments</button>
                 </div>
 
-                <aside className={`w-full lg:w-80 bg-gray-900 border-b lg:border-r border-gray-800 shrink-0 overflow-hidden ${mobileTab === 'bench' ? 'flex flex-col' : 'hidden lg:flex lg:flex-col h-full'}`}>
+                <aside className={`w-full lg:w-80 bg-gray-900 border-b lg:border-r border-gray-800 flex-1 lg:flex-none lg:shrink-0 min-h-0 overflow-hidden ${mobileTab === 'bench' ? 'flex flex-col' : 'hidden lg:flex lg:flex-col h-full'}`}>
                     <div className="p-4 space-y-3 bg-gray-900/50 border-b border-gray-800">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
@@ -441,7 +441,7 @@ export default function WarRoom() {
                     </div>
                 </aside>
 
-                <main className={`flex-1 overflow-y-auto p-4 lg:p-6 custom-scrollbar bg-gray-950 ${selectedPlayer ? 'pb-32' : 'pb-12'} lg:pb-6 ${mobileTab === 'alliances' ? 'block' : 'hidden lg:block'}`}>
+                <main className={`flex-1 min-h-0 overflow-y-auto p-4 lg:p-6 custom-scrollbar bg-gray-950 ${selectedPlayer ? 'pb-32' : 'pb-12'} lg:pb-6 ${mobileTab === 'alliances' ? 'block' : 'hidden lg:block'}`}>
                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                         {(stats || []).map(alliance => {
                             const roster = (players || []).filter(p => p.fightingAllianceId === alliance.id);
