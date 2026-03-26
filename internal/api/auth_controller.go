@@ -150,34 +150,41 @@ func (ac *AuthController) PlayerLogin(c *gin.Context) {
 	}
 
 	clientIP := c.ClientIP()
-	allowed, err := CheckPlayerLoginRateLimit(ac.redisStore.Client, clientIP, input.FID)
+
+	isLimited, err := IsPlayerRateLimited(ac.redisStore.Client, clientIP, input.FID)
 	if err != nil {
 		fmt.Printf("Rate limit error: %v\n", err)
 		c.JSON(500, gin.H{"error": "Internal server error during security check"})
 		return
 	}
 
-	if !allowed {
-		c.JSON(429, gin.H{"error": "Too many login attempts. Please try again in 15 minutes."})
+	if isLimited {
+		c.JSON(429, gin.H{"error": fmt.Sprintf("Too many failed login attempts. Please try again in %d minutes.", int(PlayerLoginWindow.Minutes()))})
 		return
 	}
 
 	info, err := ac.client.GetPlayerInfo(input.FID)
 	if err != nil {
+		RecordFailedPlayerLogin(ac.redisStore.Client, clientIP, input.FID)
 		c.JSON(500, gin.H{"error": "Failed to connect to Game API"})
 		return
 	}
+
 	if info.Code != 0 {
+		RecordFailedPlayerLogin(ac.redisStore.Client, clientIP, input.FID)
 		c.JSON(401, gin.H{"error": "Player not found or invalid ID"})
 		return
 	}
 
 	if info.Data.KID != ac.cfg.Game.TargetState {
+		RecordFailedPlayerLogin(ac.redisStore.Client, clientIP, input.FID)
 		c.JSON(403, gin.H{
-			"error": fmt.Sprintf("Access Denied. This tool is for State 391 only. You are in State %d.", info.Data.KID),
+			"error": fmt.Sprintf("Access Denied. This tool is for State %d only. You are in State %d.", ac.cfg.Game.TargetState, info.Data.KID),
 		})
 		return
 	}
+
+	ClearPlayerLoginStrikes(ac.redisStore.Client, clientIP, input.FID)
 
 	err = ac.store.UpsertPlayer(
 		input.FID,
@@ -479,9 +486,50 @@ func (ac *AuthController) GetUserProfile(c *gin.Context) {
 	})
 }
 
-func CheckPlayerLoginRateLimit(rClient *redis.Client, ipAddress string, playerID int64) (bool, error) {
-	ctx := context.Background()
+//func CheckPlayerLoginRateLimit(rClient *redis.Client, ipAddress string, playerID int64) (bool, error) {
+//	ctx := context.Background()
+//
+//	ipKey := fmt.Sprintf("ratelimit:player:ip:%s", ipAddress)
+//	idKey := fmt.Sprintf("ratelimit:player:id:%d", playerID)
+//
+//	pipe := rClient.Pipeline()
+//	ipIncr := pipe.Incr(ctx, ipKey)
+//	idIncr := pipe.Incr(ctx, idKey)
+//	_, err := pipe.Exec(ctx)
+//	if err != nil {
+//		return false, fmt.Errorf("redis pipeline failed: %w", err)
+//	}
+//
+//	if ipIncr.Val() == 1 {
+//		rClient.Expire(ctx, ipKey, PlayerLoginWindow)
+//	}
+//	if idIncr.Val() == 1 {
+//		rClient.Expire(ctx, idKey, PlayerLoginWindow)
+//	}
+//
+//	if ipIncr.Val() > MaxPlayerLoginAttempts || idIncr.Val() > MaxPlayerLoginAttempts {
+//		return false, nil
+//	}
+//
+//	return true, nil
+//}
 
+func IsPlayerRateLimited(rClient *redis.Client, ipAddress string, playerID int64) (bool, error) {
+	ctx := context.Background()
+	ipKey := fmt.Sprintf("ratelimit:player:ip:%s", ipAddress)
+	idKey := fmt.Sprintf("ratelimit:player:id:%d", playerID)
+
+	ipCount, _ := rClient.Get(ctx, ipKey).Int()
+	idCount, _ := rClient.Get(ctx, idKey).Int()
+
+	if ipCount >= MaxPlayerLoginAttempts || idCount >= MaxPlayerLoginAttempts {
+		return true, nil
+	}
+	return false, nil
+}
+
+func RecordFailedPlayerLogin(rClient *redis.Client, ipAddress string, playerID int64) {
+	ctx := context.Background()
 	ipKey := fmt.Sprintf("ratelimit:player:ip:%s", ipAddress)
 	idKey := fmt.Sprintf("ratelimit:player:id:%d", playerID)
 
@@ -490,7 +538,8 @@ func CheckPlayerLoginRateLimit(rClient *redis.Client, ipAddress string, playerID
 	idIncr := pipe.Incr(ctx, idKey)
 	_, err := pipe.Exec(ctx)
 	if err != nil {
-		return false, fmt.Errorf("redis pipeline failed: %w", err)
+		fmt.Printf("Redis pipeline failed to record strike: %v\n", err)
+		return
 	}
 
 	if ipIncr.Val() == 1 {
@@ -499,12 +548,14 @@ func CheckPlayerLoginRateLimit(rClient *redis.Client, ipAddress string, playerID
 	if idIncr.Val() == 1 {
 		rClient.Expire(ctx, idKey, PlayerLoginWindow)
 	}
+}
 
-	if ipIncr.Val() > MaxPlayerLoginAttempts || idIncr.Val() > MaxPlayerLoginAttempts {
-		return false, nil
-	}
+func ClearPlayerLoginStrikes(rClient *redis.Client, ipAddress string, playerID int64) {
+	ctx := context.Background()
+	ipKey := fmt.Sprintf("ratelimit:player:ip:%s", ipAddress)
+	idKey := fmt.Sprintf("ratelimit:player:id:%d", playerID)
 
-	return true, nil
+	rClient.Del(ctx, ipKey, idKey)
 }
 
 func (ac *AuthController) ResetUserSecurity(c *gin.Context) {
