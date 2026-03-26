@@ -25,6 +25,7 @@ export default function Squads() {
     const [draggedPlayerId, setDraggedPlayerId] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedPlayer, setSelectedPlayer] = useState(null);
+    const [mobileTab, setMobileTab] = useState('infantry');
 
     // --- Rate Limiter Setup for Discord Announcement ---
     const postAnnounceData = (payload) => client.post('/moderator/discord/announce', payload);
@@ -186,6 +187,12 @@ export default function Squads() {
         setDraggedPlayerId(null);
     };
 
+    const handleMobileSelect = (p) => {
+        if (isMod) return;
+        setSelectedPlayer(p);
+        if (window.innerWidth < 1024) setMobileTab('squads');
+    };
+
     const isAnnounceLocked = isAnnouncePending || announceCooldown > 0;
 
     const headerActions = (
@@ -211,12 +218,23 @@ export default function Squads() {
 
     return (
         <AdminLayout title="Squad Management" actions={headerActions}>
-            <div className="flex flex-col lg:flex-row h-full overflow-hidden bg-gray-950">
+            <div className="flex flex-col lg:flex-row h-[calc(100dvh-64px)] lg:h-full overflow-hidden bg-gray-950 relative">
+
+                {/* --- MOBILE TABS --- */}
+                <div className="lg:hidden flex bg-gray-900 p-2 border-b border-gray-800 shrink-0 gap-2 z-10">
+                    <button onClick={() => setMobileTab('infantry')} className={`flex-1 py-2.5 text-xs font-black uppercase rounded-lg transition-colors ${mobileTab === 'infantry' ? 'bg-red-600 text-white shadow-md' : 'text-gray-500 bg-gray-800 hover:text-white'}`}>
+                        Unassigned ({infantry.length})
+                    </button>
+                    <button onClick={() => setMobileTab('squads')} className={`flex-1 py-2.5 text-xs font-black uppercase rounded-lg transition-colors ${mobileTab === 'squads' ? 'bg-red-600 text-white shadow-md' : 'text-gray-500 bg-gray-800 hover:text-white'}`}>
+                        Squads
+                    </button>
+                </div>
 
                 {/* 1. INFANTRY SIDEBAR */}
-                <aside className="w-full lg:w-80 bg-gray-900 border-b lg:border-r border-gray-800 flex flex-col shrink-0 overflow-hidden">
+                <aside className={`w-full lg:w-80 bg-gray-900 border-b lg:border-r border-gray-800 flex-1 lg:flex-none lg:shrink-0 min-h-0 overflow-hidden ${mobileTab === 'infantry' ? 'flex flex-col' : 'hidden lg:flex lg:flex-col'}`}>
+
                     {/* Alliance Selector */}
-                    <div className="p-2 flex gap-1 overflow-x-auto bg-black/20 custom-scrollbar">
+                    <div className="p-2 flex gap-1 overflow-x-auto bg-black/20 custom-scrollbar shrink-0">
                         {(alliances || []).map(a => (
                             <button
                                 key={a.id}
@@ -230,7 +248,7 @@ export default function Squads() {
                         ))}
                     </div>
 
-                    <div className="p-4 border-b border-gray-800 bg-gray-900/50 space-y-3">
+                    <div className="p-4 border-b border-gray-800 bg-gray-900/50 space-y-3 shrink-0">
                         <div className="flex justify-between items-center">
                             <h3 className="text-xs font-black uppercase text-gray-500">Unassigned</h3>
                             <span className="text-[10px] bg-gray-800 px-2 py-0.5 rounded-full font-bold text-blue-400">{infantry.length}</span>
@@ -251,7 +269,7 @@ export default function Squads() {
                                 key={p.fid}
                                 draggable={isAdmin}
                                 onDragStart={(e) => handleDragStart(e, p.fid)}
-                                onClick={() => !isMod && setSelectedPlayer(p)}
+                                onClick={() => handleMobileSelect(p)}
                                 className={`
                                     p-3 rounded-2xl border transition-all select-none
                                     ${isMod ? 'cursor-default border-gray-800' : 'cursor-pointer'}
@@ -281,7 +299,16 @@ export default function Squads() {
                 </aside>
 
                 {/* 2. SQUADS GRID */}
-                <main className="flex-1 overflow-y-auto p-4 lg:p-6 custom-scrollbar bg-gray-950">
+                <main className={`flex-1 min-h-0 overflow-y-auto p-4 lg:p-6 custom-scrollbar bg-gray-950 ${selectedPlayer ? 'pb-32' : 'pb-12'} lg:pb-6 ${mobileTab === 'squads' ? 'block' : 'hidden lg:block'}`}>
+                    
+                    {squads.length === 0 && (
+                        <div className="h-full flex flex-col items-center justify-center text-gray-700 opacity-50 pb-20">
+                            <Sword size={48} className="mb-4" />
+                            <p className="font-black uppercase tracking-widest text-sm">No Squads Created</p>
+                            <p className="text-[10px] mt-2 font-bold uppercase tracking-widest">Promote a player to begin</p>
+                        </div>
+                    )}
+
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                         {(squads || []).map(sq => {
                             const roster = squadRosters[sq.id] || [];
