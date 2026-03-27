@@ -237,4 +237,41 @@ describe('Foundry Component (AllianceWarRoom)', () => {
         const attendedBadge = await screen.findAllByText('Attended');
         expect(attendedBadge.length).toBeGreaterThan(0);
     });
+
+    it('listens for REFRESH_FOUNDRY SSE event and re-fetches the active state', async () => {
+        // 1. Inject the mock refresh function specifically for this test
+        const mockRefreshGlobalData = vi.fn();
+        useApp.mockReturnValue({
+            roster: mockRoster,
+            globalLoading: false,
+            features: { Discord: true },
+            refreshGlobalData: mockRefreshGlobalData
+        });
+
+        renderComponent();
+
+        // 2. Wait for the initial mount and fetch sequence to finish
+        await screen.findByText('BenchPlayer1');
+
+        // 3. Clear previous call history so we ONLY track the SSE reaction
+        client.get.mockClear();
+        mockRefreshGlobalData.mockClear();
+
+        // 4. Simulate the Go backend broadcasting the SSE event
+        await waitFor(() => {
+            window.dispatchEvent(new Event('REFRESH_FOUNDRY'));
+        });
+
+        // 5. Assert that the component reacted correctly
+        await waitFor(() => {
+            // It should refresh the global roster to get updated powers/alliances
+            expect(mockRefreshGlobalData).toHaveBeenCalledWith(true);
+
+            // It should fetch the active Foundry state
+            expect(client.get).toHaveBeenCalledWith(expect.stringContaining('/moderator/foundry/state?eventType=Foundry'));
+
+            // Prove it didn't accidentally refetch the history list instead
+            expect(client.get).not.toHaveBeenCalledWith(expect.stringContaining('/moderator/foundry/history'));
+        });
+    });
 });

@@ -6,6 +6,7 @@ import client from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { useApp } from '../../context/AppContext';
 import { toast } from 'react-toastify';
+import {act} from "react";
 
 // 1. Mock Contexts
 vi.mock('../../context/AuthContext', () => ({
@@ -230,6 +231,34 @@ describe('Roster Component', () => {
             });
             expect(toast.success).toHaveBeenCalledWith('Player transferred out and archived.');
             expect(mockRefreshGlobalData).toHaveBeenCalledWith(true);
+        });
+    });
+
+    it('listens for REFRESH_ROSTER SSE event and triggers data refresh', async () => {
+        useAuth.mockReturnValue({ user: { role: 'admin' } });
+        renderComponent();
+
+        // Wait for the initial render and mount to finish
+        await screen.findAllByText('AdminPlayer');
+
+        // Clear the mock history so we only count what happens AFTER the event
+        mockRefreshGlobalData.mockClear();
+        client.get.mockClear();
+
+        // Simulate the Go backend broadcasting the SSE event
+        // We wrap this in act() because it triggers React state updates
+        act(async () => {
+            window.dispatchEvent(new Event('REFRESH_ROSTER'));
+        });
+
+        // 1. Assert that the global roster was refreshed
+        expect(mockRefreshGlobalData).toHaveBeenCalledTimes(1);
+        expect(mockRefreshGlobalData).toHaveBeenCalledWith(true);
+
+        // 2. Assert that the dropdown options were re-fetched
+        await waitFor(() => {
+            expect(client.get).toHaveBeenCalledWith('/moderator/options');
+            expect(client.get).toHaveBeenCalledWith('/moderator/transfers/active');
         });
     });
 });

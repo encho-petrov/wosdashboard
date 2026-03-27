@@ -202,4 +202,32 @@ describe('Squads Component', () => {
             expect(toast.success).toHaveBeenCalledWith('Squads for Alpha Alliance announced!');
         });
     });
+
+    it('listens for REFRESH_SQUADS SSE event and properly uses activeAlliance state', async () => {
+        renderComponent();
+
+        // 1. Wait for the initial mount and fetch sequence to finish
+        // This ensures activeAlliance is set to 101 in the component state
+        await screen.findByText('Alpha Alliance');
+        await screen.findByText('SquadCaptain');
+
+        // 2. Clear previous call history so we ONLY track the SSE reaction
+        mockRefreshGlobalData.mockClear();
+        client.get.mockClear();
+
+        // 3. Simulate the Go backend broadcasting the SSE event
+        window.dispatchEvent(new Event('REFRESH_SQUADS'));
+
+        // 4. Assert that the component reacted correctly and avoided the NaN bug
+        await waitFor(() => {
+            // It should refresh the global roster
+            expect(mockRefreshGlobalData).toHaveBeenCalledWith(true);
+
+            // It should fetch squads specifically for activeAlliance 101 (Not NaN!)
+            expect(client.get).toHaveBeenCalledWith('/moderator/squads/101');
+
+            // Prove it didn't accidentally refetch the stats
+            expect(client.get).not.toHaveBeenCalledWith('/moderator/war-room/stats');
+        });
+    });
 });
