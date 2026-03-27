@@ -61,6 +61,26 @@ export default function Squads() {
         if (activeAlliance) void fetchData();
     }, [activeAlliance]);
 
+    // LIVE SYNC
+    useEffect(() => {
+        const handleSync = async () => {
+            if (refreshGlobalData) await refreshGlobalData(true);
+
+            if (activeAlliance) {
+                try {
+                    const aid = parseInt(activeAlliance);
+                    const sRes = await client.get(`/moderator/squads/${aid}`);
+                    setSquads(sRes.data || []);
+                } catch (err) {
+                    console.error("Background squad sync failed:", err);
+                }
+            }
+        };
+
+        window.addEventListener('REFRESH_SQUADS', handleSync);
+        return () => window.removeEventListener('REFRESH_SQUADS', handleSync);
+    }, [refreshGlobalData, activeAlliance]);
+
     const fetchData = async (silent = false) => {
         if (!silent) setLoading(true);
         try {

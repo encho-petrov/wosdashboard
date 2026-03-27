@@ -122,6 +122,7 @@ func (wc *WarController) DeployToWarRoom(c *gin.Context) {
 		c.JSON(500, gin.H{"error": "Deployment failed"})
 		return
 	}
+	wc.sseBroker.Notifier <- "REFRESH_WARROOM"
 	c.JSON(200, gin.H{"message": "Troops deployed successfully"})
 }
 
@@ -326,6 +327,8 @@ func (wc *WarController) UpdatePlayer(c *gin.Context) {
 		c.JSON(500, gin.H{"error": "Update failed"})
 		return
 	}
+
+	wc.sseBroker.Notifier <- "REFRESH_ROSTER"
 	c.JSON(200, gin.H{"message": "Player updated"})
 }
 
