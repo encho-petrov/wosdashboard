@@ -243,4 +243,29 @@ describe('MinistryReservations Component', () => {
             expect(client.get).toHaveBeenCalledWith('/moderator/ministry/active');
         });
     });
+
+    it('listens for REFRESH_MINISTRY SSE event and re-fetches the active schedule', async () => {
+        renderComponent();
+
+        // 1. Wait for the initial mount and fetch sequence to finish
+        await screen.findByText('Week of March 16');
+
+        // 2. Clear previous call history so we ONLY track the SSE reaction
+        client.get.mockClear();
+
+        // 3. Simulate the Go backend broadcasting the SSE event
+        // (Make sure 'REFRESH_MINISTRY' matches the exact string your Go backend sends!)
+        await waitFor(() => {
+            window.dispatchEvent(new Event('REFRESH_MINISTRY'));
+        });
+
+        // 4. Assert that the component reacted correctly by fetching the active board
+        await waitFor(() => {
+            expect(client.get).toHaveBeenCalledTimes(1);
+            expect(client.get).toHaveBeenCalledWith('/moderator/ministry/active');
+
+            // Prove it didn't accidentally refetch the history list instead
+            expect(client.get).not.toHaveBeenCalledWith('/moderator/ministry/history');
+        });
+    });
 });

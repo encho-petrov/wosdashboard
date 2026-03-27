@@ -6,6 +6,7 @@ import client from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { useApp } from '../../context/AppContext';
 import { toast } from 'react-toastify';
+import {act} from "react";
 
 // 1. Mock Contexts
 vi.mock('../../context/AuthContext', () => ({ useAuth: vi.fn() }));
@@ -237,6 +238,39 @@ describe('WarRoom Component', () => {
                 notes: 'Test Archive 123'
             }));
             expect(toast.success).toHaveBeenCalledWith('Event archived and board wiped!');
+        });
+    });
+
+    it('listens for REFRESH_WARROOM SSE event and triggers data refresh', async () => {
+        // Set up initial state with an active event so the main board renders
+        client.get.mockImplementation((url) => {
+            if (url.includes('/stats')) return Promise.resolve({ data: mockStatsInitialized });
+            if (url.includes('/filters')) return Promise.resolve({ data: mockFilters });
+            return Promise.resolve({ data: {} });
+        });
+
+        renderComponent();
+
+        // 1. Wait for initial mount to finish
+        await screen.findByText('Alpha Alliance');
+
+        // 2. Clear call history
+        mockRefreshGlobalData.mockClear();
+        client.get.mockClear();
+
+        // 3. Dispatch the SSE event
+        act(async () => {
+            window.dispatchEvent(new Event('REFRESH_WARROOM'));
+        });
+
+        // 4. Assert that the component reacted correctly
+        await waitFor(() => {
+            // It should refresh the global roster
+            expect(mockRefreshGlobalData).toHaveBeenCalledWith(true);
+
+            // It should refetch the war room stats and filters
+            expect(client.get).toHaveBeenCalledWith('/moderator/war-room/stats');
+            expect(client.get).toHaveBeenCalledWith('/moderator/war-room/filters');
         });
     });
 });
