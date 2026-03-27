@@ -97,10 +97,14 @@ export default function WarRoom() {
     }, [eventType]);
 
     useEffect(() => {
-        const handleSync = () => { void fetchData(true); };
+        const handleSync = async () => {
+            await refreshGlobalData(true);
+            await fetchData(true);
+        };
+
         window.addEventListener('REFRESH_WARROOM', handleSync);
         return () => window.removeEventListener('REFRESH_WARROOM', handleSync);
-    }, []);
+    }, [refreshGlobalData]);
 
     const fetchData = async (silent = false) => {
         try {
@@ -425,7 +429,7 @@ export default function WarRoom() {
                                             <div className={`text-[8px] px-1.5 rounded-sm border font-black tracking-tighter text-gray-400 border-gray-700 bg-gray-800/40`}>{p.allianceName || 'NONE'}</div>
                                         </div>
                                         <div className="flex items-center gap-2 pt-0.5">
-                                            <span className="text-[9px] text-blue-400 font-mono" title="Base Power">⚡ ⚡ {formatPower(p.normalPower)}</span>
+                                            <span className="text-[9px] text-blue-400 font-mono" title="Base Power">⚡ {formatPower(p.normalPower)}</span>
                                             <span className="text-[9px] text-gray-600">|</span>
                                             <span className="text-[9px] text-yellow-500 font-mono" title="Tundra Power">⚔️ {formatPower(p.power)}</span>
                                         </div>

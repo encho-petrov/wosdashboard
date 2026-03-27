@@ -85,15 +85,17 @@ export default function Roster() {
     void fetchInitialData();
   }, []);
 
+  // LIVE SYNC
   useEffect(() => {
-    const handleSync = () => {
-      console.log("[LiveSync] Roster updated!");
-      void fetchInitialData();
+    const handleSync = async () => {
+      if (refreshGlobalData) await refreshGlobalData(true);
+
+      await fetchInitialData();
     };
 
     window.addEventListener('REFRESH_ROSTER', handleSync);
     return () => window.removeEventListener('REFRESH_ROSTER', handleSync);
-  }, []);
+  }, [refreshGlobalData]);
 
   const fetchInitialData = async () => {
     try {

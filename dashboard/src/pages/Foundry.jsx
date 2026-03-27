@@ -15,7 +15,7 @@ export default function AllianceWarRoom() {
     const { user } = useAuth();
     const { features } = useApp();
     const isAdmin = user?.role === 'admin';
-    const { roster, globalLoading } = useApp();
+    const { roster, globalLoading, refreshGlobalData } = useApp();
 
     const [viewMode, setViewMode] = useState('live');
     const [eventType, setEventType] = useState('Foundry');
@@ -99,6 +99,32 @@ export default function AllianceWarRoom() {
         };
         void fetchSnapshot();
     }, [selectedHistoryId, viewMode]);
+
+    // --- SSE Real-Time Sync ---
+    useEffect(() => {
+        const handleSync = async () => {
+            if (viewMode !== 'live' || !user?.allianceId) return;
+
+            if (refreshGlobalData) await refreshGlobalData(true);
+
+            try {
+                const res = await client.get(`/moderator/foundry/state?eventType=${eventType}`);
+                setLegionLocks(res.data.legions || []);
+                setDeployedPlayers(res.data.roster || []);
+
+                const statsMap = {};
+                (res.data.stats || []).forEach(s => {
+                    statsMap[s.playerId] = s.score;
+                });
+                setAttendanceStats(statsMap);
+            } catch (err) {refreshGlobalData
+                console.error("Background sync failed", err);
+            }
+        };
+
+        window.addEventListener('REFRESH_FOUNDRY', handleSync);
+        return () => window.removeEventListener('REFRESH_FOUNDRY', handleSync);
+    }, [eventType, viewMode, user?.allianceId, refreshGlobalData]);
 
     // --- COMPUTED DATA (Dynamically sorted by relevant power) ---
     const localBench = useMemo(() => {
@@ -455,7 +481,7 @@ export default function AllianceWarRoom() {
                             <button onClick={() => setMobileTab('alliances')} className={`flex-1 py-2.5 text-xs font-black uppercase rounded-lg transition-all ${mobileTab === 'alliances' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 bg-gray-800'}`}>Legions</button>
                         </div>
 
-                        <aside className={`w-full lg:w-80 bg-gray-900 border-b lg:border-r border-gray-800 shrink-0 overflow-hidden z-10 ${mobileTab === 'bench' ? 'flex flex-col' : 'hidden lg:flex lg:flex-col h-full'}`}>
+                        <aside className={`w-full lg:w-80 bg-gray-900 border-b lg:border-r border-gray-800 flex-1 lg:flex-none lg:shrink-0 min-h-0 overflow-hidden z-10 ${mobileTab === 'bench' ? 'flex flex-col' : 'hidden lg:flex lg:flex-col h-full'}`}>
                             <div className="p-4 bg-gray-900/50 border-b border-gray-800">
                                 <div className="relative">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
@@ -472,8 +498,7 @@ export default function AllianceWarRoom() {
                             </div>
                         </aside>
 
-                        <main className={`flex-1 overflow-y-auto p-4 lg:p-6 custom-scrollbar bg-gray-950 z-10 ${selectedPlayer ? 'pb-40' : 'pb-12'} lg:pb-6 ${mobileTab === 'alliances' ? 'block' : 'hidden lg:block'}`}>
-                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 max-w-7xl mx-auto">
+                        <main className={`flex-1 min-h-0 overflow-y-auto p-4 lg:p-6 custom-scrollbar bg-gray-950 z-10 ${selectedPlayer ? 'pb-40' : 'pb-12'} lg:pb-6 ${mobileTab === 'alliances' ? 'block' : 'hidden lg:block'}`}>                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 max-w-7xl mx-auto">
                                 {renderLegionZone(1, deployedPlayers, false)}
                                 {renderLegionZone(2, deployedPlayers, false)}
                             </div>
