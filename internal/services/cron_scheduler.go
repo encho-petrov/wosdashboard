@@ -79,7 +79,7 @@ func CheckPetSchedule(store *db.Store, botToken string) {
 	} else if now.Hour() == 13 && now.Minute() == 50 {
 		slotId = 2
 		buffTime = "14:00 UTC"
-	} else if now.Hour() == 15 && now.Minute() == 20 {
+	} else if now.Hour() == 14 && now.Minute() == 50 {
 		slotId = 3
 		buffTime = "15:00 UTC"
 	} else {
