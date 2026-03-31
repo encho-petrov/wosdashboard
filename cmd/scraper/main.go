@@ -102,17 +102,48 @@ func main() {
 	c.Visit(wikiURL)
 
 	if heroesScraped > 0 {
-		log.Printf("Scraping completed (%d heroes). Swapping directories...\n", heroesScraped)
+		log.Printf("Scraping completed (%d heroes). Syncing to shared Docker volume...\n", heroesScraped)
 
-		os.RemoveAll(finalImageDir)
-
-		if err := os.Rename(tempImageDir, finalImageDir); err != nil {
-			log.Printf("CRITICAL: Failed to swap directories: %v", err)
-		} else {
-			log.Println("Assets updated successfully!")
+		tempFiles, err := os.ReadDir(tempImageDir)
+		if err != nil {
+			log.Printf("CRITICAL: Failed to read temp directory: %v", err)
+			return
 		}
+
+		scrapedFileNames := make(map[string]bool)
+
+		for _, f := range tempFiles {
+			if f.IsDir() {
+				continue
+			}
+
+			oldPath := filepath.Join(tempImageDir, f.Name())
+			newPath := filepath.Join(finalImageDir, f.Name())
+
+			if err := os.Rename(oldPath, newPath); err != nil {
+				log.Printf("Error moving file %s: %v", f.Name(), err)
+			} else {
+				scrapedFileNames[f.Name()] = true
+			}
+		}
+
+		liveFiles, _ := os.ReadDir(finalImageDir)
+		for _, lf := range liveFiles {
+			if !lf.IsDir() && !scrapedFileNames[lf.Name()] {
+				orphanPath := filepath.Join(finalImageDir, lf.Name())
+				err := os.Remove(orphanPath)
+				if err != nil {
+					return
+				}
+				log.Printf("Removed orphaned asset: %s", lf.Name())
+			}
+		}
+
+		os.RemoveAll(tempImageDir)
+		log.Println("Assets updated successfully! Backend cache invalidated.")
+
 	} else {
-		log.Println("No heroes found. Aborting directory swap to protect existing assets.")
+		log.Println("No heroes found. Aborting sync to protect existing assets.")
 		os.RemoveAll(tempImageDir)
 	}
 }
