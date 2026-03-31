@@ -7,6 +7,7 @@ import (
 	"image"
 	_ "image/jpeg"
 	_ "image/png"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -110,7 +111,12 @@ func main() {
 			return
 		}
 
-		scrapedFileNames := make(map[string]bool)
+		wikiFiles := make(map[string]bool)
+		for _, f := range tempFiles {
+			if !f.IsDir() {
+				wikiFiles[f.Name()] = true
+			}
+		}
 
 		for _, f := range tempFiles {
 			if f.IsDir() {
@@ -120,16 +126,14 @@ func main() {
 			oldPath := filepath.Join(tempImageDir, f.Name())
 			newPath := filepath.Join(finalImageDir, f.Name())
 
-			if err := os.Rename(oldPath, newPath); err != nil {
+			if err := moveFile(oldPath, newPath); err != nil {
 				log.Printf("Error moving file %s: %v", f.Name(), err)
-			} else {
-				scrapedFileNames[f.Name()] = true
 			}
 		}
 
 		liveFiles, _ := os.ReadDir(finalImageDir)
 		for _, lf := range liveFiles {
-			if !lf.IsDir() && !scrapedFileNames[lf.Name()] {
+			if !lf.IsDir() && !wikiFiles[lf.Name()] {
 				orphanPath := filepath.Join(finalImageDir, lf.Name())
 				err := os.Remove(orphanPath)
 				if err != nil {
@@ -186,4 +190,33 @@ func upsertHero(db *sql.DB, name, troopType, sourceURL, localPath string) error 
     `
 	_, err := db.Exec(query, name, troopType, sourceURL, localPath)
 	return err
+}
+
+func moveFile(sourcePath, destPath string) error {
+	err := os.Rename(sourcePath, destPath)
+	if err == nil {
+		return nil
+	}
+
+	srcFile, err := os.Open(sourcePath)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	destFile, err := os.Create(destPath)
+	if err != nil {
+		return err
+	}
+
+	if _, err := io.Copy(destFile, srcFile); err != nil {
+		destFile.Close()
+		return err
+	}
+
+	destFile.Sync()
+	destFile.Close()
+	srcFile.Close()
+
+	return os.Remove(sourcePath)
 }
