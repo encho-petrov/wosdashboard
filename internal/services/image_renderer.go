@@ -11,6 +11,7 @@ import (
 
 	"github.com/fogleman/gg"
 	"github.com/nfnt/resize"
+	_ "golang.org/x/image/webp"
 )
 
 type MetaCardData struct {
