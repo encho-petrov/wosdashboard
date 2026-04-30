@@ -70,8 +70,8 @@ func TestAuthController_Security(t *testing.T) {
 		router := setupAuthTestRouter("TestUser", "User")
 
 		payload := map[string]string{
-			"oldPassword": "oldpass123",
-			"newPassword": "newsecurepass999",
+			"old_password": "oldpass123",
+			"new_password": "newsecurepass999",
 		}
 		body, _ := json.Marshal(payload)
 
@@ -96,8 +96,8 @@ func TestAuthController_Security(t *testing.T) {
 		router := setupAuthTestRouter("TestUser", "User")
 
 		payload := map[string]string{
-			"oldPassword": "wrongpassword",
-			"newPassword": "doesntmatter",
+			"old_password": "wrongpassword",
+			"new_password": "doesntmatter",
 		}
 		body, _ := json.Marshal(payload)
 
