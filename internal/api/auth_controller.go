@@ -434,8 +434,8 @@ func (ac *AuthController) AuthMe(c *gin.Context) {
 
 func (ac *AuthController) ChangePassword(c *gin.Context) {
 	var input struct {
-		OldPassword string `json:"oldPassword" binding:"required"`
-		NewPassword string `json:"newPassword" binding:"required"`
+		OldPassword string `json:"old_password" binding:"required"`
+		NewPassword string `json:"new_password" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
