@@ -87,7 +87,7 @@ func TestTransfersSuite(t *testing.T) {
 		require.NoError(t, err)
 
 		// 4. Confirm Inbound Transfer (Tests the UPSERT into players table)
-		err = store.ConfirmInboundTransfer(recordID, 12345, "NewGuy", 10)
+		err = store.ConfirmInboundTransfer(recordID, 12345, "NewGuy", 10, 200000)
 		require.NoError(t, err)
 
 		// Verify Player was created

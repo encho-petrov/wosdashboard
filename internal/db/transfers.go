@@ -74,7 +74,7 @@ func (s *Store) AddTransferRecord(record TransferRecord) error {
 	return err
 }
 
-func (s *Store) ConfirmInboundTransfer(recordID int, fid int64, nickname string, targetAllianceID int) error {
+func (s *Store) ConfirmInboundTransfer(recordID int, fid int64, nickname string, targetAllianceID int, power int64) error {
 	tx, err := s.db.Beginx()
 	if err != nil {
 		return err
@@ -86,10 +86,26 @@ func (s *Store) ConfirmInboundTransfer(recordID int, fid int64, nickname string,
 	}
 
 	upsertQuery := `
-        INSERT INTO players (player_id, nickname, alliance_id, status) 
-        VALUES (?, ?, ?, 'Active') 
-        ON DUPLICATE KEY UPDATE nickname = VALUES(nickname), alliance_id = VALUES(alliance_id), status = 'Active'`
-	if _, err = tx.Exec(upsertQuery, fid, nickname, targetAllianceID); err != nil {
+        INSERT INTO players (
+            player_id, nickname, alliance_id, status, normal_power, 
+            avatar_image, stove_lv_content, stove_lv
+        ) 
+        SELECT 
+            ?, ?, ?, 'Active', ?, 
+            avatar, furnace_image, furnace_level
+        FROM transfer_records 
+        WHERE id = ?
+        ON DUPLICATE KEY UPDATE 
+            nickname = VALUES(nickname), 
+            alliance_id = VALUES(alliance_id), 
+            status = 'Active', 
+            normal_power = VALUES(normal_power),
+            avatar_image = VALUES(avatar_image),
+            stove_lv_content = VALUES(stove_lv_content),
+            stove_lv = VALUES(stove_lv)
+    `
+
+	if _, err = tx.Exec(upsertQuery, fid, nickname, targetAllianceID, power, recordID); err != nil {
 		return err
 	}
 
