@@ -33,7 +33,6 @@ export default function TransferManager() {
     const [newSeason, setNewSeason] = useState({ name: '', powerCap: 200000000, leading: false, specials: 1, normals: 35 });
     const [showMfaModal, setShowMfaModal] = useState(false);
 
-    // Mobile modal state
     const [selectedMobileRecordId, setSelectedMobileRecordId] = useState(null);
     const activeMobileRecord = useMemo(() => records.find(r => r.id === selectedMobileRecordId), [records, selectedMobileRecordId]);
 
@@ -53,8 +52,14 @@ export default function TransferManager() {
     };
 
     useEffect(() => {
-        const handleSync = () => {
-            void fetchData();
+        const handleSync = async () => {
+            try {
+                const res = await client.get('/moderator/transfers/active');
+                setSeason(res.data.season);
+                setRecords(res.data.records || []);
+            } catch (err) {
+                console.error("Background sync failed", err);
+            }
         };
 
         window.addEventListener('REFRESH_TRANSFERS', handleSync);
@@ -202,6 +207,27 @@ export default function TransferManager() {
         } catch (err) {
             toast.error("Failed to update season details");
         }
+    };
+
+    const parsePowerInput = (val) => {
+        if (!val) return 0;
+        let str = val.toString().toUpperCase().replace(/,/g, '').replace(/ /g, '');
+        let multiplier = 1;
+
+        if (str.endsWith('K')) { multiplier = 1000; str = str.slice(0, -1); }
+        else if (str.endsWith('M')) { multiplier = 1000000; str = str.slice(0, -1); }
+        else if (str.endsWith('B')) { multiplier = 1000000000; str = str.slice(0, -1); }
+
+        const num = parseFloat(str);
+        if (isNaN(num)) return 0;
+        return Math.round(num * multiplier);
+    };
+
+    const formatPower = (num) => {
+        if (num >= 1000000000) return (num / 1000000000).toFixed(2).replace(/\.00$/, '') + 'B';
+        if (num >= 1000000) return (num / 1000000).toFixed(2).replace(/\.00$/, '') + 'M';
+        if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+        return num.toLocaleString();
     };
 
     const transferActions = (
@@ -583,7 +609,7 @@ export default function TransferManager() {
                                 const isConfirmed = r.status === 'Confirmed';
                                 const isDeclined = r.status === 'Declined';
                                 const isOutbound = r.direction === 'Outbound';
-                                const isOverPower = r.power > season.powerCap && !isConfirmed && !isDeclined;
+                                const isOverPower = r.power > season.powerCap && !isConfirmed && !isDeclined && r.inviteType !== 'Special';
 
                                 return (
                                     <tr key={r.id} className={`border-b border-gray-800/50 hover:bg-gray-800/30 transition-colors ${
@@ -628,11 +654,19 @@ export default function TransferManager() {
                                             ) : (
                                                 <div className="flex items-center gap-2">
                                                     <input
-                                                        type="number"
+                                                        type="text"
+                                                        key={`desktop-${r.id}-${r.power}`}
                                                         disabled={!isAdmin || isConfirmed || isDeclined}
-                                                        defaultValue={r.power}
-                                                        onBlur={(e) => handleUpdateRecord(r.id, 'power', e.target.value)}
-                                                        className={`bg-gray-950 border rounded-xl p-2 text-[11px] font-mono w-32 outline-none disabled:opacity-30 transition-all shadow-inner ${
+                                                        defaultValue={formatPower(r.power)}
+                                                        onBlur={(e) => {
+                                                            const parsed = parsePowerInput(e.target.value);
+                                                            if (parsed !== r.power) {
+                                                                void handleUpdateRecord(r.id, 'power', parsed);
+                                                            } else {
+                                                                e.target.value = formatPower(r.power);
+                                                            }
+                                                        }}
+                                                        className={`bg-gray-950 border rounded-xl p-2 text-base md:text-[11px] font-mono w-32 outline-none disabled:opacity-30 transition-all shadow-inner ${
                                                             isOverPower ? 'border-red-500 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.2)]' : 'border-gray-800 text-yellow-500'
                                                         }`}
                                                     />
@@ -649,7 +683,7 @@ export default function TransferManager() {
                                                     {['Normal', 'Special'].map((type) => (
                                                         <button
                                                             key={type}
-                                                            disabled={!isAdmin || isConfirmed || isDeclined}
+                                                            disabled={!isAdmin || isConfirmed || isDeclined || (type === 'Normal' && r.power > season.powerCap)}
                                                             onClick={() => handleToggleInvite(r.id, r.inviteType, type)}
                                                             className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-20 ${
                                                                 r.inviteType === type
@@ -779,7 +813,7 @@ export default function TransferManager() {
                                 </button>
                             </div>
                             <textarea
-                                className="w-full h-40 p-4 bg-gray-900 border border-gray-700 rounded-2xl text-gray-300 font-mono text-sm outline-none mb-6 shadow-inner focus:border-blue-500 transition-all"
+                                className="w-full h-40 p-4 bg-gray-900 border border-gray-700 rounded-2xl text-gray-300 font-mono text-base md:text-sm outline-none mb-6 shadow-inner focus:border-blue-500 transition-all"
                                 placeholder="87654321, 12345678, ..."
                                 value={bulkFids}
                                 onChange={(e) => setBulkFids(e.target.value)}
@@ -887,11 +921,19 @@ export default function TransferManager() {
                                     </div>
                                 ) : (
                                     <input
-                                        type="number"
+                                        type="text"
+                                        key={`mobile-${activeMobileRecord.id}-${activeMobileRecord.power}`}
                                         disabled={!isAdmin || activeMobileRecord.status === 'Confirmed' || activeMobileRecord.status === 'Declined'}
-                                        defaultValue={activeMobileRecord.power}
-                                        onBlur={(e) => handleUpdateRecord(activeMobileRecord.id, 'power', e.target.value)}
-                                        className="w-full bg-black border border-gray-800 rounded-xl p-3 text-xs font-mono text-yellow-500 outline-none focus:border-yellow-500"
+                                        defaultValue={formatPower(activeMobileRecord.power)}
+                                        onBlur={(e) => {
+                                            const parsed = parsePowerInput(e.target.value);
+                                            if (parsed !== activeMobileRecord.power) {
+                                                void handleUpdateRecord(activeMobileRecord.id, 'power', parsed);
+                                            } else {
+                                                e.target.value = formatPower(activeMobileRecord.power);
+                                            }
+                                        }}
+                                        className="w-full bg-black border border-gray-800 rounded-xl p-3 text-base md:text-xs font-mono text-yellow-500 outline-none focus:border-yellow-500"
                                     />
                                 )}
                             </div>
@@ -903,7 +945,7 @@ export default function TransferManager() {
                                         {['Normal', 'Special'].map((type) => (
                                             <button
                                                 key={type}
-                                                disabled={!isAdmin || activeMobileRecord.status === 'Confirmed' || activeMobileRecord.status === 'Declined'}
+                                                disabled={!isAdmin || activeMobileRecord.status === 'Confirmed' || activeMobileRecord.status === 'Declined' || (type === 'Normal' && activeMobileRecord.power > season.powerCap)}
                                                 onClick={() => handleToggleInvite(activeMobileRecord.id, activeMobileRecord.inviteType, type)}
                                                 className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
                                                     activeMobileRecord.inviteType === type
