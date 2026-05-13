@@ -177,7 +177,8 @@ export default function TransferManager() {
             await client.post(`/moderator/transfers/${record.id}/confirm-inbound`, {
                 fid: record.fid,
                 nickname: record.nickname,
-                targetAllianceId: record.targetAllianceId
+                targetAllianceId: record.targetAllianceId,
+                power: record.power,
             });
             toast.success("Player Confirmed and added to Roster!");
             await refreshGlobalData(true);
@@ -355,7 +356,8 @@ export default function TransferManager() {
                                                             isConfirmed && !isOutbound ? 'bg-green-900/5 opacity-80' :
                                                             isConfirmed && isOutbound ? 'bg-red-900/5 opacity-80' :
                                                             isDeclined ? 'bg-red-900/5 opacity-60' : ''
-                                                        }`}>                                                            <td className="p-4 pl-6 flex items-center gap-4">
+                                                        }`}>
+                                                            <td className="p-4 pl-6 flex items-center gap-4">
                                                                 <div className="relative">
                                                                     <img src={r.avatar || 'https://via.placeholder.com/40'} alt="av" className="w-10 h-10 rounded-full border border-gray-700 shadow-inner" />
                                                                     {r.furnaceImage && <img src={r.furnaceImage} alt="f" className="w-4 h-4 absolute -bottom-1 -right-1 drop-shadow-md" />}

@@ -158,10 +158,11 @@ func (tc *TransfersController) ConfirmTransfer(c *gin.Context) {
 		FID              int64  `json:"fid"`
 		Nickname         string `json:"nickname"`
 		TargetAllianceID int    `json:"targetAllianceId"`
+		Power            int64  `json:"power"`
 	}
 	_ = c.ShouldBindJSON(&req)
 
-	if err := tc.store.ConfirmInboundTransfer(id, req.FID, req.Nickname, req.TargetAllianceID); err != nil {
+	if err := tc.store.ConfirmInboundTransfer(id, req.FID, req.Nickname, req.TargetAllianceID, req.Power); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Transaction failed"})
 		return
 	}
