@@ -1,5 +1,5 @@
 ﻿erDiagram
-    USER ||--o| ALLIANCE : "restricted to (optional)"
+    USER ||--o{ ALLIANCE : "restricted to (optional)"
     USER {
         int id PK
         string username
@@ -8,9 +8,9 @@
         boolean has_webauthn
     }
 
-    PLAYER ||--o| ALLIANCE : "member of (Home)"
-    PLAYER ||--o| ALLIANCE : "deployed to (War)"
-    PLAYER ||--o| SQUAD : "assigned to"
+    PLAYER ||--o{ ALLIANCE : "member of (Home)"
+    PLAYER ||--o{ ALLIANCE : "deployed to (War)"
+    PLAYER ||--o{ SQUAD : "assigned to"
     PLAYER {
         bigint fid PK
         string nickname
