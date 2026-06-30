@@ -54,7 +54,7 @@ func (s *Store) CreateTransferSeason(name string, powerCap int64, isLeading bool
 
 func (s *Store) GetTransferRecords(seasonID int) ([]TransferRecord, error) {
 	var records []TransferRecord
-	query := `SELECT * FROM transfer_records WHERE season_id = ? 
+	query := `SELECT id, season_id, fid, COALESCE(direction, '') AS direction, nickname, furnace_level, power, COALESCE(source_state, '') AS source_state, target_alliance_id, COALESCE(invite_type, '') AS invite_type, status, created_at, updated_at, COALESCE(avatar, '') AS avatar, COALESCE(furnace_image, '') AS furnace_image FROM transfer_records WHERE season_id = ? 
               ORDER BY FIELD(status, 'Pending', 'Confirmed', 'Declined'), created_at DESC`
 	err := s.db.Select(&records, query, seasonID)
 	return records, err
