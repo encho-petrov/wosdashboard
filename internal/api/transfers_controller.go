@@ -40,7 +40,12 @@ func (tc *TransfersController) GetActiveSeason(c *gin.Context) {
 		return
 	}
 
-	records, _ := tc.store.GetTransferRecords(season.ID)
+	records, err := tc.store.GetTransferRecords(season.ID)
+	if err != nil {
+		fmt.Println("Error fetching transfer records:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch records"})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"season": season, "records": records})
 }
 
