@@ -6,6 +6,7 @@ import (
 	"gift-redeemer/internal/config"
 	"gift-redeemer/internal/db"
 	"gift-redeemer/internal/services"
+	"gift-redeemer/internal/utils"
 	"net/http"
 	"strconv"
 	"strings"
@@ -104,14 +105,21 @@ func (tc *TransfersController) AddPlayersForTransfer(c *gin.Context) {
 		}
 
 		info, err := tc.client.GetPlayerInfo(fidNum)
-		if err != nil || info == nil || info.Data.Nickname == "" {
+
+		var nick string
+		var isEmpty bool
+		if info != nil {
+			nick, isEmpty = utils.SanitizeNickname(info.Data.Nickname)
+		}
+
+		if err != nil || info == nil || isEmpty {
 			continue
 		}
 
 		record := db.TransferRecord{
 			SeasonID:     req.SeasonID,
 			FID:          fidNum,
-			Nickname:     info.Data.Nickname,
+			Nickname:     nick,
 			FurnaceLevel: info.Data.StoveLv,
 			SourceState:  fmt.Sprintf("State %d", info.Data.KID),
 			Avatar:       info.Data.Avatar,
