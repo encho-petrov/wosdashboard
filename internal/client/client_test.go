@@ -81,6 +81,29 @@ func TestPlayerClient_GetPlayerInfo(t *testing.T) {
 		assert.Equal(t, "Frosty", info.Data.Nickname)
 		assert.Equal(t, 391, info.Data.KID)
 	})
+
+	t.Run("Handle Empty Array Data Gracefully", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			// Mocking an error response where data is [] instead of an object
+			w.Write([]byte(`{
+				"code": 1,
+				"err_code": 40014,
+				"msg": "player not found",
+				"data": []
+			}`))
+		}))
+		defer server.Close()
+
+		c := NewPlayerClient(secret)
+		c.BaseURL = server.URL
+
+		info, err := c.GetPlayerInfo(999999)
+
+		require.NoError(t, err)
+		assert.Equal(t, 1, info.Code)            // Expected to pick up code
+		assert.Equal(t, int64(0), info.Data.Fid) // Data should be its zero-value
+	})
 }
 
 func TestPlayerClient_GetCaptcha(t *testing.T) {

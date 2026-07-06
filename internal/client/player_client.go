@@ -66,11 +66,28 @@ func (c *PlayerClient) GetPlayerInfo(fid int64) (*models.PlayerInfoResponse, err
 		return nil, fmt.Errorf("WAF_BLOCK")
 	}
 
-	var result models.PlayerInfoResponse
-	if err := json.Unmarshal(bodyBytes, &result); err != nil {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(bodyBytes, &raw); err != nil {
 		return nil, fmt.Errorf("parse error: %v | Body: %s", err, responseStr)
 	}
-	return &result, nil
+
+	result := &models.PlayerInfoResponse{}
+
+	if codeBytes, ok := raw["code"]; ok {
+		json.Unmarshal(codeBytes, &result.Code)
+	} else if errCodeBytes, ok := raw["err_code"]; ok {
+		json.Unmarshal(errCodeBytes, &result.Code)
+	}
+
+	if msgBytes, ok := raw["msg"]; ok {
+		json.Unmarshal(msgBytes, &result.Msg)
+	}
+
+	if dataBytes, ok := raw["data"]; ok && string(dataBytes) != "[]" && string(dataBytes) != "null" {
+		json.Unmarshal(dataBytes, &result.Data)
+	}
+
+	return result, nil
 }
 
 func (c *PlayerClient) GetCaptcha(fid int64) (string, error) {

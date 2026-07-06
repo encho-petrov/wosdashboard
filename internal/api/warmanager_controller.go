@@ -6,6 +6,7 @@ import (
 	"gift-redeemer/internal/config"
 	"gift-redeemer/internal/db"
 	"gift-redeemer/internal/services"
+	"gift-redeemer/internal/utils"
 	"net/http"
 	"strconv"
 	"strings"
@@ -360,16 +361,21 @@ func (wc *WarController) SyncRoster(c *gin.Context) {
 		for i, fid := range ids {
 			info, err := wc.pClient.GetPlayerInfo(fid)
 
-			if err == nil && info.Code == 0 {
+			if err == nil && info.Code == 0 && info.Data.Fid != 0 {
+				nick, isEmpty := utils.SanitizeNickname(info.Data.Nickname)
+				if isEmpty {
+					nick = "Unknown"
+				}
+
 				wc.store.UpsertPlayer(
 					info.Data.Fid,
-					info.Data.Nickname,
+					nick,
 					info.Data.KID,
 					info.Data.StoveLv,
 					string(info.Data.StoveImg),
 					info.Data.Avatar,
 				)
-				fmt.Printf("[SYNC] Updated %d/%d: %s\n", i+1, len(ids), info.Data.Nickname)
+				fmt.Printf("[SYNC] Updated %d/%d: %s\n", i+1, len(ids), nick)
 			} else {
 				fmt.Printf("[SYNC] Failed to update FID %d\n", fid)
 			}
