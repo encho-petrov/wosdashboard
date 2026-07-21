@@ -141,7 +141,7 @@ func TestWarRoomSuite(t *testing.T) {
 		// This tests the INFORMATION_SCHEMA query
 		stats, err := store.GetRosterStats()
 		require.NoError(t, err)
-		assert.Contains(t, stats.TroopTypes, "Infantry")
+		assert.Contains(t, stats.TroopTypes, "Exalted")
 		assert.Contains(t, stats.TroopTypes, "None")
 		assert.Contains(t, stats.BattleAvailability, "Available")
 	})

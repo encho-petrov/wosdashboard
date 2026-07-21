@@ -6,34 +6,35 @@ type AllianceOption struct {
 	Type string `db:"type" json:"type"`
 }
 
-func (s *Store) AddPlayers(fids []int64) (added int, skipped int, err error) {
-	if len(fids) == 0 {
-		return 0, 0, nil
-	}
-	tx, err := s.db.Begin()
-	if err != nil {
-		return 0, 0, err
-	}
-	defer tx.Rollback()
-	stmt, err := tx.Prepare("INSERT IGNORE INTO players (player_id) VALUES (?)")
-	if err != nil {
-		return 0, 0, err
-	}
-	defer stmt.Close()
-	addedCount := 0
-	for _, fid := range fids {
-		res, err := stmt.Exec(fid)
-		if err != nil {
-			return addedCount, 0, err
-		}
-		rows, _ := res.RowsAffected()
-		addedCount += int(rows)
-	}
-	if err := tx.Commit(); err != nil {
-		return 0, 0, err
-	}
-	skipped = len(fids) - addedCount
-	return addedCount, skipped, nil
+type RosterPlayer struct {
+	PlayerID       int64  `db:"player_id"`
+	Nickname       string `db:"nickname"`
+	AvatarImage    string `db:"avatar_image"`
+	StoveLv        int    `db:"stove_lv"`
+	StoveLvContent string `db:"stove_lv_content"`
+	TundraPower    int64  `db:"tundra_power"`
+	NormalPower    int64  `db:"normal_power"`
+	TroopType      string `db:"troop_type"`
+	AllianceID     *int   `db:"alliance_id"`
+}
+
+func (s *Store) AddPlayer(p RosterPlayer) error {
+	query := `
+		INSERT INTO players 
+		(player_id, nickname, avatar_image, stove_lv, stove_lv_content, tundra_power, normal_power, troop_type, alliance_id) 
+		VALUES (:player_id, :nickname, :avatar_image, :stove_lv, :stove_lv_content, :tundra_power, :normal_power, :troop_type, :alliance_id)
+		ON DUPLICATE KEY UPDATE 
+			nickname=VALUES(nickname), 
+			avatar_image=VALUES(avatar_image), 
+			stove_lv=VALUES(stove_lv), 
+			stove_lv_content=VALUES(stove_lv_content),
+			tundra_power=VALUES(tundra_power), 
+			normal_power=VALUES(normal_power),
+			troop_type=VALUES(troop_type),
+			alliance_id=VALUES(alliance_id)
+	`
+	_, err := s.db.NamedExec(query, p)
+	return err
 }
 
 func (s *Store) GetPlayers(allianceFilter *int) ([]PlayerRow, error) {
@@ -62,7 +63,7 @@ func (s *Store) GetPlayers(allianceFilter *int) ([]PlayerRow, error) {
 		WHERE status = 'Active'
     `
 
-	var args []interface{}
+	var args []any
 
 	if allianceFilter != nil {
 		query += " AND p.alliance_id = ?"

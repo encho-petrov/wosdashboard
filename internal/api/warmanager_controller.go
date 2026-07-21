@@ -9,7 +9,6 @@ import (
 	"gift-redeemer/internal/utils"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -32,45 +31,45 @@ func NewWarController(s *db.Store, c *config.Config, pClient *client.PlayerClien
 }
 
 func (wc *WarController) AddPlayer(c *gin.Context) {
-	var input struct {
-		Players string `json:"players" binding:"required"`
+	var req struct {
+		FID          int64  `json:"fid" binding:"required"`
+		Nickname     string `json:"nickname" binding:"required"`
+		FurnaceLevel int    `json:"furnaceLevel" binding:"required"`
+		TroopType    string `json:"troopType" binding:"required"`
+		BasePower    int64  `json:"basePower"`
+		TundraPower  int64  `json:"tundraPower"`
+		AllianceID   *int   `json:"allianceId"`
 	}
 
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid format. Send { \"players\": \"123, 456\" }"})
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
 		return
 	}
 
-	rawIDs := strings.Split(input.Players, ",")
-	var ids []int64
-
-	for _, raw := range rawIDs {
-		trimmed := strings.TrimSpace(raw)
-		if trimmed == "" {
-			continue
-		}
-		if id, err := strconv.ParseInt(trimmed, 10, 64); err == nil {
-			ids = append(ids, id)
-		}
+	nick, isEmpty := utils.SanitizeNickname(req.Nickname)
+	if isEmpty {
+		nick = "Unknown"
 	}
 
-	if len(ids) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "No valid numeric IDs found"})
-		return
+	player := db.RosterPlayer{
+		PlayerID:       req.FID,
+		Nickname:       nick,
+		AvatarImage:    "https://gom-s3-user-avatar.s3.us-west-2.amazonaws.com/wp-content/uploads/2023/05/jeronimo.png",
+		StoveLv:        req.FurnaceLevel,
+		StoveLvContent: fmt.Sprintf("https://gof-formal-avatar.akamaized.net/img/icon/stove_lv_%d.png", req.FurnaceLevel),
+		TundraPower:    req.TundraPower,
+		NormalPower:    req.BasePower,
+		TroopType:      req.TroopType,
+		AllianceID:     req.AllianceID,
 	}
 
-	added, skipped, err := wc.store.AddPlayers(ids)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	if err := wc.store.AddPlayer(player); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add player to roster"})
 		return
 	}
 
 	wc.sseBroker.Notifier <- "REFRESH_ROSTER"
-	c.JSON(http.StatusOK, gin.H{
-		"message": fmt.Sprintf("Processed %d IDs", len(ids)),
-		"added":   added,
-		"skipped": skipped,
-	})
+	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("Successfully added %s", nick)})
 }
 
 func (wc *WarController) DeletePlayer(c *gin.Context) {

@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS players (
     stove_lv_content VARCHAR(255),
     tundra_power BIGINT DEFAULT 0,
     normal_power BIGINT DEFAULT 0,
-    troop_type ENUM('Infantry', 'Lancer', 'Marksman', 'None') DEFAULT 'None',
+    troop_type ENUM('None','Exalted','Helios','Apex','Mixed') DEFAULT 'None',
     battle_availability ENUM('Available', 'Unavailable') DEFAULT 'Available',
     avail_0200 BOOLEAN DEFAULT FALSE,
     avail_0700 BOOLEAN DEFAULT FALSE,

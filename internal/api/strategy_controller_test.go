@@ -52,7 +52,7 @@ func TestStrategyController(t *testing.T) {
 
 	// --- Seed the DB ---
 	// 1. Heroes
-	_, err := rawDB.Exec("INSERT INTO heroes (id, name, troop_type, local_image_path) VALUES (1, 'Natalia', 'Infantry', 'natalia.png')")
+	_, err := rawDB.Exec("INSERT INTO heroes (id, name, troop_type, local_image_path) VALUES (1, 'Natalia', 'Exalted', 'natalia.png')")
 	require.NoError(t, err)
 
 	// 2. Captains (Requires a Player and a Team where they are the captain)

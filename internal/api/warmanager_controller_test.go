@@ -101,7 +101,7 @@ func TestWarController(t *testing.T) {
 		targetAlliance := 20
 		payload := map[string]interface{}{
 			"power":              9999999,
-			"troopType":          "Infantry",
+			"troopType":          "Exalted",
 			"battleAvailability": "Available",
 			"avail_1900":         true,
 			"allianceId":         &targetAlliance,

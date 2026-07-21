@@ -9,6 +9,7 @@ import {
     Plus, Archive, Check, X, Edit,
     AlertTriangle, Shield, Play, History, Activity, LogOut
 } from 'lucide-react';
+import { parsePowerInput, formatPower } from '../utils/powerUtils';
 
 export default function TransferManager() {
     const { user } = useAuth();
@@ -87,7 +88,6 @@ export default function TransferManager() {
         }
     };
 
-    // --- CALCULATIONS ---
     const stats = useMemo(() => {
         if (!season) return { normalUsed: 0, normalMax: 0, specialUsed: 0, specialMax: 0 };
         const normalMax = season.normalInvitesAvailable ?? (season.isLeading ? 20 : 35);
@@ -97,7 +97,6 @@ export default function TransferManager() {
         return { normalUsed, normalMax, specialUsed, specialMax };
     }, [season, records]);
 
-    // --- ACTIONS ---
     const handleCreateSeason = async () => {
         try {
             await client.post('/moderator/transfers/seasons', newSeason);
@@ -213,27 +212,6 @@ export default function TransferManager() {
         } catch (err) {
             toast.error("Failed to update season details");
         }
-    };
-
-    const parsePowerInput = (val) => {
-        if (!val) return 0;
-        let str = val.toString().toUpperCase().replace(/,/g, '').replace(/ /g, '');
-        let multiplier = 1;
-
-        if (str.endsWith('K')) { multiplier = 1000; str = str.slice(0, -1); }
-        else if (str.endsWith('M')) { multiplier = 1000000; str = str.slice(0, -1); }
-        else if (str.endsWith('B')) { multiplier = 1000000000; str = str.slice(0, -1); }
-
-        const num = parseFloat(str);
-        if (isNaN(num)) return 0;
-        return Math.round(num * multiplier);
-    };
-
-    const formatPower = (num) => {
-        if (num >= 1000000000) return (num / 1000000000).toFixed(2).replace(/\.00$/, '') + 'B';
-        if (num >= 1000000) return (num / 1000000).toFixed(2).replace(/\.00$/, '') + 'M';
-        if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
-        return num.toLocaleString();
     };
 
     const transferActions = (
