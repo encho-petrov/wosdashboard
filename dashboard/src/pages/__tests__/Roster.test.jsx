@@ -91,7 +91,6 @@ describe('Roster Component', () => {
         expect(screen.getAllByText('ModPlayer').length).toBeGreaterThan(0);
 
         // Admin controls should be visible
-        expect(screen.getByRole('button', { name: /Sync/i })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /Import/i })).toBeInTheDocument();
     });
 
@@ -107,7 +106,6 @@ describe('Roster Component', () => {
         expect(screen.queryByText('AdminPlayer')).not.toBeInTheDocument();
 
         // Admin buttons should NOT exist
-        expect(screen.queryByRole('button', { name: /Sync/i })).not.toBeInTheDocument();
         expect(screen.queryByRole('button', { name: /Import/i })).not.toBeInTheDocument();
 
         // Check restricted view text
@@ -130,7 +128,7 @@ describe('Roster Component', () => {
         expect(modPlayers.length).toBeGreaterThan(0);
     });
 
-    it('allows an Admin to bulk import players', async () => {
+    it('allows an Admin to manually import a player', async () => {
         useAuth.mockReturnValue({ user: { role: 'admin' } });
         client.post.mockResolvedValueOnce({});
 
@@ -139,18 +137,28 @@ describe('Roster Component', () => {
 
         // Open Modal
         fireEvent.click(screen.getByRole('button', { name: /Import/i }));
-        expect(screen.getByText('Bulk Import Player IDs')).toBeInTheDocument();
+        expect(screen.getByText('Manual Data Entry')).toBeInTheDocument();
 
-        // Enter IDs
-        const textarea = screen.getByPlaceholderText('1234567, 7512369...');
-        fireEvent.change(textarea, { target: { value: '999, 888' } });
+        // Enter Data
+        const fidInput = screen.getByPlaceholderText('12345678');
+        fireEvent.change(fidInput, { target: { value: '999' } });
+        const nameInput = screen.getByPlaceholderText('IceWarrior');
+        fireEvent.change(nameInput, { target: { value: 'TestPlayer' } });
 
         // Submit
         fireEvent.click(screen.getByRole('button', { name: /Deploy to Roster/i }));
 
         await waitFor(() => {
-            expect(client.post).toHaveBeenCalledWith('/moderator/players', { players: '999, 888' });
-            expect(toast.success).toHaveBeenCalledWith('Players successfully drafted to the state roster!');
+            expect(client.post).toHaveBeenCalledWith('/moderator/players', {
+                fid: 999,
+                nickname: 'TestPlayer',
+                furnaceLevel: 1,
+                troopType: 'None',
+                basePower: 0,
+                tundraPower: 0,
+                allianceId: null
+            });
+            expect(toast.success).toHaveBeenCalledWith('Player successfully drafted to the state roster!');
             expect(mockRefreshGlobalData).toHaveBeenCalledWith(true);
         });
     });

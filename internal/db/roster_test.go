@@ -15,21 +15,42 @@ func TestRosterSuite(t *testing.T) {
 	store.db.Exec("INSERT INTO alliances (id, name, type) VALUES (10, 'Main Alliance', 'Home')")
 	store.db.Exec("INSERT INTO alliances (id, name, type) VALUES (20, 'Academy', 'Farm')")
 
-	t.Run("AddPlayers (Bulk Insert Ignore)", func(t *testing.T) {
-		fids := []int64{101, 102, 103}
+	t.Run("AddPlayer (Insert and Update)", func(t *testing.T) {
+		allianceID := 10
+		p1 := RosterPlayer{
+			PlayerID:       101,
+			Nickname:       "Nick1",
+			AvatarImage:    "avatar.png",
+			StoveLv:        1,
+			StoveLvContent: "stove.png",
+			TundraPower:    100,
+			NormalPower:    200,
+			TroopType:      "Exalted",
+			AllianceID:     &allianceID,
+		}
 
 		// 1. Initial Insert
-		added, skipped, err := store.AddPlayers(fids)
+		err := store.AddPlayer(p1)
 		require.NoError(t, err)
-		assert.Equal(t, 3, added)
-		assert.Equal(t, 0, skipped)
 
-		// 2. Duplicate Insert (Should skip them safely)
-		fidsWithDuplicates := []int64{102, 103, 104} // 104 is new
-		added2, skipped2, err := store.AddPlayers(fidsWithDuplicates)
+		// 2. Duplicate Insert (Should update instead of skip)
+		p1Updated := p1
+		p1Updated.Nickname = "Nick1-Updated"
+		err = store.AddPlayer(p1Updated)
 		require.NoError(t, err)
-		assert.Equal(t, 1, added2, "Only 104 should be added")
-		assert.Equal(t, 2, skipped2, "102 and 103 should be skipped")
+
+		players, err := store.GetPlayers(nil)
+		require.NoError(t, err)
+
+		var found *PlayerRow
+		for _, p := range players {
+			if p.FID == 101 {
+				found = &p
+				break
+			}
+		}
+		require.NotNil(t, found)
+		assert.Equal(t, "Nick1-Updated", found.Nickname)
 	})
 
 	t.Run("UpsertPlayer (API Sync)", func(t *testing.T) {
@@ -60,7 +81,7 @@ func TestRosterSuite(t *testing.T) {
 
 		err := store.UpdatePlayerDetails(
 			fid,
-			5000, 4000, "Lancer", "Available",
+			5000, 4000, "Exalted", "Available",
 			true, false, true, false, false, true,
 			&allianceID, nil, nil,
 		)
@@ -72,16 +93,16 @@ func TestRosterSuite(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, int64(5000), power)
-		assert.Equal(t, "Lancer", troopType)
+		assert.Equal(t, "Exalted", troopType)
 	})
 
 	t.Run("GetPlayers (Filtering and Sorting)", func(t *testing.T) {
-		// We have multiple players now: 101, 102, 103, 104, 201
+		// We have players: 101 (from AddPlayer), 201 (from Upsert)
 
 		// 1. Get All Players
 		allPlayers, err := store.GetPlayers(nil)
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, len(allPlayers), 5)
+		assert.GreaterOrEqual(t, len(allPlayers), 2)
 
 		// 2. Filter by Alliance (Only 101 was assigned to alliance 10)
 		allianceFilter := 10
@@ -106,10 +127,10 @@ func TestRosterSuite(t *testing.T) {
 		ids, err := store.GetAllPlayerIDs()
 		require.NoError(t, err)
 		initialCount := len(ids)
-		assert.GreaterOrEqual(t, initialCount, 5)
+		assert.GreaterOrEqual(t, initialCount, 2)
 
-		// Delete Player 104
-		err = store.DeletePlayer(104)
+		// Delete Player 201
+		err = store.DeletePlayer(201)
 		require.NoError(t, err)
 
 		// Fetch again, should be one less

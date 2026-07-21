@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import client from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
@@ -257,7 +257,7 @@ export default function WarRoom() {
     const getTroopColor = (type) => {
         const t = (type || '').toLowerCase();
         if (t.includes('helios')) return 'text-orange-400 border-orange-500/30 bg-orange-500/10';
-        if (t.includes('brilliant')) return 'text-blue-400 border-blue-500/30 bg-blue-500/10';
+        if (t.includes('exalted')) return 'text-blue-400 border-blue-500/30 bg-blue-500/10';
         if (t.includes('apex')) return 'text-purple-400 border-purple-500/30 bg-purple-500/10';
         return 'text-gray-400 border-gray-700 bg-gray-800/40';
     };

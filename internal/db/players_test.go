@@ -23,12 +23,12 @@ func TestPlayersSuite(t *testing.T) {
 	// Player 1: Captain of Alpha Squad
 	store.db.Exec(`INSERT INTO players 
         (player_id, nickname, avatar_image, stove_lv, stove_lv_content, normal_power, tundra_power, alliance_id, fighting_alliance_id, team_id, troop_type) 
-        VALUES (1, 'CaptainJack', 'jack.png', 30, 'stove30.png', 1000, 2000, 10, 20, 5, 'Infantry')`)
+        VALUES (1, 'CaptainJack', 'jack.png', 30, 'stove30.png', 1000, 2000, 10, 20, 5, 'Exalted')`)
 
 	// Player 2: Teammate in Alpha Squad
 	store.db.Exec(`INSERT INTO players 
         (player_id, nickname, avatar_image, stove_lv, stove_lv_content, normal_power, tundra_power, alliance_id, fighting_alliance_id, team_id, troop_type) 
-        VALUES (2, 'Sparrow', 'sparrow.png', 28, 'stove28.png', 800, 1500, 10, 20, 5, 'Marksman')`)
+        VALUES (2, 'Sparrow', 'sparrow.png', 28, 'stove28.png', 800, 1500, 10, 20, 5, 'Apex')`)
 
 	// Player 3: Lone Wolf (No Team, No Alliance)
 	store.db.Exec(`INSERT INTO players 
@@ -43,7 +43,7 @@ func TestPlayersSuite(t *testing.T) {
 
 		assert.Equal(t, "Sparrow", profile.Nickname)
 		assert.Equal(t, 28, profile.StoveLv)
-		assert.Equal(t, "Marksman", profile.TroopType)
+		assert.Equal(t, "Apex", profile.TroopType)
 
 		// Verify Joins
 		require.NotNil(t, profile.AllianceName)

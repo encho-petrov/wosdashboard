@@ -4,10 +4,11 @@ import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
 import { toast } from 'react-toastify';
 import {
-  Users, Edit2, Search, Save, X, RefreshCw,
+  Users, Edit2, Search, Save, X,
   Trash2, Plus, Archive
 } from 'lucide-react';
 import AdminLayout from '../components/layout/AdminLayout';
+import { parsePowerInput } from '../utils/powerUtils';
 
 const TundraPills = ({ player, isEditing, onChange }) => {
   const slots = [
@@ -60,7 +61,6 @@ export default function Roster() {
   });
 
   const [loadingOptions, setLoadingOptions] = useState(true);
-  const [isSyncing, setIsSyncing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
   const [activeTab, setActiveTab] = useState(isMod ? user.allianceId : 'all');
@@ -70,7 +70,7 @@ export default function Roster() {
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [showAddModal, setShowAddModal] = useState(false);
-  const [bulkIds, setBulkIds] = useState('');
+  const [newPlayer, setNewPlayer] = useState({ fid: '', nickname: '', furnaceLevel: 1, troopType: 'None', basePower: '', tundraPower: '', allianceId: '' });
   const [isAdding, setIsAdding] = useState(false);
 
   const [activeSeason, setActiveSeason] = useState(null);
@@ -158,28 +158,12 @@ export default function Roster() {
     });
   }, [searchTerm, players, activeTab, isMod, user?.allianceId, sortConfig]);
 
-  const handleSync = async () => {
-    if (!isAdmin) return;
-    setIsSyncing(true);
-    try {
-      await client.post('/admin/sync-roster');
-      toast.info("Backend sync initiated. Data will refresh shortly.");
-      setTimeout(() => {
-        refreshGlobalData(true);
-        setIsSyncing(false);
-      }, 5000);
-    } catch (err) {
-      toast.error("Sync failed");
-      setIsSyncing(false);
-    }
-  };
-
   const handleSaveEdit = async () => {
     try {
       const payload = {
         ...editForm,
-        power: parseInt(editForm.power) || 0,
-        normalPower: parseInt(editForm.normalPower) || 0,
+        power: parsePowerInput(editForm.power),
+        normalPower: parsePowerInput(editForm.normalPower),
         allianceId: editForm.allianceId ? parseInt(editForm.allianceId) : null,
         fightingAllianceId: editForm.fightingAllianceId ? parseInt(editForm.fightingAllianceId) : null,
         teamId: editForm.teamId ? parseInt(editForm.teamId) : null
@@ -207,19 +191,27 @@ export default function Roster() {
     }
   };
 
-  const handleBatchAdd = async (e) => {
+  const handleAddPlayer = async (e) => {
     e.preventDefault();
-    if (!bulkIds.trim()) return;
+    if (!newPlayer.fid || !newPlayer.nickname) return toast.warning("Player ID and Nickname are required!");
 
     setIsAdding(true);
     try {
-      await client.post('/moderator/players', { players: bulkIds });
-      toast.success("Players successfully drafted to the state roster!");
+      await client.post('/moderator/players', {
+        fid: parseInt(newPlayer.fid),
+        nickname: newPlayer.nickname,
+        furnaceLevel: parseInt(newPlayer.furnaceLevel),
+        troopType: newPlayer.troopType,
+        basePower: parsePowerInput(newPlayer.basePower),
+        tundraPower: parsePowerInput(newPlayer.tundraPower),
+        allianceId: newPlayer.allianceId ? parseInt(newPlayer.allianceId) : null
+      });
+      toast.success("Player successfully drafted to the state roster!");
       setShowAddModal(false);
-      setBulkIds('');
+      setNewPlayer({ fid: '', nickname: '', furnaceLevel: 1, troopType: 'None', basePower: '', tundraPower: '', allianceId: '' });
       await refreshGlobalData(true);
     } catch (err) {
-      toast.error(err.response?.data?.error || "Failed to add players");
+      toast.error(err.response?.data?.error || "Failed to add player");
     } finally {
       setIsAdding(false);
     }
@@ -281,9 +273,6 @@ export default function Roster() {
             <div className="flex flex-wrap gap-2 w-full lg:w-auto">
               {isAdmin && (
                   <>
-                    <button onClick={handleSync} disabled={isSyncing} className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-gray-900 border border-gray-800 text-gray-400 hover:text-white rounded-xl transition-all font-bold text-xs uppercase">
-                      <RefreshCw size={14} className={isSyncing ? 'animate-spin' : ''} /> Sync
-                    </button>
                     <button onClick={() => setShowAddModal(true)} className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black text-xs uppercase shadow-lg shadow-blue-900/20">
                       <Plus size={16} /> Import
                     </button>
@@ -384,13 +373,13 @@ export default function Roster() {
 
                         <td className="p-4">
                           {isEditing ? (
-                              <input type="number" className="bg-black border border-gray-700 rounded-lg px-2 py-1 w-24 text-blue-400 font-mono outline-none" value={editForm.normalPower || ''} onChange={e => setEditForm({...editForm, normalPower: e.target.value})} />
+                              <input type="text" className="bg-black border border-gray-700 rounded-lg px-2 py-1 w-24 text-blue-400 font-mono outline-none" value={editForm.normalPower || ''} onChange={e => setEditForm({...editForm, normalPower: e.target.value})} />
                           ) : <span className="font-mono text-blue-400 font-bold">{p.normalPower?.toLocaleString() || '-'}</span>}
                         </td>
 
                         <td className="p-4">
                           {isEditing ? (
-                              <input type="number" className="bg-black border border-gray-700 rounded-lg px-2 py-1 w-24 text-yellow-500 font-mono outline-none" value={editForm.power || ''} onChange={e => setEditForm({...editForm, power: e.target.value})} />
+                              <input type="text" className="bg-black border border-gray-700 rounded-lg px-2 py-1 w-24 text-yellow-500 font-mono outline-none" value={editForm.power || ''} onChange={e => setEditForm({...editForm, power: e.target.value})} />
                           ) : <span className="font-mono text-yellow-600 font-bold">{p.power?.toLocaleString() || '-'}</span>}
                         </td>
 
@@ -508,21 +497,59 @@ export default function Roster() {
               <div className="bg-gray-800 border border-gray-700 w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden">
                 <div className="p-6 border-b border-gray-700 flex justify-between items-center bg-gray-900/50">
                   <div>
-                    <h3 className="text-xl font-black text-white uppercase tracking-tighter flex items-center gap-2"><Plus className="text-blue-500" /> Draft Units</h3>
-                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Bulk Import Player IDs</p>
+                    <h3 className="text-xl font-black text-white uppercase tracking-tighter flex items-center gap-2"><Plus className="text-blue-500" /> Draft Unit</h3>
+                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Manual Data Entry</p>
                   </div>
                   <button onClick={() => setShowAddModal(false)} className="p-2 text-gray-500 hover:text-white transition-colors"><X size={24} /></button>
                 </div>
-                <form onSubmit={handleBatchAdd} className="p-8 space-y-4">
-              <textarea
-                  className="w-full h-48 bg-black border border-gray-700 rounded-2xl p-4 text-white font-mono text-sm outline-none resize-none shadow-inner focus:border-blue-500"
-                  placeholder="1234567, 7512369..."
-                  value={bulkIds} onChange={e => setBulkIds(e.target.value)} disabled={isAdding}
-              />
-                  <div className="flex justify-end gap-3 pt-4">
+                <form onSubmit={handleAddPlayer} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                  <div className="grid grid-cols-2 gap-4">
+                      <div className="col-span-2 md:col-span-1">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Player ID (FID) *</label>
+                          <input type="number" required disabled={isAdding} className="w-full p-3 bg-gray-900 border border-gray-700 rounded-xl text-white outline-none font-mono focus:border-blue-500 transition-all shadow-inner" placeholder="12345678" value={newPlayer.fid} onChange={e => setNewPlayer({...newPlayer, fid: e.target.value})} />
+                      </div>
+                      <div className="col-span-2 md:col-span-1">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Nickname *</label>
+                          <input type="text" required disabled={isAdding} className="w-full p-3 bg-gray-900 border border-gray-700 rounded-xl text-white outline-none font-mono focus:border-blue-500 transition-all shadow-inner" placeholder="IceWarrior" value={newPlayer.nickname} onChange={e => setNewPlayer({...newPlayer, nickname: e.target.value})} />
+                      </div>
+                      <div className="col-span-2 md:col-span-1">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Furnace Level</label>
+                          <select disabled={isAdding} className="w-full p-3 bg-gray-900 border border-gray-700 rounded-xl text-white outline-none font-mono focus:border-blue-500 transition-all shadow-inner" value={newPlayer.furnaceLevel} onChange={e => setNewPlayer({...newPlayer, furnaceLevel: parseInt(e.target.value)})}>
+                              {[...Array(10)].map((_, i) => (
+                                  <option key={i + 1} value={i + 1}>FC{i + 1}</option>
+                              ))}
+                          </select>
+                      </div>
+                      <div className="col-span-2 md:col-span-1">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Troops Type</label>
+                          <select disabled={isAdding} className="w-full p-3 bg-gray-900 border border-gray-700 rounded-xl text-white outline-none font-mono focus:border-blue-500 transition-all shadow-inner" value={newPlayer.troopType} onChange={e => setNewPlayer({...newPlayer, troopType: e.target.value})}>
+                              <option value="None">None</option>
+                              <option value="Exalted">Exalted</option>
+                              <option value="Helios">Helios</option>
+                              <option value="Apex">Apex</option>
+                              <option value="Mixed">Mixed</option>
+                          </select>
+                      </div>
+                      <div className="col-span-2 md:col-span-1">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Base Power (Optional)</label>
+                          <input type="text" disabled={isAdding} className="w-full p-3 bg-gray-900 border border-gray-700 rounded-xl text-white outline-none font-mono focus:border-blue-500 transition-all shadow-inner" placeholder="e.g. 800M" value={newPlayer.basePower} onChange={e => setNewPlayer({...newPlayer, basePower: e.target.value})} />
+                      </div>
+                      <div className="col-span-2 md:col-span-1">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Tundra Power (Optional)</label>
+                          <input type="text" disabled={isAdding} className="w-full p-3 bg-gray-900 border border-gray-700 rounded-xl text-white outline-none font-mono focus:border-blue-500 transition-all shadow-inner" placeholder="e.g. 1.2B" value={newPlayer.tundraPower} onChange={e => setNewPlayer({...newPlayer, tundraPower: e.target.value})} />
+                      </div>
+                      <div className="col-span-2">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Alliance</label>
+                          <select disabled={isAdding} className="w-full p-3 bg-gray-900 border border-gray-700 rounded-xl text-white outline-none font-mono focus:border-blue-500 transition-all shadow-inner" value={newPlayer.allianceId} onChange={e => setNewPlayer({...newPlayer, allianceId: e.target.value})}>
+                              <option value="">Unassigned</option>
+                              {options.alliances.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                          </select>
+                      </div>
+                  </div>
+                  <div className="flex justify-end gap-3 pt-4 border-t border-gray-700">
                     <button type="button" onClick={() => setShowAddModal(false)} className="px-6 py-2 text-gray-500 font-black uppercase text-xs">Cancel</button>
-                    <button type="submit" disabled={isAdding || !bulkIds.trim()} className="px-10 py-3 bg-blue-600 rounded-2xl text-white font-black uppercase tracking-widest text-xs shadow-xl shadow-blue-900/20 transition-all hover:scale-105">
-                      {isAdding ? 'Syncing...' : 'Deploy to Roster'}
+                    <button type="submit" disabled={isAdding || !newPlayer.fid || !newPlayer.nickname} className="px-10 py-3 bg-blue-600 rounded-2xl text-white font-black uppercase tracking-widest text-xs shadow-xl shadow-blue-900/20 transition-all hover:scale-105">
+                      {isAdding ? 'Adding...' : 'Deploy to Roster'}
                     </button>
                   </div>
                 </form>
@@ -577,7 +604,7 @@ export default function Roster() {
                     <div>
                       <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-1">Base Power</label>
                       {editingId === activeMobilePlayer.fid ? (
-                          <input type="number" className="w-full bg-black border border-gray-700 rounded-xl p-3 text-xs font-mono text-blue-400 outline-none" value={editForm.normalPower || ''} onChange={e => setEditForm({...editForm, normalPower: e.target.value})} />
+                          <input type="text" className="w-full bg-black border border-gray-700 rounded-xl p-3 text-xs font-mono text-blue-400 outline-none" placeholder="e.g. 500M" value={editForm.normalPower || ''} onChange={e => setEditForm({...editForm, normalPower: e.target.value})} />
                       ) : <span className="font-mono text-blue-400 font-bold">{activeMobilePlayer.normalPower?.toLocaleString() || '-'}</span>}
                     </div>
 
@@ -585,7 +612,7 @@ export default function Roster() {
                     <div>
                       <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block mb-1">Tundra Power</label>
                       {editingId === activeMobilePlayer.fid ? (
-                          <input type="number" className="w-full bg-black border border-gray-700 rounded-xl p-3 text-xs font-mono text-yellow-500 outline-none" value={editForm.power || ''} onChange={e => setEditForm({...editForm, power: e.target.value})} />
+                          <input type="text" className="w-full bg-black border border-gray-700 rounded-xl p-3 text-xs font-mono text-yellow-500 outline-none" placeholder="e.g. 1B" value={editForm.power || ''} onChange={e => setEditForm({...editForm, power: e.target.value})} />
                       ) : <span className="font-mono text-yellow-500 font-bold">{activeMobilePlayer.power?.toLocaleString() || '-'}</span>}
                     </div>
                   </div>
