@@ -9,7 +9,6 @@ import (
 	"gift-redeemer/internal/utils"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -83,57 +82,42 @@ func (tc *TransfersController) AddPlayersForTransfer(c *gin.Context) {
 	}
 
 	var req struct {
-		SeasonID int    `json:"seasonId"`
-		FIDs     string `json:"fids"`
+		SeasonID     int    `json:"seasonId"`
+		FID          int64  `json:"fid"`
+		Nickname     string `json:"nickname"`
+		FurnaceLevel int    `json:"furnaceLevel"`
+		SourceState  string `json:"sourceState"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
 		return
 	}
 
-	addedCount := 0
-	fidList := strings.Split(req.FIDs, ",")
-
-	for _, fidStr := range fidList {
-		fidStr = strings.TrimSpace(fidStr)
-		if fidStr == "" {
-			continue
-		}
-		fidNum, err := strconv.ParseInt(fidStr, 10, 64)
-		if err != nil {
-			continue
-		}
-
-		info, err := tc.client.GetPlayerInfo(fidNum)
-
-		var nick string
-		var isEmpty bool
-		if info != nil {
-			nick, isEmpty = utils.SanitizeNickname(info.Data.Nickname)
-		}
-
-		if err != nil || info == nil || isEmpty {
-			continue
-		}
-
-		record := db.TransferRecord{
-			SeasonID:     req.SeasonID,
-			FID:          fidNum,
-			Nickname:     nick,
-			FurnaceLevel: info.Data.StoveLv,
-			SourceState:  fmt.Sprintf("State %d", info.Data.KID),
-			Avatar:       info.Data.Avatar,
-			FurnaceImage: string(info.Data.StoveImg),
-		}
-
-		if err := tc.store.AddTransferRecord(record); err == nil {
-			addedCount++
-		}
+	nick, isEmpty := utils.SanitizeNickname(req.Nickname)
+	if isEmpty {
+		nick = "Unknown"
 	}
 
-	logAction(c, tc.store, "TRANSFERS", fmt.Sprintf("Bulk added %d candidates", addedCount))
+	record := db.TransferRecord{
+		SeasonID:     req.SeasonID,
+		FID:          req.FID,
+		Nickname:     nick,
+		FurnaceLevel: req.FurnaceLevel,
+		SourceState:  req.SourceState,
+		// Provide a fallback avatar since we can't fetch it dynamically anymore
+		Avatar: "https://gom-s3-user-avatar.s3.us-west-2.amazonaws.com/wp-content/uploads/2023/05/jeronimo.png",
+		// Construct the furnace image dynamically based on the input level
+		FurnaceImage: fmt.Sprintf("https://gof-formal-avatar.akamaized.net/img/icon/stove_lv_%d.png", req.FurnaceLevel),
+	}
+
+	if err := tc.store.AddTransferRecord(record); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add player"})
+		return
+	}
+
+	logAction(c, tc.store, "TRANSFERS", fmt.Sprintf("Added candidate: %s (FID: %d)", nick, req.FID))
 	tc.sseBroker.Notifier <- "REFRESH_TRANSFERS"
-	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("Successfully added %d candidates", addedCount)})
+	c.JSON(http.StatusOK, gin.H{"message": fmt.Sprintf("Successfully added %s", nick)})
 }
 
 func (tc *TransfersController) UpdateTransferRecord(c *gin.Context) {
