@@ -13,6 +13,11 @@ export default defineConfig({
   esbuild: {
       target: 'es2022'
   },
+  optimizeDeps: {
+      esbuildOptions: {
+          target: 'es2022'
+      }
+  },
   test: {
       globals: true,
       environment: 'jsdom',

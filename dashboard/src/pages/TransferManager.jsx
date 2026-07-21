@@ -7,7 +7,7 @@ import { toast } from 'react-toastify';
 import MfaSetupModal from '../components/MfaSetupModal';
 import {
     Plus, Archive, Check, X, Edit,
-    AlertTriangle, Send, Shield, Play, History, Activity, LogOut
+    AlertTriangle, Shield, Play, History, Activity, LogOut
 } from 'lucide-react';
 
 export default function TransferManager() {
@@ -29,7 +29,7 @@ export default function TransferManager() {
     const [showAddModal, setShowAddModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
     const [editSeasonData, setEditSeasonData] = useState({ powerCap: 0, specials: 0, normals: 0 });
-    const [bulkFids, setBulkFids] = useState('');
+    const [newPlayer, setNewPlayer] = useState({ fid: '', nickname: '', sourceState: '', furnaceLevel: 1 });
     const [newSeason, setNewSeason] = useState({ name: '', powerCap: 200000000, leading: false, specials: 1, normals: 35 });
     const [showMfaModal, setShowMfaModal] = useState(false);
 
@@ -126,16 +126,21 @@ export default function TransferManager() {
         } catch (err) { toast.error(`Failed to change status to ${newStatus}`); }
     };
 
-    const handleBulkAdd = async () => {
-        if (!bulkFids.trim()) return;
+    const handleAddPlayer = async () => {
+        if (!newPlayer.fid || !newPlayer.nickname || !newPlayer.sourceState) return toast.warning("Please fill all required fields");
         try {
-            toast.info("Polling Game API... This may take a moment.");
-            await client.post('/moderator/transfers/bulk-add', { seasonId: season.id, fids: bulkFids });
-            toast.success("Candidates added!");
+            await client.post('/moderator/transfers/bulk-add', { 
+                seasonId: season.id, 
+                fid: parseInt(newPlayer.fid), 
+                nickname: newPlayer.nickname, 
+                sourceState: newPlayer.sourceState, 
+                furnaceLevel: parseInt(newPlayer.furnaceLevel) 
+            });
+            toast.success("Candidate added!");
             setShowAddModal(false);
-            setBulkFids('');
+            setNewPlayer({ fid: '', nickname: '', sourceState: '', furnaceLevel: 1 });
             await fetchData();
-        } catch (err) { toast.error("Failed to add candidates"); }
+        } catch (err) { toast.error("Failed to add candidate"); }
     };
 
     const handleUpdateRecord = async (id, field, value) => {
@@ -618,7 +623,8 @@ export default function TransferManager() {
                                         isConfirmed && !isOutbound ? 'bg-green-900/5 opacity-80' :
                                         isConfirmed && isOutbound ? 'bg-red-900/5 opacity-80' :
                                         isDeclined ? 'bg-red-900/5 opacity-60' : ''
-                                    }`}>                                        <td className="p-4 pl-6 flex items-center gap-4">
+                                    }`}>
+                                        <td className="p-4 pl-6 flex items-center gap-4">
                                             <div className="relative shrink-0">
                                                 <img src={r.avatar || 'https://via.placeholder.com/40'} alt="av" className="w-10 h-10 rounded-full border border-gray-700 shadow-md" />
                                                 {r.furnaceImage && <img src={r.furnaceImage} alt="f" className="w-4 h-4 absolute -bottom-1 -right-1 drop-shadow-xl" />}
@@ -801,29 +807,45 @@ export default function TransferManager() {
                     })}
                 </div>
 
-                {/* Bulk Add Modal */}
+                {/* Add Player Modal */}
                 {showAddModal && (
                     <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4">
                         <div className="bg-gray-800 p-8 rounded-2xl w-full max-w-lg border border-gray-700 shadow-2xl">
                             <div className="flex justify-between items-center mb-6">
                                 <div>
-                                    <h3 className="text-xl font-black text-white uppercase tracking-tighter">Draft Candidates</h3>
-                                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Poll Game API via FID List</p>
+                                    <h3 className="text-xl font-black text-white uppercase tracking-tighter">Draft Candidate</h3>
+                                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Manual Data Entry</p>
                                 </div>
                                 <button onClick={() => setShowAddModal(false)} className="p-2 text-gray-500 hover:text-white transition-colors">
                                     <X size={24} />
                                 </button>
                             </div>
-                            <textarea
-                                className="w-full h-40 p-4 bg-gray-900 border border-gray-700 rounded-2xl text-gray-300 font-mono text-base md:text-sm outline-none mb-6 shadow-inner focus:border-blue-500 transition-all"
-                                placeholder="87654321, 12345678, ..."
-                                value={bulkFids}
-                                onChange={(e) => setBulkFids(e.target.value)}
-                            />
+                            <div className="space-y-4 mb-6">
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Player ID (FID)</label>
+                                    <input type="number" className="w-full p-3 bg-gray-900 border border-gray-700 rounded-xl text-white outline-none font-mono focus:border-blue-500 transition-all shadow-inner" placeholder="12345678" value={newPlayer.fid} onChange={e => setNewPlayer({...newPlayer, fid: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Nickname</label>
+                                    <input type="text" className="w-full p-3 bg-gray-900 border border-gray-700 rounded-xl text-white outline-none font-mono focus:border-blue-500 transition-all shadow-inner" placeholder="IceWarrior" value={newPlayer.nickname} onChange={e => setNewPlayer({...newPlayer, nickname: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Source State</label>
+                                    <input type="text" className="w-full p-3 bg-gray-900 border border-gray-700 rounded-xl text-white outline-none font-mono focus:border-blue-500 transition-all shadow-inner" placeholder="State 391" value={newPlayer.sourceState} onChange={e => setNewPlayer({...newPlayer, sourceState: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">Furnace Level</label>
+                                    <select className="w-full p-3 bg-gray-900 border border-gray-700 rounded-xl text-white outline-none font-mono focus:border-blue-500 transition-all shadow-inner" value={newPlayer.furnaceLevel} onChange={e => setNewPlayer({...newPlayer, furnaceLevel: parseInt(e.target.value)})}>
+                                        {[...Array(10)].map((_, i) => (
+                                            <option key={i + 1} value={i + 1}>FC{i + 1}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
                             <div className="flex justify-end gap-3">
                                 <button onClick={() => setShowAddModal(false)} className="px-6 py-2.5 text-gray-400 hover:text-white font-black text-xs uppercase tracking-widest">Cancel</button>
-                                <button onClick={handleBulkAdd} className="px-8 py-2.5 bg-green-600 hover:bg-green-500 text-white rounded-xl font-black uppercase tracking-widest shadow-xl flex items-center gap-2 transition-all hover:scale-105">
-                                    <Send size={16} /> Sync API
+                                <button onClick={handleAddPlayer} className="px-8 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black uppercase tracking-widest shadow-xl flex items-center gap-2 transition-all hover:scale-105">
+                                    <Plus size={16} /> Add Player
                                 </button>
                             </div>
                         </div>
