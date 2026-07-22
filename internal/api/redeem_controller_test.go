@@ -45,7 +45,7 @@ func TestRedeemController(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var jobs []map[string]interface{}
+		var jobs []map[string]any
 		err = json.Unmarshal(w.Body.Bytes(), &jobs)
 		require.NoError(t, err)
 

@@ -145,9 +145,9 @@ func (dc *DiscordController) GetRoutes(c *gin.Context) {
 	guild, _ := dc.store.GetGuildByAlliance(allianceID)
 	routesDB, _ := dc.store.GetAllRoutesForAlliance(allianceID)
 
-	routeMap := make(map[string]map[string]interface{})
+	routeMap := make(map[string]map[string]any)
 	for _, r := range routesDB {
-		routeMap[r.EventType] = map[string]interface{}{
+		routeMap[r.EventType] = map[string]any{
 			"channelId":  r.ChannelID,
 			"pingRoleId": r.PingRoleID,
 		}

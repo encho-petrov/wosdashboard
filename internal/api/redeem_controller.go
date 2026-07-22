@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"fmt"
 	"gift-redeemer/internal/cache"
 	"gift-redeemer/internal/client"
@@ -32,34 +31,6 @@ func NewRedeemController(s *db.Store, c *config.Config, p *client.PlayerClient, 
 		redisStore: r,
 		engine:     e,
 	}
-}
-
-func (rc *RedeemController) GetBalance(c *gin.Context) {
-	url := fmt.Sprintf("https://2captcha.com/res.php?key=%s&action=getbalance&json=1", rc.cfg.ApiSecrets.CaptchaApiKey)
-
-	resp, err := http.Get(url)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to connect to 2captcha"})
-		return
-	}
-	defer resp.Body.Close()
-
-	var result struct {
-		Status  int    `json:"status"`
-		Request string `json:"request"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse 2captcha response"})
-		return
-	}
-
-	if result.Status != 1 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": result.Request})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"balance": result.Request})
 }
 
 func (rc *RedeemController) Redeem(c *gin.Context) {

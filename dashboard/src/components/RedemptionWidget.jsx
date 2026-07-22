@@ -1,14 +1,14 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import client from '../api/client';
 import { toast } from 'react-toastify';
-import { Play, Download, Activity, FileText, CheckCircle, ShieldCheck } from 'lucide-react';
+import { Play, Download, Activity, FileText, CheckCircle } from 'lucide-react';
 
 export default function RedemptionWidget() {
     const [codes, setCodes] = useState('');
     const [activeJob, setActiveJob] = useState(null);
     const [history, setHistory] = useState([]);
-    const [captchaBalance, setCaptchaBalance] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const wasRunning = useRef(false);
 
     useEffect(() => {
@@ -19,12 +19,8 @@ export default function RedemptionWidget() {
 
     const fetchData = async () => {
         try {
-            const [histRes, balRes] = await Promise.all([
-                client.get('/moderator/jobs'),
-                client.get('/moderator/captcha-balance')
-            ]);
+            const histRes = await client.get('/moderator/jobs');
             setHistory(histRes.data || []);
-            setCaptchaBalance(balRes.data.balance);
         } catch (err) {
             console.error("Data fetch error", err);
         } finally {
@@ -37,6 +33,7 @@ export default function RedemptionWidget() {
             const res = await client.get('/moderator/job/current');
             if (res.data.active) {
                 setActiveJob(res.data.data);
+                setIsSubmitting(false);
                 wasRunning.current = true;
             } else {
                 setActiveJob(null);
@@ -52,14 +49,16 @@ export default function RedemptionWidget() {
     const handleStartJob = async (e) => {
         e.preventDefault();
         if (!codes.trim()) return toast.warning("Enter gift codes.");
+        setIsSubmitting(true);
         const codeList = codes.split(',').map(c => c.trim()).filter(c => c);
         try {
             await client.post('/moderator/redeem', { giftCodes: codeList });
             toast.success("Job Launched!");
             setCodes('');
-            await pollJobStatus();
+            setTimeout(() => setIsSubmitting(false), 3500);
         } catch (err) {
             toast.error("Job failed to start.");
+            setIsSubmitting(false);
         }
     };
 
@@ -86,7 +85,7 @@ export default function RedemptionWidget() {
             {/* AUTOMATION PANEL */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 {/* Launcher */}
-                <div className="lg:col-span-4 bg-gray-900 border border-gray-800 rounded-3xl p-6 shadow-2xl">
+                <div className="lg:col-span-5 bg-gray-900 border border-gray-800 rounded-3xl p-6 shadow-2xl">
                     <h2 className="text-sm font-black uppercase tracking-widest text-white mb-6 flex items-center gap-2">
                         <Play size={16} className="text-green-500" /> Redemption Hub
                     </h2>
@@ -97,14 +96,14 @@ export default function RedemptionWidget() {
                             placeholder="GIFTCODE1, GIFTCODE2..."
                             value={codes} onChange={e => setCodes(e.target.value)}
                         />
-                        <button type="submit" disabled={!!activeJob} className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-800 text-white font-black uppercase tracking-widest text-xs rounded-2xl transition-all shadow-lg shadow-blue-900/20">
-                            {activeJob ? 'Process Running...' : 'Execute Batch'}
+                        <button type="submit" disabled={!!activeJob || isSubmitting} className="w-full py-4 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-800 text-white font-black uppercase tracking-widest text-xs rounded-2xl transition-all shadow-lg shadow-blue-900/20">
+                            {isSubmitting ? 'Starting...' : (activeJob ? 'Process Running...' : 'Execute Batch')}
                         </button>
                     </form>
                 </div>
 
                 {/* Live Progress */}
-                <div className="lg:col-span-5 bg-gray-900 border border-gray-800 rounded-3xl p-6 shadow-2xl flex flex-col">
+                <div className="lg:col-span-7 bg-gray-900 border border-gray-800 rounded-3xl p-6 shadow-2xl flex flex-col">
                     <h2 className="text-sm font-black uppercase tracking-widest text-white mb-6 flex items-center gap-2">
                         <Activity size={16} className="text-blue-500" /> Active Job Stream
                     </h2>
@@ -130,20 +129,6 @@ export default function RedemptionWidget() {
                             </div>
                         </div>
                     )}
-                </div>
-
-                {/* Credits */}
-                <div className="lg:col-span-3 bg-gray-900 border border-gray-800 rounded-3xl p-6 shadow-2xl flex flex-col justify-between group">
-                    <h2 className="text-sm font-black uppercase tracking-widest text-white flex items-center gap-2">
-                        <ShieldCheck size={16} className="text-purple-500" /> API Credits
-                    </h2>
-                    <div className="text-center py-6">
-                        <p className="text-4xl font-black text-white tracking-tighter">${captchaBalance || '0.00'}</p>
-                        <p className="text-[10px] text-gray-500 font-bold uppercase mt-1 tracking-widest">2Captcha Balance</p>
-                    </div>
-                    <div className={`text-[9px] font-black text-center py-2 rounded-xl uppercase tracking-tighter border ${parseFloat(captchaBalance) < 1 ? 'bg-red-900/20 text-red-400 border-red-800' : 'bg-green-900/20 text-green-400 border-green-800'}`}>
-                        {parseFloat(captchaBalance) < 1 ? 'Refill Required' : 'Status Healthy'}
-                    </div>
                 </div>
             </div>
 

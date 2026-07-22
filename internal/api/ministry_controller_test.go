@@ -51,7 +51,7 @@ func TestMinistryController_Lifecycle(t *testing.T) {
 	userRouter := setupMinistryTestRouter("user")
 
 	t.Run("Security - Non-Admin Blocked from Creating Event", func(t *testing.T) {
-		payload := map[string]interface{}{} // Empty is fine, should fail on role check first
+		payload := map[string]any{} // Empty is fine, should fail on role check first
 		body, _ := json.Marshal(payload)
 
 		req, _ := http.NewRequest("POST", "/ministry/events", bytes.NewBuffer(body))
@@ -62,10 +62,10 @@ func TestMinistryController_Lifecycle(t *testing.T) {
 	})
 
 	t.Run("CreateEvent - Admin Success", func(t *testing.T) {
-		payload := map[string]interface{}{
+		payload := map[string]any{
 			"title":           "Spring Ministry",
 			"announceEnabled": true,
-			"days": []map[string]interface{}{
+			"days": []map[string]any{
 				{"buffName": "Construction", "activeDate": "2026-04-01"},
 			},
 		}
@@ -91,18 +91,18 @@ func TestMinistryController_Lifecycle(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
-		event := response["event"].(map[string]interface{})
+		event := response["event"].(map[string]any)
 		assert.Equal(t, "Spring Ministry", event["title"])
 
-		schedule := response["schedule"].([]interface{})
+		schedule := response["schedule"].([]any)
 		require.Len(t, schedule, 1)
 
-		day := schedule[0].(map[string]interface{})
-		slots := day["slots"].([]interface{})
+		day := schedule[0].(map[string]any)
+		slots := day["slots"].([]any)
 		assert.Len(t, slots, 48)
 	})
 
@@ -113,7 +113,7 @@ func TestMinistryController_Lifecycle(t *testing.T) {
 		require.NoError(t, err)
 
 		playerFid := int64(555)
-		payload := map[string]interface{}{
+		payload := map[string]any{
 			"playerFid": &playerFid,
 			"nickname":  "MinisterBob",
 		}
@@ -135,7 +135,7 @@ func TestMinistryController_Lifecycle(t *testing.T) {
 		var eventID int
 		rawDB.QueryRow("SELECT id FROM ministry_events LIMIT 1").Scan(&eventID)
 
-		payload := map[string]interface{}{
+		payload := map[string]any{
 			"announceEnabled": false,
 		}
 		body, _ := json.Marshal(payload)
@@ -151,7 +151,7 @@ func TestMinistryController_Lifecycle(t *testing.T) {
 		var eventID int
 		rawDB.QueryRow("SELECT id FROM ministry_events LIMIT 1").Scan(&eventID)
 
-		payload := map[string]interface{}{
+		payload := map[string]any{
 			"status": "Closed",
 		}
 		body, _ := json.Marshal(payload)
@@ -171,7 +171,7 @@ func TestMinistryController_Lifecycle(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var events []map[string]interface{}
+		var events []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &events)
 		require.NoError(t, err)
 		require.Len(t, events, 1)
@@ -185,10 +185,10 @@ func TestMinistryController_Lifecycle(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, wSlots.Code)
 
-		var schedule []map[string]interface{}
+		var schedule []map[string]any
 		err = json.Unmarshal(wSlots.Body.Bytes(), &schedule)
 		require.NoError(t, err)
-		require.Len(t, schedule, 1)                              // 1 day
-		require.Len(t, schedule[0]["slots"].([]interface{}), 48) // 48 slots attached to that day
+		require.Len(t, schedule, 1)                      // 1 day
+		require.Len(t, schedule[0]["slots"].([]any), 48) // 48 slots attached to that day
 	})
 }

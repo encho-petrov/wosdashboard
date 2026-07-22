@@ -25,7 +25,7 @@ func GenerateDiscordState(allianceID *int, secret string) (string, error) {
 
 func ValidateDiscordState(tokenString string, secret string) (*DiscordStateClaims, error) {
 	claims := &DiscordStateClaims{}
-	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (any, error) {
 		return []byte(secret), nil
 	})
 

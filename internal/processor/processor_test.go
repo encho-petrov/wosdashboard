@@ -7,18 +7,8 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
-
-// --- Mocks ---
-
-type MockPlayerClient struct{ mock.Mock }
-type MockGiftClient struct{ mock.Mock }
-type MockSolver struct{ mock.Mock }
-type MockStore struct{ mock.Mock }
-
-func (m *MockStore) MarkAsRedeemed(fid int64, code string) { m.Called(fid, code) }
 
 // --- Helpers ---
 
@@ -42,7 +32,7 @@ func resetGlobals() {
 func TestProcessor_PauseLogic(t *testing.T) {
 	resetGlobals()
 
-	p := NewProcessor(nil, nil, nil, nil, nil)
+	p := NewProcessor(nil, nil, nil, "", nil)
 	defer p.Stop()
 
 	t.Run("TriggerPause sets state", func(t *testing.T) {
@@ -100,7 +90,7 @@ func TestProcessor_RedeemForPlayer_Logic(t *testing.T) {
 		pauseMutex.Unlock()
 
 		start := time.Now()
-		p := NewProcessor(nil, nil, nil, nil, nil)
+		p := NewProcessor(nil, nil, nil, "", nil)
 
 		// This should hang for ~1 second to respect the pause we just set
 		p.checkPause()

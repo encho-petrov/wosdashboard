@@ -57,7 +57,7 @@ func TestAdminController_Alliances(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response []map[string]interface{}
+		var response []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 		require.Len(t, response, 1)
@@ -80,7 +80,7 @@ func TestAdminController_Users(t *testing.T) {
 	router := setupAdminTestRouter()
 
 	t.Run("Create User", func(t *testing.T) {
-		payload := map[string]interface{}{
+		payload := map[string]any{
 			"username": "NewAdmin",
 			"password": "securepassword",
 			"role":     "admin",

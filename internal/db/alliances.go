@@ -61,7 +61,7 @@ func (s *Store) GetPendingTransfers(userID int64, allianceID *int) ([]AllianceTr
 		WHERE t.status = 'Pending'
 	`
 
-	var args []interface{}
+	var args []any
 
 	if userID != 1 {
 		if allianceID == nil {

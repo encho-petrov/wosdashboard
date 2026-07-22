@@ -45,12 +45,12 @@ func TestSendCustomDiscordEmbed(t *testing.T) {
 
 			// Read and verify the payload body
 			bodyBytes, _ := io.ReadAll(r.Body)
-			var payload map[string]interface{}
+			var payload map[string]any
 			json.Unmarshal(bodyBytes, &payload)
 
 			assert.Equal(t, "Ping!", payload["content"])
-			embeds := payload["embeds"].([]interface{})
-			embed := embeds[0].(map[string]interface{})
+			embeds := payload["embeds"].([]any)
+			embed := embeds[0].(map[string]any)
 
 			assert.Equal(t, "Test Title", embed["title"])
 			assert.Equal(t, float64(3447003), embed["color"]) // JSON numbers decode to float64

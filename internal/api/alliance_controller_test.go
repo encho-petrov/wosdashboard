@@ -58,7 +58,7 @@ func TestAllianceController_TransferLifecycle(t *testing.T) {
 
 	t.Run("HandleTransferRequest - Unassign User (Auto-Approve)", func(t *testing.T) {
 		// Payload with ToAllianceID = nil
-		payload := map[string]interface{}{
+		payload := map[string]any{
 			"targetUserId": 3,
 			"toAllianceId": nil,
 		}
@@ -80,7 +80,7 @@ func TestAllianceController_TransferLifecycle(t *testing.T) {
 
 	t.Run("HandleTransferRequest - Submit Pending Transfer", func(t *testing.T) {
 		// Payload moving User 2 to Alliance 20
-		payload := map[string]interface{}{
+		payload := map[string]any{
 			"targetUserId": 2,
 			"toAllianceId": 20,
 		}
@@ -101,7 +101,7 @@ func TestAllianceController_TransferLifecycle(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var notifications []map[string]interface{}
+		var notifications []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &notifications)
 		require.NoError(t, err)
 
@@ -117,7 +117,7 @@ func TestAllianceController_TransferLifecycle(t *testing.T) {
 		err := rawDB.QueryRow("SELECT id FROM alliance_transfers WHERE status = 'Pending' LIMIT 1").Scan(&transferID)
 		require.NoError(t, err)
 
-		payload := map[string]interface{}{
+		payload := map[string]any{
 			"status": "Approved",
 		}
 		body, _ := json.Marshal(payload)
@@ -141,7 +141,7 @@ func TestAllianceController_TransferLifecycle(t *testing.T) {
 		// Create a new router representing a regular user
 		userRouter := setupAllianceTestRouter(99, "user", nil)
 
-		payload := map[string]interface{}{
+		payload := map[string]any{
 			"status": "Approved",
 		}
 		body, _ := json.Marshal(payload)

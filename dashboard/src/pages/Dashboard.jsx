@@ -5,7 +5,6 @@ import { navLinks } from '../config/navigation';
 import AdminLayout from '../components/layout/AdminLayout';
 import { Link } from 'react-router-dom';
 import MfaSetupModal from '../components/MfaSetupModal';
-//import RedemptionWidget from '../components/RedemptionWidget';
 const RedemptionWidget = lazy(() => import('../components/RedemptionWidget'));
 
 import { ArrowRight } from 'lucide-react';

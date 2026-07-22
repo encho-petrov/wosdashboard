@@ -136,7 +136,6 @@ func SetupRouter(engine *processor.Processor, store *db.Store, cfg *config.Confi
 		})
 
 		if cfg.FeaturesConfig.GiftCodes && engine != nil {
-			authorized.GET("/captcha-balance", redeemCtrl.GetBalance)
 			authorized.POST("/redeem", redeemCtrl.Redeem)
 			authorized.GET("/jobs", redeemCtrl.GetRecentJobs)
 			authorized.GET("/job/current", redeemCtrl.GetActiveJob)

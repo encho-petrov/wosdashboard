@@ -60,7 +60,7 @@ func TestFortressController(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var buildings []map[string]interface{}
+		var buildings []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &buildings)
 		require.NoError(t, err)
 		require.Len(t, buildings, 2)
@@ -82,7 +82,7 @@ func TestFortressController(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var rewards []map[string]interface{}
+		var rewards []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &rewards)
 		require.NoError(t, err)
 		require.Len(t, rewards, 1)
@@ -91,9 +91,9 @@ func TestFortressController(t *testing.T) {
 
 	t.Run("UpdateSeason (Save Schedule)", func(t *testing.T) {
 		// Create a valid schedule (Week 1, Max 1 Stronghold, Max 1 Fortress per DB logic)
-		payload := map[string]interface{}{
+		payload := map[string]any{
 			"seasonId": 5,
-			"entries": []map[string]interface{}{
+			"entries": []map[string]any{
 				{
 					"seasonId":   5,
 					"week":       1,
@@ -131,7 +131,7 @@ func TestFortressController(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var schedule []map[string]interface{}
+		var schedule []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &schedule)
 		require.NoError(t, err)
 		require.Len(t, schedule, 2)
@@ -145,12 +145,12 @@ func TestFortressController(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var history map[string]interface{}
+		var history map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &history)
 		require.NoError(t, err)
 
 		// It should contain our explicitly saved Season 5 inside availableSeasons
-		available := history["availableSeasons"].([]interface{})
+		available := history["availableSeasons"].([]any)
 		var foundSeason5 bool
 		for _, s := range available {
 			if s.(float64) == 5 {

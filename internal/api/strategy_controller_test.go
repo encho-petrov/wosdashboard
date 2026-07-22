@@ -68,7 +68,7 @@ func TestStrategyController(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var heroes []map[string]interface{}
+		var heroes []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &heroes)
 		require.NoError(t, err)
 		require.Len(t, heroes, 1)
@@ -82,7 +82,7 @@ func TestStrategyController(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var captains []map[string]interface{}
+		var captains []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &captains)
 		require.NoError(t, err)
 		require.Len(t, captains, 1)
@@ -92,7 +92,7 @@ func TestStrategyController(t *testing.T) {
 
 	t.Run("SaveStrategy & GetActiveStrategy", func(t *testing.T) {
 		// 1. Save Strategy
-		payload := map[string]interface{}{
+		payload := map[string]any{
 			"type":          "Attack",
 			"infantryRatio": 40,
 			"lancerRatio":   30,
@@ -116,14 +116,14 @@ func TestStrategyController(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, wGet.Code)
 
-		var activeMeta map[string]interface{}
+		var activeMeta map[string]any
 		json.Unmarshal(wGet.Body.Bytes(), &activeMeta)
 
 		// Extract the Attack payload
-		attack := activeMeta["attack"].(map[string]interface{})
+		attack := activeMeta["attack"].(map[string]any)
 		assert.Equal(t, float64(40), attack["infantryRatio"])
 
-		leads := attack["leads"].([]interface{})
+		leads := attack["leads"].([]any)
 		assert.Equal(t, float64(1), leads[0]) // Hero ID 1 (Natalia) in slot 1
 	})
 
@@ -131,7 +131,7 @@ func TestStrategyController(t *testing.T) {
 		tomorrow := time.Now().Add(24 * time.Hour).Format("2006-01-02")
 
 		// 1. Save Pet Schedule
-		payload := map[string]interface{}{
+		payload := map[string]any{
 			"fightDate": tomorrow,
 			"schedule": map[string][]int64{
 				"1": {999},
@@ -154,12 +154,12 @@ func TestStrategyController(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, wGet.Code)
 
-		var fetched map[string]interface{}
+		var fetched map[string]any
 		json.Unmarshal(wGet.Body.Bytes(), &fetched)
 		assert.Equal(t, tomorrow, fetched["date"])
 
-		schedule := fetched["schedule"].(map[string]interface{})
-		slot1 := schedule["1"].([]interface{})
+		schedule := fetched["schedule"].(map[string]any)
+		slot1 := schedule["1"].([]any)
 		assert.Equal(t, float64(999), slot1[0])
 	})
 

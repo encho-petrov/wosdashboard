@@ -36,10 +36,10 @@ WoS Dashboard consolidates everything into **one lightweight, modular platform**
 The application is built on a **modular architecture**. The core system runs the basic roster and authentication, while heavy features (like Gift Codes or Discord integrations) can be toggled on or off in the configuration to save server memory and simplify the UI.
 
 ### 🛡️ The Core OS (Always On)
-* **State Roster Ledger:** Complete management of players, alliances, and furnace levels synced via the WoS API.
+* **State Roster Ledger:** Complete management of players, alliances, and furnace levels managed via the local roster database.
 * **Role-Based Access Control:** Secure Admin/Moderator tiers.
 * **Enterprise Security:** Support for Standard Passwords, **TOTP Authenticator Apps**, and **WebAuthn (Biometrics/Passkeys)**.
-* **Player Dashboard:** A restricted view where players can log in using their Game ID to view their specific deployments.
+* **Player Dashboard:** A restricted view where players can log in to view their specific deployments, verified directly against the local roster database.
 * **Audit Logging & Backups:** Comprehensive action tracking and automated, encrypted database backups (AWS, GCP, Cloudflare R2).
 
 ### 🧩 Toggleable Modules
@@ -49,7 +49,7 @@ The application is built on a **modular architecture**. The core system runs the
 * **✈️ Transfer Manager:** Manage inbound/outbound transfers, track season caps (Normal/Special invites), and onboard players directly to the roster.
 * **⚙️ Foundry & Canyon Clash:** Manage alliance-based event coordination, legion assignments, and attendance histories.
 * **🤖 Discord Integration:** Automated, taggable cron reminders for rotations, ministries, troop deployments, and pet schedules.
-* **🎁 Gift Code Engine:** Live, batched redemption tracking with CSV reporting (Requires external 2captcha service).
+* **🎁 Gift Code Engine:** Live, batched redemption tracking with CSV reporting.
 
 ---
 
@@ -76,8 +76,7 @@ graph TD
     end
 
     subgraph ExtServices ["External Services"]
-        GameAPI[WoS API]
-        CaptchaAPI[2Captcha]
+        GameAPI[WoS Gift API]
         DiscordAPI[Discord Bot]
     end
 
@@ -85,8 +84,7 @@ graph TD
     FeatureUI <--> ModCtrl
     CoreUI <--> CoreAPI
     
-    CoreAPI <--> GameAPI
-    ModCtrl <--> CaptchaAPI
+    ModCtrl <--> GameAPI
     ModCtrl <--> DiscordAPI
 ```
 

@@ -61,7 +61,7 @@ func TestTransfersController(t *testing.T) {
 	router := setupTransfersTestRouter("admin", 10)
 
 	t.Run("CreateTransferSeason", func(t *testing.T) {
-		payload := map[string]interface{}{
+		payload := map[string]any{
 			"name":     "Season 5",
 			"powerCap": 500000000,
 			"leading":  true,
@@ -84,10 +84,10 @@ func TestTransfersController(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var resp map[string]interface{}
+		var resp map[string]any
 		json.Unmarshal(w.Body.Bytes(), &resp)
 
-		season := resp["season"].(map[string]interface{})
+		season := resp["season"].(map[string]any)
 		assert.Equal(t, "Season 5", season["name"])
 		assert.Equal(t, float64(3), season["specialInvitesAvailable"])
 	})
@@ -97,7 +97,7 @@ func TestTransfersController(t *testing.T) {
 		var seasonID int
 		rawDB.QueryRow("SELECT id FROM transfer_seasons LIMIT 1").Scan(&seasonID)
 
-		payload := map[string]interface{}{
+		payload := map[string]any{
 			"powerCap": 600000000,
 			"specials": 5,
 			"normals":  20,
@@ -127,7 +127,7 @@ func TestTransfersController(t *testing.T) {
 
 		// 1. Update the Record
 		targetAlliance := 10
-		updatePayload := map[string]interface{}{
+		updatePayload := map[string]any{
 			"power":            1500000,
 			"targetAllianceId": targetAlliance,
 			"inviteType":       "Normal",
@@ -141,7 +141,7 @@ func TestTransfersController(t *testing.T) {
 		assert.Equal(t, http.StatusOK, wUpd.Code)
 
 		// 2. Confirm Inbound Transfer
-		confirmPayload := map[string]interface{}{
+		confirmPayload := map[string]any{
 			"fid":              888,
 			"nickname":         "NewGuy",
 			"targetAllianceId": 10,
@@ -160,7 +160,7 @@ func TestTransfersController(t *testing.T) {
 		assert.Equal(t, 1, rosterCount)
 
 		// 3. Confirm Outbound Transfer (Using the seeded 'Traitor' player)
-		outPayload := map[string]interface{}{
+		outPayload := map[string]any{
 			"seasonId":  seasonID,
 			"nickname":  "Traitor",
 			"destState": "State 400",
@@ -184,7 +184,7 @@ func TestTransfersController(t *testing.T) {
 		rawDB.QueryRow("SELECT id FROM transfer_seasons LIMIT 1").Scan(&seasonID)
 
 		// 1. Close Season
-		payload := map[string]interface{}{"status": "Closed"}
+		payload := map[string]any{"status": "Closed"}
 		body, _ := json.Marshal(payload)
 
 		req, _ := http.NewRequest("PUT", "/transfers/seasons/"+strconv.Itoa(seasonID)+"/status", bytes.NewBuffer(body))
@@ -199,7 +199,7 @@ func TestTransfersController(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, wHist.Code)
 
-		var history []map[string]interface{}
+		var history []map[string]any
 		json.Unmarshal(wHist.Body.Bytes(), &history)
 		require.Len(t, history, 1)
 		assert.Equal(t, "Season 5", history[0]["name"])

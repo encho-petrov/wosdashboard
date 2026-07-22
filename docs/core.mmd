@@ -1,4 +1,4 @@
-﻿graph TD
+graph TD
     subgraph Frontend ["Frontend (React)"]
         AC[AppContext] -->|Hydrates| AL[AdminLayout & Navigation]
 
@@ -27,7 +27,6 @@
             DB[(MySQL)]
             Redis[(Redis)]
             AuthCtrl[Auth Controller]
-            PClient[Player Client]
         end
 
         subgraph ModCtrl ["Modular Controllers"]
@@ -35,7 +34,6 @@
             WarCtrl[War Controller]
             DiscCtrl[Discord Controller]
             Engine[Processor / Workers]
-            Solver[Captcha Solver]
         end
 
         Main --> CoreAPI
@@ -46,7 +44,6 @@
 
     subgraph ExtServices ["External Services"]
         GameAPI[Game Servers]
-        CaptchaAPI[2Captcha API]
         DiscordAPI[Discord Bot/API]
     end
 
@@ -55,15 +52,10 @@
     FeatureUI <--> ModCtrl
     CoreUI <--> CoreAPI
 
-    WarCtrl --> PClient
     RedeemCtrl --> Engine
-    Engine --> Solver
-    Engine --> PClient
     Engine --> GClient[Gift Client]
 
-    PClient <--> GameAPI
     GClient <--> GameAPI
-    Solver <--> CaptchaAPI
     DiscCtrl <--> DiscordAPI
     Disc_UI -.->|POST /notify| DiscCtrl
 
@@ -72,6 +64,6 @@
     classDef toggle fill:#374151,stroke:#9ca3af,stroke-width:2px,stroke-dasharray: 5 5,color:#fff
     classDef ext fill:#4c1d95,stroke:#8b5cf6,stroke-width:2px,color:#fff
 
-    class Dash,Roster,Users,AuthCtrl,PClient,DB,Redis,CoreAPI,CoreUI core
-    class RW,WR_UI,SQ_UI,Disc_UI,RedeemCtrl,WarCtrl,DiscCtrl,Engine,Solver,FeatureUI,ModCtrl toggle
-    class GameAPI,CaptchaAPI,DiscordAPI,ExtServices ext
+    class Dash,Roster,Users,AuthCtrl,DB,Redis,CoreAPI,CoreUI core
+    class RW,WR_UI,SQ_UI,Disc_UI,RedeemCtrl,WarCtrl,DiscCtrl,Engine,FeatureUI,ModCtrl toggle
+    class GameAPI,DiscordAPI,ExtServices ext

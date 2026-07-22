@@ -53,7 +53,6 @@ describe('RedemptionWidget Component', () => {
 
         client.get.mockImplementation((url) => {
             if (url === '/moderator/jobs') return Promise.resolve({ data: mockHistory });
-            if (url === '/moderator/captcha-balance') return Promise.resolve({ data: { balance: '42.50' } });
             if (url === '/moderator/job/current') return Promise.resolve({ data: mockInactiveJob });
             if (url.includes('/moderator/reports/')) return Promise.resolve({ data: 'mock,csv,data' });
             return Promise.resolve({ data: {} });
@@ -65,19 +64,17 @@ describe('RedemptionWidget Component', () => {
         global.URL.createObjectURL = undefined;
     });
 
-    it('loads initial data and renders the balance and history', async () => {
+    it('loads initial data and renders history', async () => {
         render(<RedemptionWidget />);
 
-        expect(await screen.findByText('$42.50')).toBeInTheDocument();
-        expect(screen.getByText('Status Healthy')).toBeInTheDocument();
-
+        expect(await screen.findByText('COMPLETED')).toBeInTheDocument();
         expect(screen.getByText('SPRING2026, WINTER2026')).toBeInTheDocument();
         expect(screen.getByText('COMPLETED')).toBeInTheDocument();
     });
 
     it('shows warning if trying to execute batch with empty input', async () => {
         render(<RedemptionWidget />);
-        await screen.findByText('$42.50');
+        await screen.findByText('COMPLETED');
 
         const submitBtn = screen.getByRole('button', { name: /Execute Batch/i });
         fireEvent.click(submitBtn);
@@ -89,7 +86,7 @@ describe('RedemptionWidget Component', () => {
     it('submits a new batch job successfully', async () => {
         client.post.mockResolvedValueOnce({});
         render(<RedemptionWidget />);
-        await screen.findByText('$42.50');
+        await screen.findByText('COMPLETED');
 
         const input = screen.getByLabelText('Gift Codes Input');
         fireEvent.change(input, { target: { value: 'CODE1, CODE2,   CODE3  ' } });
@@ -111,7 +108,6 @@ describe('RedemptionWidget Component', () => {
 
         client.get.mockImplementation((url) => {
             if (url === '/moderator/jobs') return Promise.resolve({ data: mockHistory });
-            if (url === '/moderator/captcha-balance') return Promise.resolve({ data: { balance: '42.50' } });
             if (url === '/moderator/job/current') return Promise.resolve({ data: mockActiveJob });
             return Promise.resolve({ data: {} });
         });
@@ -131,7 +127,7 @@ describe('RedemptionWidget Component', () => {
 
     it('downloads a report file successfully', async () => {
         render(<RedemptionWidget />);
-        await screen.findByText('$42.50');
+        await screen.findByText('COMPLETED');
 
         const downloadBtn = screen.getByLabelText('Download report job-123');
         fireEvent.click(downloadBtn);
