@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"gift-redeemer/internal/cache"
-	"gift-redeemer/internal/captcha"
 	"gift-redeemer/internal/client"
 	"gift-redeemer/internal/db"
 	"gift-redeemer/internal/models"
@@ -27,20 +26,20 @@ type Processor struct {
 	PlayerClient *client.PlayerClient
 	GiftClient   *client.GiftClient
 	Store        *db.Store
-	Solver       *captcha.Solver
+	TargetState  string
 	Redis        *cache.RedisStore
 	JobQueue     chan *models.RedeemJob
 	ctx          context.Context
 	cancel       context.CancelFunc
 }
 
-func NewProcessor(pClient *client.PlayerClient, gClient *client.GiftClient, store *db.Store, solver *captcha.Solver, redis *cache.RedisStore) *Processor {
+func NewProcessor(pClient *client.PlayerClient, gClient *client.GiftClient, store *db.Store, targetState string, redis *cache.RedisStore) *Processor {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Processor{
 		PlayerClient: pClient,
 		GiftClient:   gClient,
 		Store:        store,
-		Solver:       solver,
+		TargetState:  targetState,
 		Redis:        redis,
 		JobQueue:     make(chan *models.RedeemJob, 100),
 		ctx:          ctx,
@@ -202,52 +201,12 @@ func (p *Processor) redeemForPlayer(fid int64, nickname, code string) (int, stri
 	fidStr := fmt.Sprintf("%d", fid)
 
 	for attempt <= maxAttempts {
-		var loginErr error
-		p.safeAPICall(func() error {
-			_, loginErr = p.PlayerClient.GetPlayerInfo(fid)
-			return loginErr
-		})
-
-		if loginErr != nil {
-			if strings.Contains(loginErr.Error(), "WAF_BLOCK") {
-				triggerPause()
-				continue
-			}
-			log.Printf("[FID %d] Login Error (Attempt %d): %v", fid, attempt, loginErr)
-			attempt++
-			continue
-		}
-
-		var imgBase64 string
-		var fetchErr error
-		p.safeAPICall(func() error {
-			imgBase64, fetchErr = p.PlayerClient.GetCaptcha(fid)
-			return fetchErr
-		})
-
-		if fetchErr != nil {
-			if strings.Contains(fetchErr.Error(), "WAF_BLOCK") {
-				triggerPause()
-				continue
-			}
-			log.Printf("[FID %d] Captcha Error (Attempt %d): %v", fid, attempt, fetchErr)
-			attempt++
-			continue
-		}
-
-		solved, err := p.Solver.Solve(imgBase64)
-		if err != nil {
-			log.Printf("[FID %d] Solver Error: %v", fid, err)
-			attempt++
-			continue
-		}
-
 		var errCode int
 		var msg, redeemNickname string
 		var redeemErr error
 
 		p.safeAPICall(func() error {
-			errCode, msg, redeemNickname, redeemErr = p.GiftClient.RedeemGift(fidStr, code, solved)
+			errCode, msg, redeemNickname, redeemErr = p.GiftClient.RedeemGift(fidStr, code, p.TargetState)
 			return redeemErr
 		})
 
@@ -256,7 +215,7 @@ func (p *Processor) redeemForPlayer(fid int64, nickname, code string) (int, stri
 		}
 
 		if redeemErr != nil {
-			if strings.Contains(redeemErr.Error(), "WAF_BLOCK") {
+			if strings.Contains(redeemErr.Error(), "WAF_BLOCK") || strings.Contains(redeemErr.Error(), "RATE_LIMIT") {
 				triggerPause()
 				continue
 			}
@@ -277,12 +236,15 @@ func (p *Processor) redeemForPlayer(fid int64, nickname, code string) (int, stri
 			return 1, "Success (Recovered)", nickname
 		}
 
+		upperMsg := strings.ToUpper(msg)
 		if isGhostSuccess ||
-			strings.Contains(msg, "CDK NOT FOUND") ||
-			strings.Contains(msg, "TIME EXPIRED") ||
-			strings.Contains(msg, "NOT MEET CONDITIONS") ||
-			strings.Contains(msg, "NOT IN THE REDEMPTION") ||
-			strings.Contains(msg, "RECHARGE_MONEY_VIP ERROR.") {
+			errCode == 40008 ||
+			strings.Contains(upperMsg, "RECEIVED") ||
+			strings.Contains(upperMsg, "CDK NOT FOUND") ||
+			strings.Contains(upperMsg, "TIME EXPIRED") ||
+			strings.Contains(upperMsg, "NOT MEET CONDITIONS") ||
+			strings.Contains(upperMsg, "NOT IN THE REDEMPTION") ||
+			strings.Contains(upperMsg, "RECHARGE_MONEY_VIP ERROR.") {
 			return errCode, msg, nickname
 		}
 

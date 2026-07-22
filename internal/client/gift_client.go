@@ -52,20 +52,20 @@ func (c *GiftClient) ComputeSignature(params map[string]string) string {
 	return hex.EncodeToString(hash[:])
 }
 
-func (c *GiftClient) RedeemGift(fid, code, captcha string) (int, string, string, error) {
-	timestamp := fmt.Sprintf("%d", time.Now().UnixMilli())
+func (c *GiftClient) RedeemGift(fid, code, kid string) (int, string, string, error) {
+	timestamp := fmt.Sprintf("%d", time.Now().Unix())
 
 	params := map[string]string{
-		"fid":          fid,
-		"cdk":          code,
-		"captcha_code": captcha,
-		"time":         timestamp,
+		"fid":  fid,
+		"cdk":  code,
+		"kid":  kid,
+		"time": timestamp,
 	}
 
 	sign := c.ComputeSignature(params)
 
-	body := fmt.Sprintf("sign=%s&fid=%s&cdk=%s&captcha_code=%s&time=%s",
-		sign, fid, code, captcha, timestamp)
+	body := fmt.Sprintf("sign=%s&fid=%s&cdk=%s&kid=%s&time=%s",
+		sign, fid, code, kid, timestamp)
 
 	req, err := http.NewRequest("POST", c.BaseURL+"/api/gift_code", strings.NewReader(body))
 	if err != nil {
@@ -93,14 +93,18 @@ func (c *GiftClient) RedeemGift(fid, code, captcha string) (int, string, string,
 		return -1, "WAF_BLOCK", "", fmt.Errorf("WAF_BLOCK")
 	}
 
-	var rawMap map[string]interface{}
+	if strings.Contains(responseStr, "Too Many Attempts.") {
+		return -1, "RATE_LIMIT", "", fmt.Errorf("RATE_LIMIT")
+	}
+
+	var rawMap map[string]any
 	if err := json.Unmarshal(bodyBytes, &rawMap); err != nil {
 		return -1, "JSON Parse Error", "", fmt.Errorf("json error: %v | Body: %s", err, responseStr)
 	}
 
 	finalCode := -999
 
-	toInt := func(val interface{}) (int, bool) {
+	toInt := func(val any) (int, bool) {
 		switch v := val.(type) {
 		case float64:
 			return int(v), true
@@ -120,7 +124,9 @@ func (c *GiftClient) RedeemGift(fid, code, captcha string) (int, string, string,
 	}
 	if val, ok := rawMap["err_code"]; ok {
 		if i, ok := toInt(val); ok {
-			finalCode = i
+			if i != 0 {
+				finalCode = i
+			}
 		}
 	}
 
@@ -134,7 +140,7 @@ func (c *GiftClient) RedeemGift(fid, code, captcha string) (int, string, string,
 	if finalCode == 0 || finalCode == 200 {
 		nickname := ""
 		if dataVal, ok := rawMap["data"]; ok {
-			if dataMap, ok := dataVal.(map[string]interface{}); ok {
+			if dataMap, ok := dataVal.(map[string]any); ok {
 				if nickVal, ok := dataMap["nickname"]; ok {
 					if nStr, ok := nickVal.(string); ok {
 						nickname = nStr

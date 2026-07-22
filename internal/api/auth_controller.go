@@ -163,41 +163,14 @@ func (ac *AuthController) PlayerLogin(c *gin.Context) {
 		return
 	}
 
-	info, err := ac.client.GetPlayerInfo(input.FID)
-	if err != nil {
+	player, err := ac.store.GetPlayerProfile(input.FID)
+	if err != nil || player == nil {
 		RecordFailedPlayerLogin(ac.redisStore.Client, clientIP, input.FID)
-		c.JSON(500, gin.H{"error": "Failed to connect to Game API"})
-		return
-	}
-
-	if info.Code != 0 {
-		RecordFailedPlayerLogin(ac.redisStore.Client, clientIP, input.FID)
-		c.JSON(401, gin.H{"error": "Player not found or invalid ID"})
-		return
-	}
-
-	if info.Data.KID != ac.cfg.Game.TargetState {
-		RecordFailedPlayerLogin(ac.redisStore.Client, clientIP, input.FID)
-		c.JSON(403, gin.H{
-			"error": fmt.Sprintf("Access Denied. This tool is for State %d only. You are in State %d.", ac.cfg.Game.TargetState, info.Data.KID),
-		})
+		c.JSON(401, gin.H{"error": "Player not found in state database"})
 		return
 	}
 
 	ClearPlayerLoginStrikes(ac.redisStore.Client, clientIP, input.FID)
-
-	err = ac.store.UpsertPlayer(
-		input.FID,
-		info.Data.Nickname,
-		info.Data.KID,
-		info.Data.StoveLv,
-		string(info.Data.StoveImg),
-		info.Data.Avatar,
-	)
-	if err != nil {
-		c.JSON(500, gin.H{"error": "Database error saving player"})
-		return
-	}
 
 	fidStr := fmt.Sprintf("%d", input.FID)
 	token, _ := auth.GenerateToken(fidStr, "player")
@@ -206,7 +179,7 @@ func (ac *AuthController) PlayerLogin(c *gin.Context) {
 	isSecure := gin.Mode() == gin.ReleaseMode
 	c.SetCookie("refresh_token", refreshToken, ac.cfg.Auth.RefreshTokenDuration*60, "/", "", isSecure, true)
 
-	c.JSON(200, gin.H{"token": token, "role": "player", "nickname": info.Data.Nickname})
+	c.JSON(200, gin.H{"token": token, "role": "player", "nickname": player.Nickname})
 }
 
 func (ac *AuthController) Refresh(c *gin.Context) {

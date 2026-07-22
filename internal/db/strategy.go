@@ -105,7 +105,7 @@ func (s *Store) GetActiveStrategy() (*models.ActiveStrategyResponse, error) {
 	for _, strat := range strategies {
 
 		if strat.MapData != nil && response.MapData == nil {
-			var md map[string]interface{}
+			var md map[string]any
 			if err := json.Unmarshal([]byte(*strat.MapData), &md); err == nil {
 				response.MapData = md
 			}

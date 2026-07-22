@@ -62,17 +62,17 @@ func TestDiscordController_DatabaseEndpoints(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &response)
 		require.NoError(t, err)
 
 		assert.True(t, response["isLinked"].(bool))
 		assert.Equal(t, "Test Server", response["guildName"])
 
-		routes := response["routes"].(map[string]interface{})
+		routes := response["routes"].(map[string]any)
 		require.NotNil(t, routes["general_announcements"])
 
-		announcementRoute := routes["general_announcements"].(map[string]interface{})
+		announcementRoute := routes["general_announcements"].(map[string]any)
 		assert.Equal(t, "chan-999", announcementRoute["channelId"])
 	})
 
@@ -91,7 +91,7 @@ func TestDiscordController_DatabaseEndpoints(t *testing.T) {
 	})
 
 	t.Run("CreateCustomCron", func(t *testing.T) {
-		payload := map[string]interface{}{
+		payload := map[string]any{
 			"name":             "Test Alert",
 			"nextRunTime":      time.Now().Add(24 * time.Hour).Format(time.RFC3339),
 			"recurrenceType":   "INTERVAL",
@@ -107,7 +107,7 @@ func TestDiscordController_DatabaseEndpoints(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var response map[string]interface{}
+		var response map[string]any
 		json.Unmarshal(w.Body.Bytes(), &response)
 		assert.Equal(t, "Test Alert", response["name"])
 		assert.Equal(t, "chan-123", response["channelId"])
@@ -121,7 +121,7 @@ func TestDiscordController_DatabaseEndpoints(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var crons []map[string]interface{}
+		var crons []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &crons)
 		require.NoError(t, err)
 		require.Len(t, crons, 1)

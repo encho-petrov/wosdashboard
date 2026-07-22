@@ -6,6 +6,7 @@ import (
 	"gift-redeemer/internal/db"
 	"gift-redeemer/internal/services"
 	"net/http"
+	"slices"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -87,13 +88,7 @@ func (fc *FortressController) GetSeasonHistory(c *gin.Context) {
 		return
 	}
 
-	foundLive := false
-	for _, s := range existingSeasons {
-		if s == liveSeason {
-			foundLive = true
-			break
-		}
-	}
+	foundLive := slices.Contains(existingSeasons, liveSeason)
 	if !foundLive {
 		existingSeasons = append(existingSeasons, liveSeason)
 	}

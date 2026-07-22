@@ -52,7 +52,7 @@ func (s *Store) GetUserByUsername(username string) (*User, error) {
 }
 
 func (s *Store) CreateUser(username, passwordHash, role string, allianceId int) error {
-	var dbAllianceID interface{}
+	var dbAllianceID any
 	if allianceId == 0 {
 		dbAllianceID = nil
 	} else {
@@ -117,7 +117,7 @@ func (s *Store) GetAuditLogs() ([]AuditLog, error) {
 }
 
 func (u *User) WebAuthnID() []byte {
-	return []byte(fmt.Sprintf("%d", u.ID))
+	return fmt.Appendf(nil, "%d", u.ID)
 }
 
 func (u *User) WebAuthnName() string {

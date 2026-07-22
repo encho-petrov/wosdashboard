@@ -100,7 +100,7 @@ func TestPlayerController(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var profile map[string]interface{}
+		var profile map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &profile)
 		require.NoError(t, err)
 
@@ -127,27 +127,27 @@ func TestPlayerController(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var dashboard map[string]interface{}
+		var dashboard map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &dashboard)
 		require.NoError(t, err)
 
 		// 1. Check Player Data
-		player := dashboard["player"].(map[string]interface{})
+		player := dashboard["player"].(map[string]any)
 		assert.Equal(t, "MainPlayer", player["nickname"])
 
 		// 2. Check Teammates
-		teammates := dashboard["teammates"].([]interface{})
+		teammates := dashboard["teammates"].([]any)
 		require.Len(t, teammates, 1)
-		assert.Equal(t, float64(1002), teammates[0].(map[string]interface{})["fid"])
+		assert.Equal(t, float64(1002), teammates[0].(map[string]any)["fid"])
 
 		// 3. Check Ministry Slots
-		ministries := dashboard["ministries"].([]interface{})
+		ministries := dashboard["ministries"].([]any)
 		require.Len(t, ministries, 1)
-		assert.Equal(t, "Construction", ministries[0].(map[string]interface{})["buffName"])
+		assert.Equal(t, "Construction", ministries[0].(map[string]any)["buffName"])
 
 		// 4. Check Fortress Rotations
-		forts := dashboard["forts"].([]interface{})
+		forts := dashboard["forts"].([]any)
 		require.Len(t, forts, 1, "Forts array should not be empty")
-		assert.Equal(t, "Fortress", forts[0].(map[string]interface{})["buildingType"])
+		assert.Equal(t, "Fortress", forts[0].(map[string]any)["buildingType"])
 	})
 }

@@ -63,7 +63,7 @@ func (s *Store) CreateMinistryEvent(title string, announceEnabled bool, days []M
 		}
 		dayID, _ := dayRes.LastInsertId()
 
-		for i := 0; i < 48; i++ {
+		for i := range 48 {
 			_, err := tx.Exec("INSERT INTO ministry_slots (day_id, slot_index) VALUES (?, ?)", dayID, i)
 			if err != nil {
 				return err

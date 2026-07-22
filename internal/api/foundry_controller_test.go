@@ -59,7 +59,7 @@ func TestFoundryController_Lifecycle(t *testing.T) {
 
 	t.Run("DeployPlayer", func(t *testing.T) {
 		legionID := 1
-		payload := map[string]interface{}{
+		payload := map[string]any{
 			"eventType": "Foundry",
 			"playerId":  999,
 			"legionId":  &legionID,
@@ -76,7 +76,7 @@ func TestFoundryController_Lifecycle(t *testing.T) {
 	})
 
 	t.Run("LockEvent", func(t *testing.T) {
-		payload := map[string]interface{}{
+		payload := map[string]any{
 			"eventType": "Foundry",
 			"legionId":  1,
 			"isLocked":  true,
@@ -91,7 +91,7 @@ func TestFoundryController_Lifecycle(t *testing.T) {
 	})
 
 	t.Run("UpdateAttendance", func(t *testing.T) {
-		payload := map[string]interface{}{
+		payload := map[string]any{
 			"eventType":  "Foundry",
 			"playerId":   999,
 			"attendance": "Attended",
@@ -112,23 +112,23 @@ func TestFoundryController_Lifecycle(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var state map[string]interface{}
+		var state map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &state)
 		require.NoError(t, err)
 
 		// Verify Legion is locked
-		legions := state["legions"].([]interface{})
+		legions := state["legions"].([]any)
 		require.Len(t, legions, 1)
-		assert.True(t, legions[0].(map[string]interface{})["isLocked"].(bool))
+		assert.True(t, legions[0].(map[string]any)["isLocked"].(bool))
 
 		// Verify Roster attendance
-		roster := state["roster"].([]interface{})
+		roster := state["roster"].([]any)
 		require.Len(t, roster, 1)
-		assert.Equal(t, "Attended", roster[0].(map[string]interface{})["attendance"])
+		assert.Equal(t, "Attended", roster[0].(map[string]any)["attendance"])
 	})
 
 	t.Run("ResetAndArchiveEvent", func(t *testing.T) {
-		payload := map[string]interface{}{
+		payload := map[string]any{
 			"eventType": "Foundry",
 			"notes":     "Total Victory!",
 		}
@@ -150,7 +150,7 @@ func TestFoundryController_Lifecycle(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var historyList []map[string]interface{}
+		var historyList []map[string]any
 		err := json.Unmarshal(w.Body.Bytes(), &historyList)
 		require.NoError(t, err)
 		require.Len(t, historyList, 1)
@@ -166,7 +166,7 @@ func TestFoundryController_Lifecycle(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, wSnap.Code)
 
-		var snapshot []map[string]interface{}
+		var snapshot []map[string]any
 		err = json.Unmarshal(wSnap.Body.Bytes(), &snapshot)
 		require.NoError(t, err)
 		require.Len(t, snapshot, 1)

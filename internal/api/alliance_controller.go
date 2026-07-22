@@ -139,7 +139,7 @@ func (ac *AllianceController) GetNotifications(c *gin.Context) {
 	allianceID := getIntFromContext(c, "allianceId")
 
 	if role != "admin" {
-		c.JSON(http.StatusOK, []interface{}{})
+		c.JSON(http.StatusOK, []any{})
 		return
 	}
 

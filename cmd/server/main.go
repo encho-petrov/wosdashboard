@@ -8,7 +8,6 @@ import (
 	"gift-redeemer/internal/api"
 	"gift-redeemer/internal/auth"
 	"gift-redeemer/internal/cache"
-	"gift-redeemer/internal/captcha"
 	"gift-redeemer/internal/client"
 	"gift-redeemer/internal/config"
 	"gift-redeemer/internal/db"
@@ -136,11 +135,9 @@ func main() {
 
 	var engine *processor.Processor
 	if cfg.FeaturesConfig.GiftCodes {
-		solver := captcha.NewSolver(cfg.ApiSecrets.CaptchaApiKey)
-		defer solver.Close()
 		gClient := client.NewGiftClient(cfg.ApiSecrets.GiftSecret)
 
-		engine = processor.NewProcessor(pClient, gClient, store, solver, redisStore)
+		engine = processor.NewProcessor(pClient, gClient, store, strconv.Itoa(cfg.Game.TargetState), redisStore)
 		go engine.StartWorkers()
 		log.Println("Gift Code Processor initialized.")
 	}

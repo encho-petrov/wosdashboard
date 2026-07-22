@@ -94,7 +94,7 @@ func TestMiddleware(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
-		var resp map[string]interface{}
+		var resp map[string]any
 		json.Unmarshal(w.Body.Bytes(), &resp)
 
 		// Verify the middleware successfully fetched the user from DB and injected the context

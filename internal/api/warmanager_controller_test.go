@@ -81,7 +81,7 @@ func TestWarController(t *testing.T) {
 		adminRouter.ServeHTTP(wAdmin, reqAdmin)
 
 		assert.Equal(t, http.StatusOK, wAdmin.Code)
-		var adminRoster []map[string]interface{}
+		var adminRoster []map[string]any
 		json.Unmarshal(wAdmin.Body.Bytes(), &adminRoster)
 		assert.Len(t, adminRoster, 2)
 
@@ -91,7 +91,7 @@ func TestWarController(t *testing.T) {
 		userRouter.ServeHTTP(wUser, reqUser)
 
 		assert.Equal(t, http.StatusOK, wUser.Code)
-		var userRoster []map[string]interface{}
+		var userRoster []map[string]any
 		json.Unmarshal(wUser.Body.Bytes(), &userRoster)
 		assert.Len(t, userRoster, 1)
 		assert.Equal(t, "Striker", userRoster[0]["nickname"])
@@ -99,7 +99,7 @@ func TestWarController(t *testing.T) {
 
 	t.Run("UpdatePlayer", func(t *testing.T) {
 		targetAlliance := 20
-		payload := map[string]interface{}{
+		payload := map[string]any{
 			"power":              9999999,
 			"troopType":          "Exalted",
 			"battleAvailability": "Available",
@@ -125,7 +125,7 @@ func TestWarController(t *testing.T) {
 
 	t.Run("Squads Lifecycle (Promote & Assign)", func(t *testing.T) {
 		// 1. Promote Striker to Captain of Alliance 10
-		promoPayload := map[string]interface{}{"fid": 111, "allianceId": 10}
+		promoPayload := map[string]any{"fid": 111, "allianceId": 10}
 		promoBody, _ := json.Marshal(promoPayload)
 
 		reqPromo, _ := http.NewRequest("POST", "/squads/promote", bytes.NewBuffer(promoBody))
@@ -140,7 +140,7 @@ func TestWarController(t *testing.T) {
 		require.NoError(t, err)
 
 		// 2. Assign Defender to Striker's Squad
-		assignPayload := map[string]interface{}{"fid": 222, "teamId": teamID}
+		assignPayload := map[string]any{"fid": 222, "teamId": teamID}
 		assignBody, _ := json.Marshal(assignPayload)
 
 		reqAssign, _ := http.NewRequest("POST", "/squads/assign", bytes.NewBuffer(assignBody))
@@ -157,7 +157,7 @@ func TestWarController(t *testing.T) {
 
 	t.Run("War Room: Set Session & Deploy", func(t *testing.T) {
 		// 1. Set Session to SvS
-		sessionPayload := map[string]interface{}{"eventType": "SvS"}
+		sessionPayload := map[string]any{"eventType": "SvS"}
 		sessionBody, _ := json.Marshal(sessionPayload)
 
 		reqSess, _ := http.NewRequest("POST", "/war-room/session", bytes.NewBuffer(sessionBody))
@@ -168,7 +168,7 @@ func TestWarController(t *testing.T) {
 
 		// 2. Deploy Striker to the War Academy (Alliance 20)
 		targetAlliance := 20
-		deployPayload := map[string]interface{}{
+		deployPayload := map[string]any{
 			"playerIds":  []int64{111},
 			"allianceId": &targetAlliance,
 		}
@@ -188,10 +188,10 @@ func TestWarController(t *testing.T) {
 
 	t.Run("War Room: Archive Event", func(t *testing.T) {
 		// Submit the archive payload with attendance records
-		payload := map[string]interface{}{
+		payload := map[string]any{
 			"eventType": "SvS",
 			"notes":     "Total Domination",
-			"attendance": []map[string]interface{}{
+			"attendance": []map[string]any{
 				{"fid": 111, "status": "Attended"},
 				{"fid": 222, "status": "Missed"},
 			},

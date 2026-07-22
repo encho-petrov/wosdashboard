@@ -43,9 +43,9 @@ func TestStrategySuite(t *testing.T) {
 			MarksmanRatio: 30,
 			Leads:         []int{1, 2, 0},    // Natalia, Jeronimo in slots 1, 2
 			Joiners:       []int{3, 0, 0, 0}, // Mia in slot 1
-			MapData: map[string]interface{}{
+			MapData: map[string]any{
 				"hq_target": "X:123 Y:456",
-				"markers":   []interface{}{"A", "B"},
+				"markers":   []any{"A", "B"},
 			},
 		}
 

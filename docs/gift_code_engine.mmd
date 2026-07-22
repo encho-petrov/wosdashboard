@@ -1,10 +1,10 @@
-﻿sequenceDiagram
+sequenceDiagram
     participant UI as RedemptionWidget
     participant Ctrl as RedeemController
     participant Redis as Redis (Lock/State)
     participant Queue as JobQueue (Channel)
     participant Worker as Processor Worker
-    participant API as Game/2Captcha API
+    participant API as Game API
 
     UI->>Ctrl: POST /api/moderator/redeem {codes}
     Ctrl->>Redis: Check IsJobRunning()
@@ -27,18 +27,14 @@
 
     loop For Each Target Player
         loop For Each Gift Code
-            Worker->>API: GetPlayerInfo()
+            Worker->>API: RedeemGift(gift_code)
 
             alt WAF_BLOCK Detected
-                API-->>Worker: Error (WAF_BLOCK)
+                API-->>Worker: Error (WAF_BLOCK / RATE_LIMIT)
                 Worker->>Worker: Trigger Global 60s Pause
                 Worker->>Worker: Sleep remaining time
             end
 
-            Worker->>API: GetCaptcha()
-            API-->>Worker: Base64 Image
-            Worker->>API: Solve() (via 2Captcha)
-            Worker->>API: RedeemGift(solved_token)
 
             alt Success or Ghost Success
                 API-->>Worker: 20000 / "USED"

@@ -26,12 +26,12 @@ type DiscordPayload struct {
 
 func SendCustomDiscordEmbed(botToken, channelID, title, description string, color int, content string) error {
 
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"content": content,
-		"allowed_mentions": map[string]interface{}{
+		"allowed_mentions": map[string]any{
 			"parse": []string{"everyone", "roles", "users"},
 		},
-		"embeds": []map[string]interface{}{
+		"embeds": []map[string]any{
 			{
 				"title":       title,
 				"description": description,
@@ -60,31 +60,32 @@ func SendCustomDiscordEmbed(botToken, channelID, title, description string, colo
 }
 
 func SendDiscordRotation(botToken, channelID string, season int, week int, entries []db.RotationEntryExtended, message string) error {
-	description := ""
+	var description strings.Builder
 	for _, entry := range entries {
 		alliance := entry.AllianceName
 		if alliance == "" {
 			alliance = "*Unassigned*"
 		}
-		description += fmt.Sprintf("🛡️ **%s %d** ➡️ %s\n", entry.BuildingType, entry.InternalID, alliance)
+		description.WriteString(fmt.Sprintf("🛡️ **%s %d** ➡️ %s\n", entry.BuildingType, entry.InternalID, alliance))
 	}
 
 	title := fmt.Sprintf("🏰 Season %d | Fortress Rotation: Week %d", season, week)
 
-	return SendCustomDiscordEmbed(botToken, channelID, title, description, 3447003, message)
+	return SendCustomDiscordEmbed(botToken, channelID, title, description.String(), 3447003, message)
 }
 
 func SendMinistryManifest(botToken, channelID string, day *db.MinistryDay, slots []db.MinistrySlot) error {
-	desc := fmt.Sprintf("Here is the schedule for tomorrow's **%s** buff.\n\n", day.BuffName)
+	var desc strings.Builder
+	desc.WriteString(fmt.Sprintf("Here is the schedule for tomorrow's **%s** buff.\n\n", day.BuffName))
 	for _, s := range slots {
 		timeLabel := fmt.Sprintf("%02d:%02d UTC", s.SlotIndex/2, (s.SlotIndex%2)*30)
 		if s.PlayerFID != nil {
-			desc += fmt.Sprintf("`%s` - **%s** [%s]\n", timeLabel, *s.Nickname, *s.AllianceName)
+			desc.WriteString(fmt.Sprintf("`%s` - **%s** [%s]\n", timeLabel, *s.Nickname, *s.AllianceName))
 		} else {
-			desc += fmt.Sprintf("`%s` - *[ Open Slot ]*\n", timeLabel)
+			desc.WriteString(fmt.Sprintf("`%s` - *[ Open Slot ]*\n", timeLabel))
 		}
 	}
-	return SendCustomDiscordEmbed(botToken, channelID, "📅 Daily Ministry Schedule", desc, 10181046, "")
+	return SendCustomDiscordEmbed(botToken, channelID, "📅 Daily Ministry Schedule", desc.String(), 10181046, "")
 }
 
 func SendMinistryPing(botToken, channelID, buffName, nickname, alliance string, pingStr string) error {
@@ -96,17 +97,18 @@ func SendMinistryPing(botToken, channelID, buffName, nickname, alliance string, 
 
 func SendPetPing(botToken, channelID string, buffTime string, captains []db.CaptainBadge, pingStr string) error {
 	title := "🐾 Pet Skill Activation Warning!"
-	desc := fmt.Sprintf("The **%s** rotation begins in exactly 10 minutes.\n\n**Assigned Captains:**\n", buffTime)
+	var desc strings.Builder
+	desc.WriteString(fmt.Sprintf("The **%s** rotation begins in exactly 10 minutes.\n\n**Assigned Captains:**\n", buffTime))
 	for _, captain := range captains {
 		alliance := captain.AllianceName
 		if alliance == nil {
-			desc += fmt.Sprintf("🔸 **%s**\n", captain.Nickname)
+			desc.WriteString(fmt.Sprintf("🔸 **%s**\n", captain.Nickname))
 		} else {
-			desc += fmt.Sprintf("🔸 **%s** [%s]\n", captain.Nickname, *alliance)
+			desc.WriteString(fmt.Sprintf("🔸 **%s** [%s]\n", captain.Nickname, *alliance))
 		}
 	}
-	desc += "\n*Please ensure you are online and ready to activate your pet skills!*"
-	return SendCustomDiscordEmbed(botToken, channelID, title, desc, 16753920, pingStr)
+	desc.WriteString("\n*Please ensure you are online and ready to activate your pet skills!*")
+	return SendCustomDiscordEmbed(botToken, channelID, title, desc.String(), 16753920, pingStr)
 }
 
 func SendDiscordImage(botToken, channelID string, imageBuf *bytes.Buffer, filename string, messageContent string) error {
@@ -117,9 +119,9 @@ func SendDiscordImage(botToken, channelID string, imageBuf *bytes.Buffer, filena
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
 
-	payloadData := map[string]interface{}{
+	payloadData := map[string]any{
 		"content": messageContent,
-		"allowed_mentions": map[string]interface{}{
+		"allowed_mentions": map[string]any{
 			"parse": []string{"everyone", "roles", "users"},
 		},
 	}

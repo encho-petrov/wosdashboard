@@ -106,42 +106,6 @@ func TestPlayerClient_GetPlayerInfo(t *testing.T) {
 	})
 }
 
-func TestPlayerClient_GetCaptcha(t *testing.T) {
-	secret := "captcha-secret"
-
-	t.Run("Handle Nested Captcha Data", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			// Testing the "Wrapper" format: {"code":0, "data": {"img": "base64..."}}
-			w.Write([]byte(`{"code": 0, "msg": "ok", "data": {"img": "base64_image_data"}}`))
-		}))
-		defer server.Close()
-
-		c := NewPlayerClient(secret)
-		c.BaseURL = server.URL
-
-		img, err := c.GetCaptcha(123)
-		require.NoError(t, err)
-		assert.Equal(t, "base64_image_data", img)
-	})
-
-	t.Run("Handle Direct String Captcha", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			// Testing the "Direct" format: {"code":0, "data": "base64..."}
-			w.Write([]byte(`{"code": 0, "msg": "ok", "data": "direct_base64_string"}`))
-		}))
-		defer server.Close()
-
-		c := NewPlayerClient(secret)
-		c.BaseURL = server.URL
-
-		img, err := c.GetCaptcha(123)
-		require.NoError(t, err)
-		assert.Equal(t, "direct_base64_string", img)
-	})
-}
-
 func TestBrowserHeaders(t *testing.T) {
 	t.Run("Headers Contain Required Security Fields", func(t *testing.T) {
 		headers := GetRandomizedHeaders("https://test-origin.com")
