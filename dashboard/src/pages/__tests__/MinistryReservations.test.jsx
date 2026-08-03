@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import MinistryReservations from '../MinistryReservations';
 import client from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
@@ -117,7 +117,7 @@ describe('MinistryReservations Component', () => {
 
         // Fill Base Date (Find it by type="date" instead of the unbound label)
         // We get the first date input in the modal, which is the Base Date.
-        const baseDateInput = screen.getAllByDisplayValue('')[0];
+        // const baseDateInput = screen.getAllByDisplayValue('')[0];
         // ^ Wait, it's better to just grab the first date input:
         const allDateInputs = document.querySelectorAll('input[type="date"]');
         fireEvent.change(allDateInputs[0], { target: { value: '2026-03-23' } });
