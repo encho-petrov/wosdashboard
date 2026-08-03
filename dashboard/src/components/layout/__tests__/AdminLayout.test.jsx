@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import AdminLayout from '../AdminLayout';
 import { useAuth } from '../../../context/AuthContext';
 import { useApp } from '../../../context/AppContext';
@@ -17,8 +17,8 @@ vi.mock('../../../api/client', () => ({
 
 // 3. Mock React Router Hooks
 const mockNavigate = vi.fn();
-vi.mock('react-router-dom', async () => {
-    const actual = await vi.importActual('react-router-dom');
+vi.mock('react-router', async () => {
+    const actual = await vi.importActual('react-router');
     return {
         ...actual,
         useNavigate: () => mockNavigate,

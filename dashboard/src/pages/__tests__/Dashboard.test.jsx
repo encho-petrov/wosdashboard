@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter } from 'react-router';
 import Dashboard from '../Dashboard'; // Adjust path if needed
 import { useAuth } from '../../context/AuthContext';
 import { useApp } from '../../context/AppContext';

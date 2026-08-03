@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
 import { navLinks } from '../config/navigation';
 import AdminLayout from '../components/layout/AdminLayout';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import MfaSetupModal from '../components/MfaSetupModal';
 const RedemptionWidget = lazy(() => import('../components/RedemptionWidget'));
 
