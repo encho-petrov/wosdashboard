@@ -139,6 +139,13 @@ func (tc *TransfersController) UpdateTransferRecord(c *gin.Context) {
 		return
 	}
 
+	if req.Status == "Declined" {
+		record, err := tc.store.GetTransferRecordByID(id)
+		if err == nil && record != nil && record.Status != "Declined" {
+			logAction(c, tc.store, "TRANSFERS", fmt.Sprintf("Candidate rejected: %s (FID: %d)", record.Nickname, record.FID))
+		}
+	}
+
 	tc.store.UpdateTransferRecord(id, req.Power, req.TargetAllianceID, req.InviteType, req.Status)
 	tc.sseBroker.Notifier <- "REFRESH_TRANSFERS"
 	c.JSON(http.StatusOK, gin.H{"message": "Updated successfully"})

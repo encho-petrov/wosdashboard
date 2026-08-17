@@ -60,6 +60,19 @@ func (s *Store) GetTransferRecords(seasonID int) ([]TransferRecord, error) {
 	return records, err
 }
 
+func (s *Store) GetTransferRecordByID(id int) (*TransferRecord, error) {
+	var record TransferRecord
+	query := `SELECT id, season_id, fid, COALESCE(direction, '') AS direction, nickname, furnace_level, power, COALESCE(source_state, '') AS source_state, target_alliance_id, COALESCE(invite_type, '') AS invite_type, status, created_at, updated_at, COALESCE(avatar, '') AS avatar, COALESCE(furnace_image, '') AS furnace_image FROM transfer_records WHERE id = ?`
+	err := s.db.Get(&record, query, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &record, nil
+}
+
 func (s *Store) UpdateTransferRecord(id int, power int64, targetAllianceID *int, inviteType string, status string) error {
 	query := `UPDATE transfer_records SET power = ?, target_alliance_id = ?, invite_type = ?, status = ? WHERE id = ?`
 	_, err := s.db.Exec(query, power, targetAllianceID, inviteType, status, id)
