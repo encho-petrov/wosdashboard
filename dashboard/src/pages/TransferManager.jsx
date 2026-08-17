@@ -736,6 +736,7 @@ export default function TransferManager() {
                         const isNormal = r.inviteType === 'Normal';
                         const isSpecial = r.inviteType === 'Special';
                         const isOutbound = r.direction === 'Outbound';
+                        const isOverPower = r.power > season.powerCap && !isConfirmed && !isDeclined && r.inviteType !== 'Special';
 
                         return (
                             <div
@@ -765,7 +766,8 @@ export default function TransferManager() {
                                 </div>
 
                                 <div className="flex flex-col items-end gap-1.5">
-                                    <div className="text-yellow-500 font-mono text-[11px] font-bold">
+                                    <div className={`font-mono text-[11px] font-bold flex items-center gap-1 ${isOverPower ? 'text-red-400' : 'text-yellow-500'}`}>
+                                        {isOverPower && <AlertTriangle size={12} className="text-red-500 animate-pulse" />}
                                         {r.power >= 1000000 ? (r.power / 1000000).toFixed(1) + 'M' : r.power.toLocaleString()}
                                     </div>
 
@@ -921,23 +923,31 @@ export default function TransferManager() {
                                     <div className="w-full bg-gray-950 border border-gray-800 rounded-xl p-3 text-xs font-mono text-yellow-600">
                                         {activeMobileRecord.power.toLocaleString()}
                                     </div>
-                                ) : (
-                                    <input
-                                        type="text"
-                                        key={`mobile-${activeMobileRecord.id}-${activeMobileRecord.power}`}
-                                        disabled={!isAdmin || activeMobileRecord.status === 'Confirmed' || activeMobileRecord.status === 'Declined'}
-                                        defaultValue={formatPower(activeMobileRecord.power)}
-                                        onBlur={(e) => {
-                                            const parsed = parsePowerInput(e.target.value);
-                                            if (parsed !== activeMobileRecord.power) {
-                                                void handleUpdateRecord(activeMobileRecord.id, 'power', parsed);
-                                            } else {
-                                                e.target.value = formatPower(activeMobileRecord.power);
-                                            }
-                                        }}
-                                        className="w-full bg-black border border-gray-800 rounded-xl p-3 text-base md:text-xs font-mono text-yellow-500 outline-none focus:border-yellow-500"
-                                    />
-                                )}
+                                ) : (() => {
+                                    const isOverPower = activeMobileRecord.power > season.powerCap && activeMobileRecord.status !== 'Confirmed' && activeMobileRecord.status !== 'Declined' && activeMobileRecord.inviteType !== 'Special';
+                                    return (
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                key={`mobile-${activeMobileRecord.id}-${activeMobileRecord.power}`}
+                                                disabled={!isAdmin || activeMobileRecord.status === 'Confirmed' || activeMobileRecord.status === 'Declined'}
+                                                defaultValue={formatPower(activeMobileRecord.power)}
+                                                onBlur={(e) => {
+                                                    const parsed = parsePowerInput(e.target.value);
+                                                    if (parsed !== activeMobileRecord.power) {
+                                                        void handleUpdateRecord(activeMobileRecord.id, 'power', parsed);
+                                                    } else {
+                                                        e.target.value = formatPower(activeMobileRecord.power);
+                                                    }
+                                                }}
+                                                className={`w-full bg-black border rounded-xl p-3 text-base md:text-xs font-mono outline-none transition-all ${
+                                                    isOverPower ? 'border-red-500 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.2)]' : 'border-gray-800 text-yellow-500 focus:border-yellow-500'
+                                                }`}
+                                            />
+                                            {isOverPower && <AlertTriangle size={16} className="text-red-500 animate-pulse absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />}
+                                        </div>
+                                    );
+                                })()}
                             </div>
 
                             {activeMobileRecord.direction !== 'Outbound' && (
