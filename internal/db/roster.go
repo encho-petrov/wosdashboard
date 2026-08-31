@@ -77,16 +77,16 @@ func (s *Store) GetPlayers(allianceFilter *int) ([]PlayerRow, error) {
 	return players, err
 }
 
-func (s *Store) UpdatePlayerDetails(fid int64, tundraPower int64, normalPower int64, troopType string, battleAvail string, avail0200 bool, avail0700 bool, avail1200 bool, avail1400 bool, avail1900 bool, availPB bool, allianceID *int, fightingAllianceID *int, teamID *int) error {
+func (s *Store) UpdatePlayerDetails(fid int64, nickname string, tundraPower int64, normalPower int64, troopType string, battleAvail string, avail0200 bool, avail0700 bool, avail1200 bool, avail1400 bool, avail1900 bool, availPB bool, allianceID *int, fightingAllianceID *int, teamID *int) error {
 	query := `
         UPDATE players 
-        SET tundra_power = ?, normal_power = ?, troop_type = ?, 
+        SET nickname = ?, tundra_power = ?, normal_power = ?, troop_type = ?, 
             battle_availability = ?, 
             avail_0200 = ?, avail_0700 = ?, avail_1200 = ?, avail_1400 = ?, avail_1900 = ?, avail_PB = ?,
             alliance_id = ?, fighting_alliance_id = ?, team_id = ? 
         WHERE player_id = ?
     `
-	_, err := s.db.Exec(query, tundraPower, normalPower, troopType, battleAvail, avail0200, avail0700, avail1200, avail1400, avail1900, availPB, allianceID, fightingAllianceID, teamID, fid)
+	_, err := s.db.Exec(query, nickname, tundraPower, normalPower, troopType, battleAvail, avail0200, avail0700, avail1200, avail1400, avail1900, availPB, allianceID, fightingAllianceID, teamID, fid)
 	return err
 }
 
