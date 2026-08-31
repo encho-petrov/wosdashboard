@@ -12,7 +12,7 @@ func TestAlliancesSuite(t *testing.T) {
 	store := testStore
 
 	// Seed initial users for foreign key relationships
-	store.db.Exec("INSERT INTO users (id, username, alliance_id) VALUES (1, 'Admin', NULL)")
+	store.db.Exec("INSERT INTO users (id, username, alliance_id) VALUES (1, 'admin', NULL)")
 	store.db.Exec("INSERT INTO users (id, username, alliance_id) VALUES (2, 'TargetUser', NULL)")
 	store.db.Exec("INSERT INTO users (id, username, alliance_id) VALUES (3, 'R4User', 10)")
 

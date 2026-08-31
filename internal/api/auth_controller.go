@@ -535,7 +535,8 @@ func (ac *AuthController) ResetUserSecurity(c *gin.Context) {
 	idParam := c.Param("id")
 	id, _ := strconv.Atoi(idParam)
 
-	if id == 1 {
+	user, err := ac.store.GetUserByID(id)
+	if err == nil && user != nil && user.Username == "admin" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "The master admin account cannot be reset this way."})
 		return
 	}

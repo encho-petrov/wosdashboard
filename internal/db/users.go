@@ -51,6 +51,13 @@ func (s *Store) GetUserByUsername(username string) (*User, error) {
 	return &user, err
 }
 
+func (s *Store) GetUserByID(id int) (*User, error) {
+	var user User
+	query := `SELECT id, username, password_hash, role, mfa_secret, mfa_enabled, alliance_id FROM users WHERE id = ?`
+	err := s.db.Get(&user, query, id)
+	return &user, err
+}
+
 func (s *Store) CreateUser(username, passwordHash, role string, allianceId int) error {
 	var dbAllianceID any
 	if allianceId == 0 {
