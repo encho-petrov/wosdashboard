@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"math"
 	"time"
 )
 
@@ -62,6 +63,10 @@ func (s *Store) GetPendingTransfers(userID int64, allianceID *int) ([]AllianceTr
 	`
 
 	var args []any
+
+	if userID < math.MinInt32 || userID > math.MaxInt32 {
+		return []AllianceTransfer{}, nil
+	}
 
 	user, err := s.GetUserByID(int(userID))
 	isMasterAdmin := err == nil && user != nil && user.Username == "admin"
