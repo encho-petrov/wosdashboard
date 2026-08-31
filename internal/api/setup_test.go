@@ -90,8 +90,8 @@ func resetDB(t *testing.T) {
 		}
 	}
 
-	// Seed the master admin so we don't break the "ID 1" protection checks
-	rawDB.Exec("INSERT INTO users (id, username, role) VALUES (1, 'MasterAdmin', 'admin')")
+	// Seed the master admin so we don't break the admin protection checks
+	rawDB.Exec("INSERT INTO users (id, username, role) VALUES (1, 'admin', 'admin')")
 }
 
 // MockAdminMiddleware bypasses real authentication and acts as a logged-in admin
