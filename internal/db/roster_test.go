@@ -80,7 +80,7 @@ func TestRosterSuite(t *testing.T) {
 		allianceID := 10
 
 		err := store.UpdatePlayerDetails(
-			fid,
+			fid, "UpdatedName",
 			5000, 4000, "Exalted", "Available",
 			true, false, true, false, false, true,
 			&allianceID, nil, nil,

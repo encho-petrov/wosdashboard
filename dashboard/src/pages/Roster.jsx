@@ -352,7 +352,11 @@ export default function Roster() {
                           <img alt="av" src={p.avatar || 'https://via.placeholder.com/40'} className="w-10 h-10 rounded-xl border border-gray-800 bg-black object-cover shadow-inner" />
                         </td>
                         <td className="p-4 min-w-[150px]">
-                          <div className="font-black text-gray-100 tracking-tighter">{p.nickname || "Unknown"}</div>
+                          {isEditing ? (
+                              <input type="text" className="bg-black border border-gray-700 rounded-lg px-2 py-1 w-full text-white font-black tracking-tighter outline-none" value={editForm.nickname || ''} onChange={e => setEditForm({...editForm, nickname: e.target.value})} />
+                          ) : (
+                              <div className="font-black text-gray-100 tracking-tighter">{p.nickname || "Unknown"}</div>
+                          )}
                           <div className="text-[10px] text-gray-600 font-mono tracking-tighter">FID: {p.fid}</div>
                         </td>
                         <td className="p-4 text-center">
@@ -593,7 +597,11 @@ export default function Roster() {
                 <div className="flex items-center gap-4 mb-6 pb-6 border-b border-gray-800">
                   <img src={activeMobilePlayer.avatar || 'https://via.placeholder.com/40'} alt="av" className="w-16 h-16 rounded-full border-2 border-gray-700 shadow-md object-cover bg-black" />
                   <div>
-                    <h3 className="font-black text-white text-lg">{activeMobilePlayer.nickname || "Unknown"}</h3>
+                    {editingId === activeMobilePlayer.fid ? (
+                        <input type="text" className="bg-black border border-gray-700 rounded-lg px-2 py-1 w-full text-white font-black text-lg outline-none" value={editForm.nickname || ''} onChange={e => setEditForm({...editForm, nickname: e.target.value})} />
+                    ) : (
+                        <h3 className="font-black text-white text-lg">{activeMobilePlayer.nickname || "Unknown"}</h3>
+                    )}
                     <p className="text-[10px] text-gray-500 font-mono tracking-widest uppercase">FID: {activeMobilePlayer.fid}</p>
                   </div>
                 </div>

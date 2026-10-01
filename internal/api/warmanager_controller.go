@@ -286,6 +286,7 @@ func (wc *WarController) UpdatePlayer(c *gin.Context) {
 	fid, _ := strconv.ParseInt(c.Param("fid"), 10, 64)
 
 	var input struct {
+		Nickname           string `json:"nickname"`
 		Power              int64  `json:"power"`
 		NormalPower        int64  `json:"normalPower"`
 		TroopType          string `json:"troopType"`
@@ -308,6 +309,7 @@ func (wc *WarController) UpdatePlayer(c *gin.Context) {
 
 	err := wc.store.UpdatePlayerDetails(
 		fid,
+		input.Nickname,
 		input.Power,
 		input.NormalPower,
 		input.TroopType,
