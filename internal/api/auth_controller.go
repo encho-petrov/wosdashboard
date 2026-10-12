@@ -254,6 +254,7 @@ func (ac *AuthController) WebAuthNLoginEnd(c *gin.Context) {
 
 	_, err = auth.WA.FinishLogin(user, *sessionData, c.Request)
 	if err != nil {
+		fmt.Printf("[WebAuthn] FinishLogin verification failed for %s: %v\n", user.Username, err)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Biometric verification failed"})
 		return
 	}
@@ -314,6 +315,7 @@ func (ac *AuthController) WebAuthNLRegisterEnd(c *gin.Context) {
 
 	credential, err := auth.WA.FinishRegistration(user, *sessionData, c.Request)
 	if err != nil {
+		fmt.Printf("[WebAuthn] FinishRegistration verification failed for %s: %v\n", username, err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Registration verification failed"})
 		return
 	}
