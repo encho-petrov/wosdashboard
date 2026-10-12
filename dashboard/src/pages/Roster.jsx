@@ -557,7 +557,7 @@ export default function Roster() {
             </div>
         )}
 
-        {outboundModal.isOpen && isAdmin && (
+        {outboundModal.isOpen && (isAdmin || isMod) && (
             <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
               <div className="bg-gray-800 p-8 rounded-3xl w-full max-w-md border border-gray-700 shadow-2xl">
                 <h3 className="text-xl font-black text-white mb-2 uppercase tracking-tighter flex items-center gap-2">
@@ -689,7 +689,7 @@ export default function Roster() {
                         {isAdmin && (
                             <button onClick={() => { void handleDelete(activeMobilePlayer.fid, activeMobilePlayer.nickname); setSelectedMobilePlayerId(null); }} className="p-3 bg-red-900/20 text-red-400 hover:bg-red-600 hover:text-white rounded-xl border border-red-800/50 transition-all shadow-md"><Trash2 size={18} /></button>
                         )}
-                        {isAdmin && activeSeason?.status === 'Active' && (
+                        {(isAdmin || isMod) && activeSeason?.status === 'Active' && (
                             <button onClick={() => { setOutboundModal({ isOpen: true, player: activeMobilePlayer, destState: '' }); setSelectedMobilePlayerId(null); }} className="p-3 bg-purple-900/20 text-purple-400 hover:bg-purple-600 hover:text-white rounded-xl border border-purple-800/50 transition-all shadow-md"><Archive size={18} /></button>
                         )}
                       </>

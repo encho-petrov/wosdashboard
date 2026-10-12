@@ -35,7 +35,7 @@ func setupTransfersTestRouter(role string, allianceId int) *gin.Engine {
 	r.POST("/transfers/:id/confirm-inbound", ctrl.ConfirmTransfer)
 	r.PUT("/transfers/seasons/:id/status", ctrl.UpdateSeasonStatus)
 	r.GET("/transfers/history", ctrl.GetTransferHistory)
-	r.GET("/transfers/seasons/:id/records", ctrl.GetTransferRecords)
+	r.POST("/transfers/bulk-add", ctrl.AddPlayersForTransfer)
 	r.POST("/transfers/players/:fid/transfer-out", ctrl.ConfirmOutbandTransfer)
 	r.PUT("/transfers/seasons/:id", ctrl.EditTransferSeason)
 
@@ -203,5 +203,87 @@ func TestTransfersController(t *testing.T) {
 		json.Unmarshal(wHist.Body.Bytes(), &history)
 		require.Len(t, history, 1)
 		assert.Equal(t, "Season 5", history[0]["name"])
+	})
+
+	t.Run("Moderator Inbound Operations", func(t *testing.T) {
+		modRouter := setupTransfersTestRouter("moderator", 10)
+		playerRouter := setupTransfersTestRouter("player", 10)
+
+		// Create a new season for moderator testing
+		_, err := rawDB.Exec(`
+			INSERT INTO transfer_seasons (name, power_cap, is_leading, special_invites_available, normal_invites_available, status) 
+			VALUES ('Season Mod', 400000000, false, 2, 30, 'Active')`)
+		require.NoError(t, err)
+
+		var seasonID int
+		rawDB.QueryRow("SELECT id FROM transfer_seasons WHERE name = 'Season Mod'").Scan(&seasonID)
+
+		// 1. Moderator adds candidate
+		addPayload := map[string]any{
+			"seasonId":     seasonID,
+			"fid":          777,
+			"nickname":     "CandidateMod",
+			"furnaceLevel": 30,
+			"sourceState":  "State 100",
+		}
+		addBody, _ := json.Marshal(addPayload)
+		reqAdd, _ := http.NewRequest("POST", "/transfers/bulk-add", bytes.NewBuffer(addBody))
+		wAdd := httptest.NewRecorder()
+		modRouter.ServeHTTP(wAdd, reqAdd)
+		assert.Equal(t, http.StatusOK, wAdd.Code)
+
+		var recordID int
+		rawDB.QueryRow("SELECT id FROM transfer_records WHERE fid = 777").Scan(&recordID)
+
+		// 2. Moderator updates candidate details
+		updPayload := map[string]any{
+			"power":            2500000,
+			"targetAllianceId": 10,
+			"inviteType":       "Normal",
+			"status":           "Pending",
+		}
+		updBody, _ := json.Marshal(updPayload)
+		reqUpd, _ := http.NewRequest("PUT", "/transfers/"+strconv.Itoa(recordID), bytes.NewBuffer(updBody))
+		wUpd := httptest.NewRecorder()
+		modRouter.ServeHTTP(wUpd, reqUpd)
+		assert.Equal(t, http.StatusOK, wUpd.Code)
+
+		// 3. Moderator confirms inbound candidate
+		confPayload := map[string]any{
+			"fid":              777,
+			"nickname":         "CandidateMod",
+			"targetAllianceId": 10,
+			"power":            2500000,
+		}
+		confBody, _ := json.Marshal(confPayload)
+		reqConf, _ := http.NewRequest("POST", "/transfers/"+strconv.Itoa(recordID)+"/confirm-inbound", bytes.NewBuffer(confBody))
+		wConf := httptest.NewRecorder()
+		modRouter.ServeHTTP(wConf, reqConf)
+		assert.Equal(t, http.StatusOK, wConf.Code)
+
+		// Verify player was inserted
+		var pCount int
+		rawDB.QueryRow("SELECT COUNT(*) FROM players WHERE player_id = 777").Scan(&pCount)
+		assert.Equal(t, 1, pCount)
+
+		// 4. Verify Moderator cannot create a season (admin only)
+		seasonPayload := map[string]any{
+			"name":     "Mod Season Unauthorized",
+			"powerCap": 1000,
+			"leading":  false,
+			"specials": 1,
+			"normals":  10,
+		}
+		seasonBody, _ := json.Marshal(seasonPayload)
+		reqSeason, _ := http.NewRequest("POST", "/transfers/seasons", bytes.NewBuffer(seasonBody))
+		wSeason := httptest.NewRecorder()
+		modRouter.ServeHTTP(wSeason, reqSeason)
+		assert.Equal(t, http.StatusForbidden, wSeason.Code)
+
+		// 5. Verify Unauthorized role ('player') cannot add candidates
+		reqPlayerAdd, _ := http.NewRequest("POST", "/transfers/bulk-add", bytes.NewBuffer(addBody))
+		wPlayerAdd := httptest.NewRecorder()
+		playerRouter.ServeHTTP(wPlayerAdd, reqPlayerAdd)
+		assert.Equal(t, http.StatusForbidden, wPlayerAdd.Code)
 	})
 }
