@@ -76,8 +76,9 @@ func (tc *TransfersController) CreateTransferSeason(c *gin.Context) {
 }
 
 func (tc *TransfersController) AddPlayersForTransfer(c *gin.Context) {
-	if c.GetString("role") != "admin" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+	role := c.GetString("role")
+	if role != "admin" && role != "moderator" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Unauthorized"})
 		return
 	}
 
@@ -121,8 +122,9 @@ func (tc *TransfersController) AddPlayersForTransfer(c *gin.Context) {
 }
 
 func (tc *TransfersController) UpdateTransferRecord(c *gin.Context) {
-	if c.GetString("role") != "admin" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+	role := c.GetString("role")
+	if role != "admin" && role != "moderator" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Unauthorized"})
 		return
 	}
 	id, _ := strconv.Atoi(c.Param("id"))
@@ -152,8 +154,9 @@ func (tc *TransfersController) UpdateTransferRecord(c *gin.Context) {
 }
 
 func (tc *TransfersController) ConfirmTransfer(c *gin.Context) {
-	if c.GetString("role") != "admin" {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Admin only"})
+	role := c.GetString("role")
+	if role != "admin" && role != "moderator" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Unauthorized"})
 		return
 	}
 	id, _ := strconv.Atoi(c.Param("id"))

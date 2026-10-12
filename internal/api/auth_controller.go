@@ -16,6 +16,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
+	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/pquerna/otp/totp"
 )
 
@@ -285,7 +286,7 @@ func (ac *AuthController) WebAuthNLRegisterBegin(c *gin.Context) {
 
 	ac.store.LoadWebAuthnCredentials(user)
 
-	options, sessionData, err := auth.WA.BeginRegistration(user)
+	options, sessionData, err := auth.WA.BeginRegistration(user, webauthn.WithExtensions(webauthn.WithExtensionCredProps()))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to begin registration"})
 		return

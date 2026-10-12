@@ -14,6 +14,7 @@ import { parsePowerInput, formatPower } from '../utils/powerUtils';
 export default function TransferManager() {
     const { user } = useAuth();
     const isAdmin = user?.role === 'admin';
+    const canManageInbound = user?.role === 'admin' || user?.role === 'moderator';
 
     const { alliances, refreshGlobalData } = useApp();
 
@@ -143,7 +144,7 @@ export default function TransferManager() {
     };
 
     const handleUpdateRecord = async (id, field, value) => {
-        if (!isAdmin) return;
+        if (!canManageInbound) return;
         const record = records.find(r => r.id === id);
         if (!record) return;
 
@@ -165,7 +166,7 @@ export default function TransferManager() {
     };
 
     const handleToggleInvite = (id, currentType, requestedType) => {
-        if (!isAdmin) return;
+        if (!canManageInbound) return;
         if (currentType === requestedType) requestedType = 'None';
         if (requestedType === 'Normal' && stats.normalUsed >= stats.normalMax) return toast.warning("Normal invite limit reached!");
         if (requestedType === 'Special' && stats.specialUsed >= stats.specialMax) return toast.warning("Special invite limit reached!");
@@ -173,7 +174,7 @@ export default function TransferManager() {
     };
 
     const handleConfirmInbound = async (record) => {
-        if (!isAdmin) return;
+        if (!canManageInbound) return;
         if (season.status !== 'Active') return toast.warning("Cannot confirm transfers during the Planning Phase!");
         if (!record.targetAllianceId) return toast.warning("Select a Target Alliance first!");
 
@@ -226,13 +227,15 @@ export default function TransferManager() {
                         <History size={16} /> History
                     </button>
 
-                    {isAdmin && season && (
+                    {season && (
                         <>
-                            <button onClick={() => setShowAddModal(true)} className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-gray-800 border border-gray-700 hover:bg-gray-700 text-gray-300 hover:text-white rounded-xl font-black text-xs uppercase shadow-lg transition-all">
-                                <Plus size={16} /> Add
-                            </button>
+                            {canManageInbound && (
+                                <button onClick={() => setShowAddModal(true)} className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-gray-800 border border-gray-700 hover:bg-gray-700 text-gray-300 hover:text-white rounded-xl font-black text-xs uppercase shadow-lg transition-all">
+                                    <Plus size={16} /> Add
+                                </button>
+                            )}
 
-                            {season.status === 'Planning' && (
+                            {isAdmin && season.status === 'Planning' && (
                                 <>
                                     <button onClick={() => handleUpdateSeasonStatus('Active')} className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-blue-600/20 border border-blue-800/50 hover:bg-blue-600/40 text-blue-400 rounded-xl font-black text-xs uppercase shadow-lg transition-all">
                                         <Play size={16} /> Open
@@ -243,7 +246,7 @@ export default function TransferManager() {
                                 </>
                             )}
 
-                            {(season.status === 'Planning' || season.status === 'Active') && (
+                            {isAdmin && (season.status === 'Planning' || season.status === 'Active') && (
                                 <button onClick={() => handleUpdateSeasonStatus('Closed')} className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-red-600/20 border border-red-800/50 hover:bg-red-600/40 text-red-400 rounded-xl font-black text-xs uppercase shadow-lg transition-all">
                                     <Archive size={16} /> Close
                                 </button>
@@ -623,7 +626,7 @@ export default function TransferManager() {
                                                 </span>
                                             ) : (
                                                 <select
-                                                    disabled={!isAdmin || isConfirmed || isDeclined}
+                                                    disabled={!canManageInbound || isConfirmed || isDeclined}
                                                     value={r.targetAllianceId || ''}
                                                     onChange={(e) => handleUpdateRecord(r.id, 'targetAllianceId', e.target.value)}
                                                     className="bg-gray-950 border border-gray-800 rounded-xl p-2 text-[10px] font-black tracking-widest text-gray-400 outline-none w-36 disabled:opacity-30 focus:border-blue-500/50 transition-all shadow-inner"
@@ -642,7 +645,7 @@ export default function TransferManager() {
                                                     <input
                                                         type="text"
                                                         key={`desktop-${r.id}-${r.power}`}
-                                                        disabled={!isAdmin || isConfirmed || isDeclined}
+                                                        disabled={!canManageInbound || isConfirmed || isDeclined}
                                                         defaultValue={formatPower(r.power)}
                                                         onBlur={(e) => {
                                                             const parsed = parsePowerInput(e.target.value);
@@ -669,7 +672,7 @@ export default function TransferManager() {
                                                     {['Normal', 'Special'].map((type) => (
                                                         <button
                                                             key={type}
-                                                            disabled={!isAdmin || isConfirmed || isDeclined || (type === 'Normal' && r.power > season.powerCap)}
+                                                            disabled={!canManageInbound || isConfirmed || isDeclined || (type === 'Normal' && r.power > season.powerCap)}
                                                             onClick={() => handleToggleInvite(r.id, r.inviteType, type)}
                                                             className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all disabled:opacity-20 ${
                                                                 r.inviteType === type
@@ -686,7 +689,7 @@ export default function TransferManager() {
 
                                         <td className="p-4 text-right pr-6">
                                             <div className="flex justify-end gap-2">
-                                                {r.status === 'Pending' && isAdmin && !isOutbound ? (
+                                                {r.status === 'Pending' && canManageInbound && !isOutbound ? (
                                                     <>
                                                         <button
                                                             onClick={() => handleConfirmInbound(r)}
@@ -904,7 +907,7 @@ export default function TransferManager() {
                                     </div>
                                 ) : (
                                     <select
-                                        disabled={!isAdmin || activeMobileRecord.status === 'Confirmed' || activeMobileRecord.status === 'Declined'}
+                                        disabled={!canManageInbound || activeMobileRecord.status === 'Confirmed' || activeMobileRecord.status === 'Declined'}
                                         value={activeMobileRecord.targetAllianceId || ''}
                                         onChange={(e) => handleUpdateRecord(activeMobileRecord.id, 'targetAllianceId', e.target.value)}
                                         className="w-full bg-black border border-gray-800 rounded-xl p-3 text-xs font-bold text-gray-300 outline-none focus:border-blue-500"
@@ -930,7 +933,7 @@ export default function TransferManager() {
                                             <input
                                                 type="text"
                                                 key={`mobile-${activeMobileRecord.id}-${activeMobileRecord.power}`}
-                                                disabled={!isAdmin || activeMobileRecord.status === 'Confirmed' || activeMobileRecord.status === 'Declined'}
+                                                disabled={!canManageInbound || activeMobileRecord.status === 'Confirmed' || activeMobileRecord.status === 'Declined'}
                                                 defaultValue={formatPower(activeMobileRecord.power)}
                                                 onBlur={(e) => {
                                                     const parsed = parsePowerInput(e.target.value);
@@ -957,7 +960,7 @@ export default function TransferManager() {
                                         {['Normal', 'Special'].map((type) => (
                                             <button
                                                 key={type}
-                                                disabled={!isAdmin || activeMobileRecord.status === 'Confirmed' || activeMobileRecord.status === 'Declined' || (type === 'Normal' && activeMobileRecord.power > season.powerCap)}
+                                                disabled={!canManageInbound || activeMobileRecord.status === 'Confirmed' || activeMobileRecord.status === 'Declined' || (type === 'Normal' && activeMobileRecord.power > season.powerCap)}
                                                 onClick={() => handleToggleInvite(activeMobileRecord.id, activeMobileRecord.inviteType, type)}
                                                 className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
                                                     activeMobileRecord.inviteType === type
@@ -972,7 +975,7 @@ export default function TransferManager() {
                                 </div>
                             )}
 
-                            {activeMobileRecord.status === 'Pending' && isAdmin && activeMobileRecord.direction === 'Inbound' && (
+                            {activeMobileRecord.status === 'Pending' && canManageInbound && activeMobileRecord.direction === 'Inbound' && (
                                 <div className="pt-4 border-t border-gray-800 flex gap-3">
                                     <button
                                         onClick={() => { void handleConfirmInbound(activeMobileRecord); setSelectedMobileRecordId(null); }}
