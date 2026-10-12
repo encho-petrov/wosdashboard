@@ -86,6 +86,7 @@ func InitWebAuthn(rpDisplayName, rpID, rpOrigin string) error {
 			UserVerification:        protocol.VerificationRequired,
 			ResidentKey:             protocol.ResidentKeyRequirementPreferred,
 		},
+		ExtensionsUnsolicitedOutputPolicy: protocol.UnsolicitedOutputPolicyIgnore,
 	}
 
 	var err error
